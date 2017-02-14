@@ -1,0 +1,19 @@
+# Local
+.idea/
+output/
+data/
+*.png
+*.npy
+*.*~
+*.pyc
+*.h5
+*.txt
+*.zip
+*.pdf
+*.csv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
