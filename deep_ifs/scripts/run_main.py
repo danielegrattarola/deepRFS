@@ -18,6 +18,8 @@
 
     # Build FARF' dataset using SARS' dataset:
         # F = NN[0].features(S)
+        # A = A
+        # R = R
         # F' = NN[0].features(S')
     # Select support features of NN[0] with IFS using FARF' dataset (target = R)
 
@@ -49,14 +51,22 @@
 
     # Update policy with FQI (using support features of all steps), decrease randomicity
 
+from deep_ifs.extraction.NNStack import NNStack
+from deep_ifs.extraction.ConvNet import ConvNet
+from deep_ifs.selection.ifs import IFS
+from deep_ifs.utils.datasets import *
+from deep_ifs.envs.atari import Atari
+from sklearn.ensemble import ExtraTreesRegressor
+
 epsilon = 1.0
 policy = epsilon_FQI(estimator, state_dim, action_dim, discrete_action, epsilon, gamma, horizon)
+env = Atari()
 
 for i in range(iterations):
-    sars = collect_sars(policy)  # State, action, reward, next_state
+    sars = collect_sars(env, policy)  # State, action, reward, next_state
     sars = balance_dataset(sars)  # Either this, or just assign different weights to positive classes in nn.fit
 
-    nn_stack = NNstack()  # To store all neural networks and IFS support
+    nn_stack = NNStack()  # To store all neural networks and IFS support
 
     nn = ConvNet(image_shape, reward_dim)  # Maps frames to reward
     nn.fit(sars.s, sars.r)
@@ -72,7 +82,7 @@ for i in range(iterations):
         previous_support = nn_stack.get_support()
 
         sfadf = build_sfadf(nn_stack, nn, sars)  # State, all features, action, dynamics, all next_features
-        model = ExtraTreeRegressor()
+        model = ExtraTreesRegressor()
         model.fit(sfadf.f, sfadf.d)
 
         sares = build_sares(model, sfadf)  # Res = D - model(F)
