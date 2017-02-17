@@ -50,7 +50,10 @@
             # Break
 
     # Update policy with FQI (using support features of all steps), decrease randomicity
+from ifqi.evaluation.utils import split_data_for_fqi
+from ifqi.models import Regressor, ActionRegressor
 
+from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.selection.ifs import IFS
@@ -58,27 +61,58 @@ from deep_ifs.utils.datasets import *
 from deep_ifs.envs.atari import Atari
 from sklearn.ensemble import ExtraTreesRegressor
 
-epsilon = 1.0
-policy = epsilon_FQI(estimator, state_dim, action_dim, discrete_action, epsilon, gamma, horizon)
-env = Atari()
+# ARGS
+alg_iterations = 100  # Number of algorithm steps to make
+rec_steps = 100  # Number of recursive steps to make
+fqi_iterations = 100  # Number of steps to train FQI
+# END ARGS
 
-for i in range(iterations):
-    sars = collect_sars(env, policy)  # State, action, reward, next_state
+mdp = Atari()
+action_values = mdp.action_space.values
+action_dim = 1
+target_dim = 1  # Initial target is scalar reward
+
+# Action regressor of ExtraTreesRegressor for FQI
+fqi_regressor_params = {'n_estimators': 50,
+                        'criterion': 'mse',
+                        'min_samples_split': 5,
+                        'min_samples_leaf': 2,
+                        'input_scaled': False,
+                        'output_scaled': False,
+                        'n_jobs': -1}
+regressor = Regressor(regressor_class=ExtraTreesRegressor,
+                      **fqi_regressor_params)
+regressor = ActionRegressor(regressor,
+                            discrete_actions=action_values,
+                            tol=0.5,
+                            **fqi_regressor_params)
+# Create FQI model
+fqi_params = {'estimator': regressor,
+              'state_dim': 10,  # Don't care at this step
+              'action_dim': action_dim,
+              'discrete_actions': action_values,
+              'gamma': mdp.gamma,
+              'horizon': fqi_iterations,
+              'verbose': True}
+policy = EpsilonFQI(fqi_params, epsilon=1.0)  # Do not unpack the dict
+
+for i in range(alg_iterations):
+    sars = collect_sars(mdp, policy)  # State, action, reward, next_state
     sars = balance_dataset(sars)  # Either this, or just assign different weights to positive classes in nn.fit
 
-    nn_stack = NNStack()  # To store all neural networks and IFS support
+    nn_stack = NNStack()  # To store all neural networks and IFS supports
 
-    nn = ConvNet(image_shape, reward_dim)  # Maps frames to reward
+    nn = ConvNet(mdp.state_shape, target_dim)  # Maps frames to reward
     nn.fit(sars.s, sars.r)
 
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
-    ifs = IFS(**rfs_params)
-    ifs.fit(split_dataset(farf, feature_dim, action_dim, reward_dim))
+    ifs = IFS(**ifs_params)
+    ifs.fit(split_dataset(farf, feature_dim, action_dim, target_dim))  # Target == reward
     support = ifs.get_support()
 
     nn_stack.add(0, nn, support)
 
-    for j in range(1, depth):
+    for j in range(1, rec_steps):
         previous_support = nn_stack.get_support()
 
         sfadf = build_sfadf(nn_stack, nn, sars)  # State, all features, action, dynamics, all next_features
@@ -103,6 +137,6 @@ for i in range(iterations):
 
     global_farf = build_global_farf(nn_stack, sars)  # All features, action, reward, all next_features
     all_features_dim = nn_stack.get_support_dim()
-    policy.fit_on_dataset(split_dataset_for_fqi(global_farf), all_features_dim)  # Need to pass new dimension of "states" to instantiate new FQI
-    policy.epsilon_step(epsilon_rate)
+    policy.fit_on_dataset(split_data_for_fqi(global_farf), all_features_dim)  # Need to pass new dimension of "states" to instantiate new FQI
+    policy.epsilon_step()
 
