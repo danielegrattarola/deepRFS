@@ -1,58 +1,63 @@
-# Algorithm pseudocode
+"""
+Algorithm pseudocode
 
-# NN[i]: is the i-th neural network and provides the features(S) method that
-#	returns all 512 features produced when state S is given as input to the network
+NN[i]: is the i-th neural network and provides the features(S) method that
+	returns all 512 features produced when state S is given as input to the network
+  and the the s_features(S) method that returns all **selected** features
+  produced when state S is given as input to each network.
 
-# NN_stack: contains all trained neural networks so far, provides the s_features(S)
-# 	method that returns all **selected** features produced when state S is given as
-#	input to each network.
+NN_stack: contains all trained neural networks so far, provides the s_features(S)
+	method that returns all **selected** features produced when state S is given as
+	input to each network.
 
-# Policy = fully random
+Policy = fully random
 
-# Main loop:
+Main loop:
 
-    # Collect SARS' samples with policy
-    # Fix dataset to account for imbalance (proportional to the number of transitions for each reward class)
+    Collect SARS' samples with policy
+    Fix dataset to account for imbalance (proportional to the number of transitions for each reward class)
 
-    # Fit neural network NN[0]: S -> R, using SARS' dataset
+    Fit neural network NN[0]: S -> R, using SARS' dataset
 
-    # Build FARF' dataset using SARS' dataset:
-        # F = NN[0].features(S)
-        # A = A
-        # R = R
-        # F' = NN[0].features(S')
-    # Select support features of NN[0] with IFS using FARF' dataset (target = R)
+    Build FARF' dataset using SARS' dataset:
+        F = NN[0].features(S)
+        A = A
+        R = R
+        F' = NN[0].features(S')
+    Select support features of NN[0] with IFS using FARF' dataset (target = R)
 
-    # For i in range(1, N):
-        # Build SFADF' dataset using SARS' dataset:
-            # S = S
-            # F = NN_stack.s_features(S)
-            # A = A
-            # D = NN[i-1].features(S) - NN[i-1].features(S')
-            # F' = NN_stack.s_features(S')
+    For i in range(1, N):
+        Build SFADF' dataset using SARS' dataset:
+            S = S
+            F = NN_stack.s_features(S)
+            A = A
+            D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
+            F' = NN_stack.s_features(S')
 
-        # Fit model M: F -> D, using SFADF' dataset
+        Fit model M: F -> D, using SFADF' dataset
 
-        # Build SARes dataset from SFADF':
-            # S = S
-            # A = A
-            # Res = D - M(F)
-        # Fit neural network NNi: S -> Res, using SARes dataset
+        Build SARes dataset from SFADF':
+            S = S
+            A = A
+            Res = D - M(F)
+        Fit neural network NNi: S -> Res, using SARes dataset
 
-        # Build new FADF' dataset from SARS' and SFADF':
-            # F = NN_stack.s_features(S) + NN[i].features(S)
-            # A = A
-            # D = SFADF'.D
-            # F' = NN_stack.s_features(S') + NN[i].features(S')
-        # Select support features of NNi with IFS using new FADF' dataset
+        Build new FADF' dataset from SARS' and SFADF':
+            F = NN_stack.s_features(S) + NN[i].features(S)
+            A = A
+            D = SFADF'.D
+            F' = NN_stack.s_features(S') + NN[i].features(S')
+        Select support features of NNi with IFS using new FADF' dataset
 
-        # If (no new feature is selected) or (R2 of D is below a threshold):
-            # Break
+        If (no new feature is selected) or (R2 of D is below a threshold):
+            Break
 
-    # Update policy with FQI (using support features of all steps), decrease randomicity
-from ifqi.evaluation.utils import split_data_for_fqi
+    Update policy with FQI (using support features of all steps), decrease randomicity
+"""
+
+# TODO Documentation for all classes/methods
+
 from ifqi.models import Regressor, ActionRegressor
-
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
@@ -67,11 +72,12 @@ rec_steps = 100  # Number of recursive steps to make
 fqi_iterations = 100  # Number of steps to train FQI
 # END ARGS
 
+nn_stack = NNStack()  # To store all neural networks and IFS supports
+
 mdp = Atari()
 action_values = mdp.action_space.values
-action_dim = 1
-target_dim = 1  # Initial target is scalar reward
 
+# Create epsilon FQI model
 # Action regressor of ExtraTreesRegressor for FQI
 fqi_regressor_params = {'n_estimators': 50,
                         'criterion': 'mse',
@@ -86,10 +92,9 @@ regressor = ActionRegressor(regressor,
                             discrete_actions=action_values,
                             tol=0.5,
                             **fqi_regressor_params)
-# Create FQI model
 fqi_params = {'estimator': regressor,
               'state_dim': 10,  # Don't care at this step
-              'action_dim': action_dim,
+              'action_dim': 1,  # Action is discrete monodimensional
               'discrete_actions': action_values,
               'gamma': mdp.gamma,
               'horizon': fqi_iterations,
@@ -98,45 +103,66 @@ policy = EpsilonFQI(fqi_params, epsilon=1.0)  # Do not unpack the dict
 
 for i in range(alg_iterations):
     sars = collect_sars(mdp, policy)  # State, action, reward, next_state
-    sars = balance_dataset(sars)  # Either this, or just assign different weights to positive classes in nn.fit
+    sars_class_weight = get_class_weights(sars)
 
-    nn_stack = NNStack()  # To store all neural networks and IFS supports
-
-    nn = ConvNet(mdp.state_shape, target_dim)  # Maps frames to reward
+    target_size = 1  # Initial target is the scalar reward
+    nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight)  # Maps frames to reward
     nn.fit(sars.s, sars.r)
 
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
+
+    # TODO Parameters for IFS
     ifs = IFS(**ifs_params)
-    ifs.fit(split_dataset(farf, feature_dim, action_dim, target_dim))  # Target == reward
+    ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+    ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
 
-    nn_stack.add(0, nn, support)
+    nn_stack.add(nn, support)
 
     for j in range(1, rec_steps):
-        previous_support = nn_stack.get_support()
+        prev_support_dim = nn_stack.get_support_dim()
 
-        sfadf = build_sfadf(nn_stack, nn, sars)  # State, all features, action, dynamics, all next_features
+        # TODO Ask Restelli if D are the dynamics of only the selected features
+        # State, all features, action, support dynamics, all next_features
+        sfadf = build_sfadf(nn_stack, nn, support,sars)
+
+        # TODO Parameters for ExtraTreeRegressor
+        # TODO Should this be a neural network, too?
         model = ExtraTreesRegressor()
         model.fit(sfadf.f, sfadf.d)
 
+        # TODO Ask Restelli if D - Model(F) is a literal subtraction
         sares = build_sares(model, sfadf)  # Res = D - model(F)
 
-        nn = ConvNet(image_shape, res_size, support_dim)  # Maps frames to residual dynamics
-        nn.fit(sares.s, sares.res)
+        # TODO Do we need to convert the class weights to sample weights to give the same importance to samples as in the reward case?
+        image_shape = sares.S.head(1)[0].shape
+        target_size = sares.RES.head(1)[0].shape[0]  # Target is the residual support dynamics
+        nn = ConvNet(image_shape, target_size)  # Maps frames to residual support dynamics
+        nn.fit(sares.S, sares.RES)
 
-        fadf = build_fadf(nn_stack, nn, sars, sfadf)  #  All features, action, dynamics, all next_features
-        ifs = IFS(**rfs_params)
-        ifs.fit(split_dataset(fadf, feature_dim, action_dim, dynamics_dim))
+        fadf = build_fadf(nn_stack, nn, sars, sfadf)  # All features, action, dynamics, all next_features
+
+        # TODO Parameters for IFS
+        ifs = IFS(**ifs_params)
+        ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
+        # TODO Preload features for IFS
+        ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
+
+        # TODO Don't add the support like this because ifs will also return all the previously selected features
         support = ifs.get_support()
+        nn_stack.add(nn, support)
 
-        nn_stack.add(j, nn, support)
-
-        if not nn_stack.support_changed(previous_support) or ifs.scores_confidences_ < threshold:
+        # TODO Confidence threshold
+        if nn_stack.get_support_dim() <= prev_support_dim or ifs.scores_confidences_ < threshold:
             print 'Done.'
             break
 
     global_farf = build_global_farf(nn_stack, sars)  # All features, action, reward, all next_features
-    all_features_dim = nn_stack.get_support_dim()
-    policy.fit_on_dataset(split_data_for_fqi(global_farf), all_features_dim)  # Need to pass new dimension of "states" to instantiate new FQI
+
+    # TODO split_dataset_for_fqi
+    sast, r = split_dataset_for_fqi(global_farf)
+    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
+    policy.fit_on_dataset(sast, r, all_features_dim)
     policy.epsilon_step()
 
+    # TODO Policy evaluation
