@@ -36,6 +36,9 @@ class Atari(gym.Env):
     def step(self, action):
         current_state = self.get_state()
         obs, reward, done, info = self.env.step(int(action))
+        # Negative reward at end of episode
+        if done:
+            reward = -1.0 / (1.0 - self.gamma)
         obs = self._preprocess_observation(obs)
         self.env.state = self._get_next_state(current_state, obs)
         return self.get_state(), reward, done, info

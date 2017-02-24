@@ -59,6 +59,7 @@ Main loop:
 
 from ifqi.models import Regressor, ActionRegressor
 from deep_ifs.models.epsilonFQI import EpsilonFQI
+from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.selection.ifs import IFS
@@ -112,6 +113,7 @@ for i in range(alg_iterations):
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
 
     # TODO Parameters for IFS
+    ifs_params = {}
     ifs = IFS(**ifs_params)
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     ifs.fit(ifs_x, ifs_y)
@@ -122,7 +124,6 @@ for i in range(alg_iterations):
     for j in range(1, rec_steps):
         prev_support_dim = nn_stack.get_support_dim()
 
-        # TODO Ask Restelli if D are the dynamics of only the selected features
         # State, all features, action, support dynamics, all next_features
         sfadf = build_sfadf(nn_stack, nn, support,sars)
 
@@ -131,7 +132,6 @@ for i in range(alg_iterations):
         model = ExtraTreesRegressor()
         model.fit(sfadf.f, sfadf.d)
 
-        # TODO Ask Restelli if D - Model(F) is a literal subtraction
         sares = build_sares(model, sfadf)  # Res = D - model(F)
 
         # TODO Do we need to convert the class weights to sample weights to give the same importance to samples as in the reward case?
@@ -143,12 +143,13 @@ for i in range(alg_iterations):
         fadf = build_fadf(nn_stack, nn, sars, sfadf)  # All features, action, dynamics, all next_features
 
         # TODO Parameters for IFS
+        ifs_params = {}
         ifs = IFS(**ifs_params)
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         # TODO Preload features for IFS
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
 
-        # TODO Don't add the support like this because ifs will also return all the previously selected features
+        # TODO Don't add the support like this because IFS will also return all the previously selected features
         support = ifs.get_support()
         nn_stack.add(nn, support)
 
@@ -159,10 +160,10 @@ for i in range(alg_iterations):
 
     global_farf = build_global_farf(nn_stack, sars)  # All features, action, reward, all next_features
 
-    # TODO split_dataset_for_fqi
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
     policy.fit_on_dataset(sast, r, all_features_dim)
     policy.epsilon_step()
 
-    # TODO Policy evaluation
+    evaluate_policy(mdp, policy, nn_stack)
+    # TODO plot/save evaluation results

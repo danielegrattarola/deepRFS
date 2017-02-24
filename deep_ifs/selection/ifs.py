@@ -204,8 +204,6 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
            for hydrological modelling", Water Resources Research, 49(7), 4295-4310, 2013.
     """
 
-    # TODO There was a ravel() to remove in order to deal with multidimensional rewards, but I lost it
-
     def __init__(self, estimator, n_features_step=1,
                  cv=None, scale=True, features_names=None,
                  verbose=0, significance=0.1):
@@ -305,7 +303,9 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
 
             if self.scale:
                 target = StandardScaler().fit_transform(target.reshape(
-                    -1, 1)).ravel()
+                    -1, 1))  # Removed ravel to deal with multi-dimensional target
+                # target = StandardScaler().fit_transform(target.reshape(
+                #     -1, 1)).ravel()
                 # target = MinMaxScaler().fit_transform(target.reshape(
                 #     -1,1)).ravel()
 

@@ -97,6 +97,7 @@ def build_sfadf(nn_stack, nn, support, sars):
         s = datapoint.S
         f = nn_stack.s_features(datapoint.S)
         a = datapoint.A
+        # TODO Ask Restelli if D are the dynamics of only the selected features
         d = nn.s_features(datapoint.S, support) - nn.s_features(datapoint.SS, support)
         ff = nn_stack.s_features(datapoint.SS)
         sfadf.append([s, f, a, d, ff])
@@ -114,6 +115,7 @@ def build_sares(model, sfadf):
     for datapoint in sfadf.itertuples():
         s = datapoint.S
         a = datapoint.A
+        # TODO Ask Restelli if D - Model(F) is a literal subtraction
         res = datapoint.D - model.predict(datapoint.F)
         sares.append([s, a, res])
     sares = np.array(sares)

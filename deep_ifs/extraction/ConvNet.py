@@ -2,18 +2,18 @@ from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
 import numpy as np
-import keras.backend.tensorflow_backend as b
 
 
 class ConvNet:
-    def __init__(self, input_shape, target_size, encoding_dim=512, class_weight=None, load_path=None, logger=None):
-        b.clear_session()  # To avoid memory leaks when instantiating the network in a loop
+    def __init__(self, input_shape, target_size, encoding_dim=512, dropout_prob=0.5,
+                 class_weight=None, sample_weight=None, load_path=None, logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
-        self.encoding_dim = encoding_dim
         self.target_size = target_size
+        self.encoding_dim = encoding_dim
+        self.dropout_prob = dropout_prob
         self.class_weight = class_weight
-        self.dropout_prob = 0.5
+        self.sample_weight = sample_weight
         self.logger = logger
 
         # Build network
@@ -25,8 +25,8 @@ class ConvNet:
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        # TODO change activation to match all possbile outputs (sigmoid if binary, relu if other (?))
-        self.output = Dense(self.target_size, activation='sigmoid')(self.features)
+        self.output = Dense(self.target_size, activation='linear')(self.features)
+        self.output = Dropout(self.dropout_prob)(self.output)
 
         # Models
         self.model = Model(input=self.input, output=self.output)
@@ -34,7 +34,11 @@ class ConvNet:
 
         # Optimization algorithm
         try:
-            self.optimizer = Adam()
+            # TODO Check parametrization for RMSpropGraves
+            self.optimizer = RMSpropGraves(lr=0.00025,
+                                           momentum=0.95,
+                                           squared_momentum=0.95,
+                                           epsilon=0.01)
         except NameError:
             self.optimizer = RMSprop()
 
@@ -50,6 +54,7 @@ class ConvNet:
                 f.write(self.model.to_json())
                 f.close()
 
+    # TODO One output for each action (Ask Restelli: do we need to do this when learning dynamics?) (Maybe change target when creating SARS' dataset)
     def train(self, x, y):
         """
         Trains the model on a batch.
@@ -61,7 +66,7 @@ class ConvNet:
         y = np.array(y)
         x[x < 0.1] = 0
         x[x >= 0.1] = 1
-        return self.model.train_on_batch(x, y, class_weight=self.class_weights)
+        return self.model.train_on_batch(x, y, class_weight=self.class_weight, sample_weight=self.sample_weight)
 
     def predict(self, x):
         """
@@ -104,6 +109,7 @@ class ConvNet:
         Runs the given sample on the model and returns the features of the last dense layer filtered
         by the support mask.
         :param sample: a single sample to encode.
+        :param support: a boolean mask with which to filter the output.
         :return: the encoded batch.
         """
         assert sample.shape == self.input_shape, 'Pass a single image'
