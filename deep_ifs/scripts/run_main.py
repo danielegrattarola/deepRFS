@@ -70,6 +70,8 @@ from sklearn.ensemble import ExtraTreesRegressor
 # ARGS
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 100  # Number of recursive steps to make
+ifs_nb_trees = 50  # Number of trees to use in IFS
+ifs_significance = 0.1  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
 # END ARGS
 
@@ -104,7 +106,7 @@ policy = EpsilonFQI(fqi_params, epsilon=1.0)  # Do not unpack the dict
 
 for i in range(alg_iterations):
     sars = collect_sars(mdp, policy)  # State, action, reward, next_state
-    sars_class_weight = get_class_weights(sars)
+    sars_class_weight = get_class_weight(sars)
 
     target_size = 1  # Initial target is the scalar reward
     nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight)  # Maps frames to reward
@@ -112,8 +114,14 @@ for i in range(alg_iterations):
 
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
 
-    # TODO Parameters for IFS
-    ifs_params = {}
+    ifs_estimator_params = {'n_estimators': ifs_nb_trees,
+                            'n_jobs': -1}
+    ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
+                  'n_features_step': 1,
+                  'cv': None,
+                  'scale': True,
+                  'verbose': 1,
+                  'significance': ifs_significance}
     ifs = IFS(**ifs_params)
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     ifs.fit(ifs_x, ifs_y)
@@ -142,8 +150,7 @@ for i in range(alg_iterations):
 
         fadf = build_fadf(nn_stack, nn, sars, sfadf)  # All features, action, dynamics, all next_features
 
-        # TODO Parameters for IFS
-        ifs_params = {}
+        # TODO Do we need to change parameters for IFS?
         ifs = IFS(**ifs_params)
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         # TODO Preload features for IFS

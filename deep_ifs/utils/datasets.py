@@ -46,7 +46,7 @@ def collect_sars(env, policy, episodes=100, n_jobs=-1):
     return pd.DataFrame(dataset, columns=header)
 
 
-def get_class_weights(sars):
+def get_class_weight(sars):
     # Takes as input a SARS' dataset in pandas format
     # Returns a dictionary with classes (reward values) as keys and weights as values
     # The return value can be passed directly to Keras's class_weight parameter in model.fit
@@ -55,6 +55,11 @@ def get_class_weights(sars):
     weights = compute_class_weight('balanced', classes, y)
     return dict(zip(classes, weights))
 
+
+def get_sample_weight(sars):
+    class_weight = get_class_weight(sars)
+    sample_weight = [class_weight[r] for r in sars.R]
+    return np.array(sample_weight)
 
 def split_dataset_for_ifs(dataset, features='F', target='R'):
     x = np.array(_ for _ in dataset[features])

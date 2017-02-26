@@ -6,7 +6,7 @@ import numpy as np
 
 class ConvNet:
     def __init__(self, input_shape, target_size, encoding_dim=512, dropout_prob=0.5,
-                 class_weight=None, sample_weight=None, load_path=None, logger=None):
+                 class_weight=None, sample_weight=None, binarize=False, load_path=None, logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
@@ -14,6 +14,7 @@ class ConvNet:
         self.dropout_prob = dropout_prob
         self.class_weight = class_weight
         self.sample_weight = sample_weight
+        self.binarize = binarize  # Convert images to 1-bit before feeding them to the network
         self.logger = logger
 
         # Build network
@@ -55,7 +56,7 @@ class ConvNet:
                 f.close()
 
     # TODO One output for each action (Ask Restelli: do we need to do this when learning dynamics?) (Maybe change target when creating SARS' dataset)
-    def train(self, x, y):
+    def fit(self, x, y):
         """
         Trains the model on a batch.
         :param x: batch of samples on which to train.
@@ -64,8 +65,23 @@ class ConvNet:
         """
         x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
         y = np.array(y)
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
+        if self.binarize:
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
+        return self.model.fit(x, y, class_weight=self.class_weight, sample_weight=self.sample_weight)
+
+    def train_on_batch(self, x, y):
+        """
+        Trains the model on a batch.
+        :param x: batch of samples on which to train.
+        :param y: targets for the batch.
+        :return: the metrics of interest as defined in the model (loss, accuracy, etc.)
+        """
+        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
+        y = np.array(y)
+        if self.binarize:
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
         return self.model.train_on_batch(x, y, class_weight=self.class_weight, sample_weight=self.sample_weight)
 
     def predict(self, x):
@@ -76,8 +92,9 @@ class ConvNet:
         """
         # Feed input to the model, return encoded and re-decoded images
         x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
+        if self.binarize:
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
         return self.model.predict_on_batch(x) * 255  # Restore original scale
 
     def test(self, x, y):
@@ -88,8 +105,9 @@ class ConvNet:
         """
         x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
         y = np.array(y)
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
+        if self.binarize:
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
         return self.model.test_on_batch(x, y)
 
     def flat_encode(self, x):
@@ -100,8 +118,9 @@ class ConvNet:
         """
         # Feed input to the model, return encoded images flattened
         x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
+        if self.binarize:
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
         return np.asarray(self.encoder.predict_on_batch(x)).flatten()
 
     def s_features(self, sample, support):
