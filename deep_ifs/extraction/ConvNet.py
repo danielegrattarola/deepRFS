@@ -5,8 +5,9 @@ import numpy as np
 
 
 class ConvNet:
-    def __init__(self, input_shape, target_size, encoding_dim=512, dropout_prob=0.5,
-                 class_weight=None, sample_weight=None, binarize=False, load_path=None, logger=None):
+    def __init__(self, input_shape, target_size, encoding_dim=512,
+                 dropout_prob=0.5, class_weight=None, sample_weight=None,
+                 binarize=False, load_path=None, logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
@@ -14,19 +15,26 @@ class ConvNet:
         self.dropout_prob = dropout_prob
         self.class_weight = class_weight
         self.sample_weight = sample_weight
-        self.binarize = binarize  # Convert images to 1-bit before feeding them to the network
+        self.binarize = binarize  # Convert images to 1-bit color space
         self.logger = logger
 
         # Build network
         self.input = Input(shape=self.input_shape)
 
-        self.hidden = Convolution2D(32, 8, 8, border_mode='valid', activation='relu', subsample=(4, 4), dim_ordering='th')(self.input)
-        self.hidden = Convolution2D(64, 4, 4, border_mode='valid', activation='relu', subsample=(2, 2), dim_ordering='th')(self.hidden)
-        self.hidden = Convolution2D(64, 3, 3, border_mode='valid', activation='relu', subsample=(1, 1), dim_ordering='th')(self.hidden)
+        self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
+                                    activation='relu', subsample=(4, 4),
+                                    dim_ordering='th')(self.input)
+        self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
+                                    activation='relu', subsample=(2, 2),
+                                    dim_ordering='th')(self.hidden)
+        self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
+                                    activation='relu', subsample=(1, 1),
+                                    dim_ordering='th')(self.hidden)
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        self.output = Dense(self.target_size, activation='linear')(self.features)
+        self.output = Dense(self.target_size, activation='linear')(
+            self.features)
         self.output = Dropout(self.dropout_prob)(self.output)
 
         # Models
@@ -35,7 +43,7 @@ class ConvNet:
 
         # Optimization algorithm
         try:
-            # TODO Check parametrization for RMSpropGraves
+            # TODO Ask Carlo: parametrization for RMSpropGraves
             self.optimizer = RMSpropGraves(lr=0.00025,
                                            momentum=0.95,
                                            squared_momentum=0.95,
@@ -47,42 +55,42 @@ class ConvNet:
         if load_path is not None:
             self.load(load_path)
 
-        self.model.compile(optimizer=self.optimizer, loss='mse', metrics=['accuracy'])
+        self.model.compile(optimizer=self.optimizer, loss='mse',
+                           metrics=['accuracy'])
 
-        # Save the architecture
-        if self.logger is not None:
-            with open(self.logger.path + 'architecture.json', 'w') as f:
-                f.write(self.model.to_json())
-                f.close()
-
-    # TODO One output for each action (Ask Restelli: do we need to do this when learning dynamics?) (Maybe change target when creating SARS' dataset)
+    # TODO One output for each action (change target when creating SARS' dataset?)
+    # TODO Ask Restelli: do we need to do the above when learning residual dynamics?
     def fit(self, x, y):
         """
-        Trains the model on a batch.
-        :param x: batch of samples on which to train.
-        :param y: targets for the batch.
-        :return: the metrics of interest as defined in the model (loss, accuracy, etc.)
+        Trains the model on a set of batches.
+        :param x: f samples on which to train.
+        :param y: targets on which to traih.
+        :return: the metrics of interest as defined in the model (loss,
+            accuracy, etc.)
         """
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
+        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         y = np.array(y)
         if self.binarize:
             x[x < 0.1] = 0
             x[x >= 0.1] = 1
-        return self.model.fit(x, y, class_weight=self.class_weight, sample_weight=self.sample_weight)
+        return self.model.fit(x, y, class_weight=self.class_weight,
+                              sample_weight=self.sample_weight)
 
     def train_on_batch(self, x, y):
         """
         Trains the model on a batch.
         :param x: batch of samples on which to train.
         :param y: targets for the batch.
-        :return: the metrics of interest as defined in the model (loss, accuracy, etc.)
+        :return: the metrics of interest as defined in the model (loss,
+            accuracy, etc.)
         """
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
+        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         y = np.array(y)
         if self.binarize:
             x[x < 0.1] = 0
             x[x >= 0.1] = 1
-        return self.model.train_on_batch(x, y, class_weight=self.class_weight, sample_weight=self.sample_weight)
+        return self.model.train_on_batch(x, y, class_weight=self.class_weight,
+                                         sample_weight=self.sample_weight)
 
     def predict(self, x):
         """
@@ -91,7 +99,7 @@ class ConvNet:
         :return: the predictions of the batch.
         """
         # Feed input to the model, return encoded and re-decoded images
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
+        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         if self.binarize:
             x[x < 0.1] = 0
             x[x >= 0.1] = 1
@@ -101,54 +109,68 @@ class ConvNet:
         """
         Tests the model on a batch.
         :param x: batch of samples on which to test.
-        :return: the metrics of interest as defined in the model (loss, accuracy, etc.)
+        :return: the metrics of interest as defined in the model (loss,
+            accuracy, etc.)
         """
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
+        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         y = np.array(y)
         if self.binarize:
             x[x < 0.1] = 0
             x[x >= 0.1] = 1
         return self.model.test_on_batch(x, y)
 
-    def flat_encode(self, x):
+    def features(self, sample):
         """
-        Runs the given images on the model and returns the features of the last dense layer in a 1d array.
-        :param x: a batch of samples to encode.
-        :return: the encoded batch.
+        Runs the given sample on the model and returns the features of the last
+        dense layer in a 1d array.
+        :param sample: a single sample to encode.
+        :return: the encoded sample.
         """
         # Feed input to the model, return encoded images flattened
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
+        sample = np.asarray(sample).astype('float32') / 255  # Normalize in 0-1 range
         if self.binarize:
-            x[x < 0.1] = 0
-            x[x >= 0.1] = 1
-        return np.asarray(self.encoder.predict_on_batch(x)).flatten()
+            sample[sample < 0.1] = 0
+            sample[sample >= 0.1] = 1
+        return np.asarray(self.encoder.predict_on_batch(sample)[0]).flatten()
 
     def s_features(self, sample, support):
         """
-        Runs the given sample on the model and returns the features of the last dense layer filtered
-        by the support mask.
+        Runs the given sample on the model and returns the features of the last
+        dense layer filtered by the support mask.
         :param sample: a single sample to encode.
         :param support: a boolean mask with which to filter the output.
-        :return: the encoded batch.
+        :return: the encoded sample.
         """
         assert sample.shape == self.input_shape, 'Pass a single image'
-        prediction = self.flat_encode(sample)[0]
+        prediction = self.features(sample)[0]
         prediction = prediction[support]  # Keep only support features
         return prediction
 
     def save(self, filename=None, append=''):
         """
-        Saves the model weights to disk (in the run folder if a logger was given, otherwise in the current folder)
+        Saves the model weights to disk (in the run folder if a logger was
+        given, otherwise in the current folder)
         :param filename: custom filename for the hdf5 file.
-        :param append: the model will be saved as model_append.h5 if a value is provided.
+        :param append: the model will be saved as model_append.h5 if a value is
+            provided.
         """
         # Save the DQN weights to disk
         f = ('model%s.h5' % append) if filename is None else filename
+        if not f.endswith('.h5'):
+            f += '.h5'
+        a = 'architecture_' + f.lstrip('.h5') + '.json'
+
         if self.logger is not None:
             self.logger.log('Saving model as %s' % self.logger.path + f)
             self.model.save_weights(self.logger.path + f)
+            with open(self.logger.path + a, 'w') as a_file:
+                a_file.write(self.model.to_json())
+                a_file.close()
         else:
             self.model.save_weights(f)
+            with open(a, 'w') as a_file:
+                a_file.write(self.model.to_json())
+                a_file.close()
 
     def load(self, path):
         """

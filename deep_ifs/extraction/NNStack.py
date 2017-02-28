@@ -16,15 +16,19 @@ class NNStack:
         # returns the selected features of each NN as a single array.
         output = []
         for d in self.stack:
-            prediction = d['model'].flat_encode(state)[0]
+            prediction = d['model'].features(state)[0]
             prediction = prediction[d['support']]  # Keep only support features
             output.extend(prediction)
         return np.array(output)
 
     def get_support_dim(self, index=None):
         # index is used to get the support dim of a specific network
-        return self.support_dim if index is None else self.stack[index]['support'].sum()
+        if index is None:
+            return self.support_dim
+        else:
+            return self.stack[index]['support'].sum()
 
-    # TODO Save NNStack
     def save(self):
-        pass
+        for idx, d in enumerate(self.stack):
+            d['model'].save(filename='network_%d.h5' % idx)  # Save network
+            np.save('support_%d.npy' % idx, d['support'])  # Save support array

@@ -48,8 +48,9 @@ class Atari(gym.Env):
 
     def _preprocess_observation(self, obs):
         image = Image.fromarray(obs, 'RGB').convert('L').resize(self.IMG_SIZE)
-        return np.asarray(image.getdata(), dtype=np.uint8).reshape(image.size[1],
-                                                                   image.size[0])  # Convert to array and return
+        return np.asarray(image.getdata(), dtype=np.uint8).reshape(
+            image.size[1],
+            image.size[0])  # Convert to array and return
 
     def _get_next_state(self, current, obs):
         # Next state is composed by the last 3 images of the previous state and the new observation

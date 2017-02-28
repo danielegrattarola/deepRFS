@@ -41,15 +41,20 @@ def collect_sars(env, policy, episodes=100, n_jobs=-1):
     dataset = Parallel(n_jobs=n_jobs)(
         delayed(episode)(env, policy) for _ in tqdm(xrange(episodes))
     )
-    dataset = np.asarray(flat2list(dataset))  # Each episode is in a list, so the dataset needs to be flattened
+    # Each episode is in a list, so the dataset needs to be flattened
+    dataset = np.asarray(flat2list(dataset))
     header = ['S', 'A', 'R', 'SS']
     return pd.DataFrame(dataset, columns=header)
 
 
 def get_class_weight(sars):
-    # Takes as input a SARS' dataset in pandas format
-    # Returns a dictionary with classes (reward values) as keys and weights as values
-    # The return value can be passed directly to Keras's class_weight parameter in model.fit
+    """
+    Takes as input a SARS' dataset in pandas format.
+    Returns a dictionary with classes (reward values) as keys and weights as
+    values.
+    The return value can be passed directly to Keras's class_weight parameter
+    in model.fit
+    """
     classes = sars.R.unique()
     y = sars.R.as_matrix()
     weights = compute_class_weight('balanced', classes, y)
@@ -60,6 +65,7 @@ def get_sample_weight(sars):
     class_weight = get_class_weight(sars)
     sample_weight = [class_weight[r] for r in sars.R]
     return np.array(sample_weight)
+
 
 def split_dataset_for_ifs(dataset, features='F', target='R'):
     x = np.array(_ for _ in dataset[features])
@@ -80,10 +86,10 @@ def build_farf(nn, sars):
     # F' = NN[0].features(S')
     farf = []
     for datapoint in sars.itertuples():
-        f = nn.flat_encode(datapoint.S)
+        f = nn.features(datapoint.S)
         a = datapoint.A
         r = datapoint.R
-        ff = nn.flat_encode(datapoint.SS)
+        ff = nn.features(datapoint.SS)
         farf.append([f, a, r, ff])
     farf = np.array(farf)
     header = ['F', 'A', 'R', 'FF']
@@ -102,8 +108,9 @@ def build_sfadf(nn_stack, nn, support, sars):
         s = datapoint.S
         f = nn_stack.s_features(datapoint.S)
         a = datapoint.A
-        # TODO Ask Restelli if D are the dynamics of only the selected features
-        d = nn.s_features(datapoint.S, support) - nn.s_features(datapoint.SS, support)
+        # TODO Ask Restelli: are D the dynamics of only the selected features?
+        d = nn.s_features(datapoint.S, support) - nn.s_features(datapoint.SS,
+                                                                support)
         ff = nn_stack.s_features(datapoint.SS)
         sfadf.append([s, f, a, d, ff])
     sfadf = np.array(sfadf)
@@ -120,7 +127,7 @@ def build_sares(model, sfadf):
     for datapoint in sfadf.itertuples():
         s = datapoint.S
         a = datapoint.A
-        # TODO Ask Restelli if D - Model(F) is a literal subtraction
+        # TODO Ask Restelli: is D - Model(F) a literal subtraction?
         res = datapoint.D - model.predict(datapoint.F)
         sares.append([s, a, res])
     sares = np.array(sares)
@@ -136,9 +143,11 @@ def build_fadf(nn_stack, nn, sars, sfadf):
     # F' = NN_stack.s_features(S') + NN[i].features(S')
     faf = []
     for datapoint in sars.itertuples():
-        f = np.append(nn_stack.s_features(datapoint.S), nn.flat_encode(datapoint.S))
+        f = np.append(nn_stack.s_features(datapoint.S),
+                      nn.features(datapoint.S))
         a = datapoint.A
-        ff = np.append(nn_stack.s_features(datapoint.SS), nn.flat_encode(datapoint.SS))
+        ff = np.append(nn_stack.s_features(datapoint.SS),
+                       nn.features(datapoint.SS))
         faf.append([f, a, ff])
     faf = np.array(faf)
     header = ['F', 'A', 'FF']

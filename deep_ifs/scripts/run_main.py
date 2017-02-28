@@ -49,7 +49,7 @@ Main loop:
             F' = NN_stack.s_features(S') + NN[i].features(S')
         Select support features of NNi with IFS using new FADF' dataset
 
-        If (no new feature is selected) or (R2 of D is below a threshold):
+        If (no new feature is selected) or (R2 of added features is below a threshold):
             Break
 
     Update policy with FQI (using support features of all steps), decrease randomicity
@@ -135,14 +135,14 @@ for i in range(alg_iterations):
         # State, all features, action, support dynamics, all next_features
         sfadf = build_sfadf(nn_stack, nn, support,sars)
 
-        # TODO Parameters for ExtraTreeRegressor
-        # TODO Should this be a neural network, too?
-        model = ExtraTreesRegressor()
+        # TODO Ask Restelli: should this be a neural network, too?
+        # TODO Be careful with overfitting (maybe reduce number of trees?)
+        model = ExtraTreesRegressor(n_estimators=50)
         model.fit(sfadf.f, sfadf.d)
 
         sares = build_sares(model, sfadf)  # Res = D - model(F)
 
-        # TODO Do we need to convert the class weights to sample weights to give the same importance to samples as in the reward case?
+        # TODO Ask Restelli: do we need to convert the class weights to sample weights to give the same importance to samples as in the reward case?
         image_shape = sares.S.head(1)[0].shape
         target_size = sares.RES.head(1)[0].shape[0]  # Target is the residual support dynamics
         nn = ConvNet(image_shape, target_size)  # Maps frames to residual support dynamics
@@ -150,17 +150,17 @@ for i in range(alg_iterations):
 
         fadf = build_fadf(nn_stack, nn, sars, sfadf)  # All features, action, dynamics, all next_features
 
-        # TODO Do we need to change parameters for IFS?
+        # TODO Ask Restelli: do we need to change parameters for IFS?
         ifs = IFS(**ifs_params)
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         # TODO Preload features for IFS
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
 
-        # TODO Don't add the support like this because IFS will also return all the previously selected features
+        # TODO Don't add the support like this because IFS will also return the preloaded features
         support = ifs.get_support()
         nn_stack.add(nn, support)
 
-        # TODO Confidence threshold
+        # TODO Ask Pirotta: how to implement confidence threshold
         if nn_stack.get_support_dim() <= prev_support_dim or ifs.scores_confidences_ < threshold:
             print 'Done.'
             break
