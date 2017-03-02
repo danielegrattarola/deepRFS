@@ -24,7 +24,7 @@ def episode(env, policy, video=False):
         next_state, reward, done, info = env.step(action)
 
         # build SARS' tuple
-        ep_output.append([state, action, reward, next_state])
+        ep_output.append([state, action, reward, next_state, done])
 
         # Render environment
         if video:
@@ -43,7 +43,7 @@ def collect_sars(env, policy, episodes=100, n_jobs=-1):
     )
     # Each episode is in a list, so the dataset needs to be flattened
     dataset = np.asarray(flat2list(dataset))
-    header = ['S', 'A', 'R', 'SS']
+    header = ['S', 'A', 'R', 'SS', 'T']
     return pd.DataFrame(dataset, columns=header)
 
 
@@ -68,14 +68,19 @@ def get_sample_weight(sars):
 
 
 def split_dataset_for_ifs(dataset, features='F', target='R'):
-    x = np.array(_ for _ in dataset[features])
-    y = np.array(_ for _ in dataset[target])
+    x = np.array([_ for _ in dataset[features]])
+    y = np.array([_ for _ in dataset[target]])
     return x, y
 
 
-# TODO split_dataset_for_fqi
-def split_dataset_for_fqi(dataset):
-    pass
+def split_dataset_for_fqi(global_farf):
+    f = np.array([_ for _ in global_farf.F])
+    a = global_farf.A.as_matrix()
+    ff = np.array([_ for _ in global_farf.FF])
+    t = global_farf.T.as_matrix()
+    r = np.array([_ for _ in global_farf.R])
+    faft = np.column_stack((f,a,ff,t))
+    return faft, r
 
 
 def build_farf(nn, sars):
@@ -169,7 +174,8 @@ def build_global_farf(nn_stack, sars):
         a = datapoint.A
         r = datapoint.R
         ff = nn_stack.s_features(datapoint.SS)
-        farf.append([f, a, r, ff])
+        t = datapoint.T
+        farf.append([f, a, r, ff, t])
     farf = np.array(farf)
-    header = ['F', 'A', 'R', 'FF']
+    header = ['F', 'A', 'R', 'FF', 'T']
     return pd.DataFrame(farf, columns=header)
