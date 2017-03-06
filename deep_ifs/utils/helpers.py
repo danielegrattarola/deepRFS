@@ -141,3 +141,6 @@ def p_dump(obj, filename):
     :param filename: the filename to which save the object.
     """
     np.save(filename, obj)
+
+def pds_to_npa(pandas_series):
+    return np.array([_ for _ in pandas_series])

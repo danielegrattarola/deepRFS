@@ -68,8 +68,8 @@ def get_sample_weight(sars):
 
 
 def split_dataset_for_ifs(dataset, features='F', target='R'):
-    x = np.array([_ for _ in dataset[features]])
-    y = np.array([_ for _ in dataset[target]])
+    x = pds_to_npa(dataset[features])
+    y = pds_to_npa(dataset[target])
     return x, y
 
 

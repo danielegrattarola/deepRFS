@@ -123,7 +123,7 @@ for i in range(alg_iterations):
     tic('Fitting NN0')
     target_size = 1  # Initial target is the scalar reward
     nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight)  # Maps frames to reward
-    nn.fit(sars.s, sars.r)
+    nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.R))
     toc()
 
     tic('Building FARF dataset for IFS')
@@ -158,7 +158,7 @@ for i in range(alg_iterations):
         # TODO Ask Restelli: should this be a neural network, too?
         tic('Fitting residuals model')
         model = ExtraTreesRegressor(n_estimators=50)  # This should slightly underfit
-        model.fit(sfadf.f, sfadf.d)
+        model.fit(pds_to_npa(sfadf.F), pds_to_npa(sfadf.D))
         toc()
 
         tic('Building SARes dataset')
@@ -170,7 +170,7 @@ for i in range(alg_iterations):
         image_shape = sares.S.head(1)[0].shape
         target_size = sares.RES.head(1)[0].shape[0]  # Target is the residual support dynamics
         nn = ConvNet(image_shape, target_size)  # Maps frames to residual support dynamics
-        nn.fit(sares.S, sares.RES)
+        nn.fit(pds_to_npa(sares.S), pds_to_npa(sares.RES))
         toc()
 
         tic('Building FADF dataset for IFS')

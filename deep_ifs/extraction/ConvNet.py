@@ -67,12 +67,12 @@ class ConvNet:
         :return: the metrics of interest as defined in the model (loss,
             accuracy, etc.)
         """
-        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
-        y = np.array(y)
+        x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        y_train = np.array(y)
         if self.binarize:
-            x[x < 0.1] = 0
-            x[x >= 0.1] = 1
-        return self.model.fit(x, y, class_weight=self.class_weight,
+            x_train[x_train < 0.1] = 0
+            x_train[x_train >= 0.1] = 1
+        return self.model.fit(x_train, y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight)
 
     def train_on_batch(self, x, y):
@@ -83,12 +83,12 @@ class ConvNet:
         :return: the metrics of interest as defined in the model (loss,
             accuracy, etc.)
         """
-        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
-        y = np.array(y)
+        x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        y_train = np.array(y)
         if self.binarize:
-            x[x < 0.1] = 0
-            x[x >= 0.1] = 1
-        return self.model.train_on_batch(x, y, class_weight=self.class_weight,
+            x_train[x_train < 0.1] = 0
+            x_train[x_train >= 0.1] = 1
+        return self.model.train_on_batch(x_train, y_train, class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
 
     def predict(self, x):
@@ -98,11 +98,11 @@ class ConvNet:
         :return: the predictions of the batch.
         """
         # Feed input to the model, return encoded and re-decoded images
-        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         if self.binarize:
-            x[x < 0.1] = 0
-            x[x >= 0.1] = 1
-        return self.model.predict_on_batch(x) * 255  # Restore original scale
+            x_test[x_test < 0.1] = 0
+            x_test[x_test >= 0.1] = 1
+        return self.model.predict_on_batch(x_test) * 255  # Restore original scale
 
     def test(self, x, y):
         """
@@ -111,12 +111,12 @@ class ConvNet:
         :return: the metrics of interest as defined in the model (loss,
             accuracy, etc.)
         """
-        x = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
-        y = np.array(y)
+        x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        y_test = np.array(y)
         if self.binarize:
-            x[x < 0.1] = 0
-            x[x >= 0.1] = 1
-        return self.model.test_on_batch(x, y)
+            x_test[x_test < 0.1] = 0
+            x_test[x_test >= 0.1] = 1
+        return self.model.test_on_batch(x_test, y_test)
 
     def features(self, sample):
         """
