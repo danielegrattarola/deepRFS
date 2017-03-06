@@ -16,8 +16,7 @@ class NNStack:
         # returns the selected features of each NN as a single array.
         output = []
         for d in self.stack:
-            prediction = d['model'].features(state)[0]
-            prediction = prediction[d['support']]  # Keep only support features
+            prediction = d['model'].s_features(state, d['support'])
             output.extend(prediction)
         return np.array(output)
 

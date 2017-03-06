@@ -16,7 +16,7 @@ class Atari(gym.Env):
 
     def __init__(self, name='PongDeterministic-v3'):
         self.IMG_SIZE = (84, 110)
-        self.state_shape = (4, 84, 110)
+        self.state_shape = (4, 110, 84)
         self.gamma = 0.99
 
         self.env = gym.make(name)

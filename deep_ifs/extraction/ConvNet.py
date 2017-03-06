@@ -73,7 +73,7 @@ class ConvNet:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
         return self.model.fit(x_train, y_train, class_weight=self.class_weight,
-                              sample_weight=self.sample_weight)
+                              sample_weight=self.sample_weight, nb_epoch=1)
 
     def train_on_batch(self, x, y):
         """
@@ -118,7 +118,7 @@ class ConvNet:
             x_test[x_test >= 0.1] = 1
         return self.model.test_on_batch(x_test, y_test)
 
-    def features(self, sample):
+    def all_features(self, sample):
         """
         Runs the given sample on the model and returns the features of the last
         dense layer in a 1d array.
@@ -130,7 +130,7 @@ class ConvNet:
         if self.binarize:
             sample[sample < 0.1] = 0
             sample[sample >= 0.1] = 1
-        return np.asarray(self.encoder.predict_on_batch(sample)[0]).flatten()
+        return np.asarray(self.encoder.predict_on_batch(sample)).flatten()
 
     def s_features(self, sample, support):
         """
@@ -140,8 +140,7 @@ class ConvNet:
         :param support: a boolean mask with which to filter the output.
         :return: the encoded sample.
         """
-        assert sample.shape == self.input_shape, 'Pass a single image'
-        prediction = self.features(sample)[0]
+        prediction = self.all_features(sample)
         prediction = prediction[support]  # Keep only support features
         return prediction
 

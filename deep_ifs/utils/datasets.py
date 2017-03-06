@@ -74,11 +74,11 @@ def split_dataset_for_ifs(dataset, features='F', target='R'):
 
 
 def split_dataset_for_fqi(global_farf):
-    f = np.array([_ for _ in global_farf.F])
+    f = pds_to_npa(global_farf.F)
     a = global_farf.A.as_matrix()
-    ff = np.array([_ for _ in global_farf.FF])
+    ff = pds_to_npa(global_farf.FF)
     done = global_farf.DONE.as_matrix()
-    r = np.array([_ for _ in global_farf.R])
+    r = pds_to_npa(global_farf.R)
     faft = np.column_stack((f,a,ff,done))
     return faft, r
 
@@ -91,10 +91,10 @@ def build_farf(nn, sars):
     # F' = NN[0].features(S')
     farf = []
     for datapoint in sars.itertuples():
-        f = nn.features(datapoint.S)
+        f = nn.all_features(np.expand_dims(datapoint.S, 0))
         a = datapoint.A
         r = datapoint.R
-        ff = nn.features(datapoint.SS)
+        ff = nn.all_features(np.expand_dims(datapoint.SS, 0))
         farf.append([f, a, r, ff])
     farf = np.array(farf)
     header = ['F', 'A', 'R', 'FF']
@@ -111,12 +111,12 @@ def build_sfadf(nn_stack, nn, support, sars):
     sfadf = []
     for datapoint in sars.itertuples():
         s = datapoint.S
-        f = nn_stack.s_features(datapoint.S)
+        f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))
         a = datapoint.A
         # TODO Ask Restelli: are D the dynamics of only the selected features?
-        d = nn.s_features(datapoint.S, support) - nn.s_features(datapoint.SS,
-                                                                support)
-        ff = nn_stack.s_features(datapoint.SS)
+        d = nn.s_features(np.expand_dims(datapoint.S, 0), support) - \
+            nn.s_features(np.expand_dims(datapoint.SS, 0), support)
+        ff = nn_stack.s_features(np.expand_dims(datapoint.SS, 0))
         sfadf.append([s, f, a, d, ff])
     sfadf = np.array(sfadf)
     header = ['S', 'F', 'A', 'D', 'FF']
@@ -148,11 +148,11 @@ def build_fadf(nn_stack, nn, sars, sfadf):
     # F' = NN_stack.s_features(S') + NN[i].features(S')
     faf = []
     for datapoint in sars.itertuples():
-        f = np.append(nn_stack.s_features(datapoint.S),
-                      nn.features(datapoint.S))
+        f = np.append(nn_stack.s_features(np.expand_dims(datapoint.S, 0)),
+                      nn.all_features(np.expand_dims(datapoint.S, 0)))
         a = datapoint.A
-        ff = np.append(nn_stack.s_features(datapoint.SS),
-                       nn.features(datapoint.SS))
+        ff = np.append(nn_stack.s_features(np.expand_dims(datapoint.SS, 0)),
+                       nn.all_features(np.expand_dims(datapoint.SS, 0)))
         faf.append([f, a, ff])
     faf = np.array(faf)
     header = ['F', 'A', 'FF']
@@ -170,12 +170,12 @@ def build_global_farf(nn_stack, sars):
     # F' = NN_stack.s_features(S')
     farf = []
     for datapoint in sars.itertuples():
-        f = nn_stack.s_features(datapoint.S)
+        f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))
         a = datapoint.A
         r = datapoint.R
-        ff = nn_stack.s_features(datapoint.SS)
+        ff = nn_stack.s_features(np.expand_dims(datapoint.SS, 0))
         done = datapoint.DONE
-        farf.append([f, a, r, ff, t])
+        farf.append([f, a, r, ff, done])
     farf = np.array(farf)
     header = ['F', 'A', 'R', 'FF', 'DONE']
     return pd.DataFrame(farf, columns=header)
