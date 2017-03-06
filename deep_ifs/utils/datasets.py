@@ -43,7 +43,7 @@ def collect_sars(env, policy, episodes=100, n_jobs=-1):
     )
     # Each episode is in a list, so the dataset needs to be flattened
     dataset = np.asarray(flat2list(dataset))
-    header = ['S', 'A', 'R', 'SS', 'T']
+    header = ['S', 'A', 'R', 'SS', 'DONE']
     return pd.DataFrame(dataset, columns=header)
 
 
@@ -77,9 +77,9 @@ def split_dataset_for_fqi(global_farf):
     f = np.array([_ for _ in global_farf.F])
     a = global_farf.A.as_matrix()
     ff = np.array([_ for _ in global_farf.FF])
-    t = global_farf.T.as_matrix()
+    done = global_farf.DONE.as_matrix()
     r = np.array([_ for _ in global_farf.R])
-    faft = np.column_stack((f,a,ff,t))
+    faft = np.column_stack((f,a,ff,done))
     return faft, r
 
 
@@ -174,8 +174,8 @@ def build_global_farf(nn_stack, sars):
         a = datapoint.A
         r = datapoint.R
         ff = nn_stack.s_features(datapoint.SS)
-        t = datapoint.T
+        done = datapoint.DONE
         farf.append([f, a, r, ff, t])
     farf = np.array(farf)
-    header = ['F', 'A', 'R', 'FF', 'T']
+    header = ['F', 'A', 'R', 'FF', 'DONE']
     return pd.DataFrame(farf, columns=header)

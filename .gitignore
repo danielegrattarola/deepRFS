@@ -11,9 +11,7 @@ data/
 *.zip
 *.pdf
 *.csv
+*.egg-info
 
-# Jupyter Notebook
 .ipynb_checkpoints
-
-# pyenv
 .python-version

@@ -43,7 +43,6 @@ class ConvNet:
 
         # Optimization algorithm
         try:
-            # TODO Ask Carlo: parametrization for RMSpropGraves
             self.optimizer = RMSpropGraves(lr=0.00025,
                                            momentum=0.95,
                                            squared_momentum=0.95,

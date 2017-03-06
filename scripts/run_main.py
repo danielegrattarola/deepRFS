@@ -64,10 +64,12 @@ from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.selection.ifs import IFS
 from deep_ifs.utils.datasets import *
+from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import *
 from deep_ifs.envs.atari import Atari
 from sklearn.ensemble import ExtraTreesRegressor
 
+tic('Initial setup')
 # ARGS
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 100  # Number of recursive steps to make
@@ -76,6 +78,11 @@ ifs_significance = 0.1  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
 confidence_threshold = 0.01  # Threshold for IFS confidence below which to stop algorithm
 # END ARGS
+
+# ADDITIONAL OBJECTS
+logger = Logger(output_folder='../output/')
+evaluation_results = []
+# END ADDITIONAL OBJECTS
 
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 
@@ -105,10 +112,11 @@ fqi_params = {'estimator': regressor,
               'horizon': fqi_iterations,
               'verbose': True}
 policy = EpsilonFQI(fqi_params, epsilon=1.0)  # Do not unpack the dict
+toc()
 
 for i in range(alg_iterations):
     tic('Collecting SARS dataset')
-    sars = collect_sars(mdp, policy)  # State, action, reward, next_state
+    sars = collect_sars(mdp, policy, episodes=1)  # State, action, reward, next_state
     sars_class_weight = get_class_weight(sars)
     toc()
 
@@ -148,9 +156,8 @@ for i in range(alg_iterations):
         toc()
 
         # TODO Ask Restelli: should this be a neural network, too?
-        # TODO Be careful with overfitting (maybe reduce number of trees?)
         tic('Fitting residuals model')
-        model = ExtraTreesRegressor(n_estimators=50)
+        model = ExtraTreesRegressor(n_estimators=50)  # This should slightly underfit
         model.fit(sfadf.f, sfadf.d)
         toc()
 
@@ -200,7 +207,15 @@ for i in range(alg_iterations):
     toc()
 
     tic('Evaluating policy after update')
-    evaluate_policy(mdp, policy, nn_stack)
+    evaluation_metrics = evaluate_policy(mdp, policy, nn_stack)
+    evaluation_results.append(evaluation_metrics)
     toc()
 
-    # TODO plot/save evaluation results
+# Plot evaluation results
+evaluation_results = pd.DataFrame(evaluation_results)
+evaluation_results.plot().get_figure().savefig(logger.path + 'evaluation.png')
+
+# TODO Log run configuration
+
+
+
