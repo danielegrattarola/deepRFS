@@ -137,14 +137,14 @@ for i in range(alg_iterations):
                   'n_features_step': 1,
                   'cv': None,
                   'scale': True,
-                  'verbose': 1,
+                  'verbose': 0,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     ifs.fit(ifs_x, ifs_y)
+    support = ifs.get_support()
     toc()
 
-    support = ifs.get_support()
     nn_stack.add(nn, support)
 
     for j in range(1, rec_steps):

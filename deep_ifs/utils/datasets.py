@@ -133,7 +133,7 @@ def build_sares(model, sfadf):
         s = datapoint.S
         a = datapoint.A
         # TODO Ask Restelli: is D - Model(F) a literal subtraction?
-        res = datapoint.D - model.predict(datapoint.F)
+        res = datapoint.D - model.predict(np.expand_dims(datapoint.F, 0))
         sares.append([s, a, res])
     sares = np.array(sares)
     header = ['S', 'A', 'RES']
