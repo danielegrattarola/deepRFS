@@ -58,7 +58,7 @@ class ConvNet:
                            metrics=['accuracy'])
 
     # TODO One output for each action (change target when creating SARS' dataset?)
-    # TODO Ask Restelli: do we need to do the above when learning residual dynamics?
+    # TODO Ask Restelli: do we need to do the above when learning residual dynamics? (YES, but we will need to implement both approaches with actions as input - for the continuous case)
     def fit(self, x, y):
         """
         Trains the model on a set of batches.

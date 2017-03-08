@@ -113,7 +113,6 @@ def build_sfadf(nn_stack, nn, support, sars):
         s = datapoint.S
         f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))
         a = datapoint.A
-        # TODO Ask Restelli: are D the dynamics of only the selected features?
         d = nn.s_features(np.expand_dims(datapoint.S, 0), support) - \
             nn.s_features(np.expand_dims(datapoint.SS, 0), support)
         ff = nn_stack.s_features(np.expand_dims(datapoint.SS, 0))
@@ -132,7 +131,6 @@ def build_sares(model, sfadf):
     for datapoint in sfadf.itertuples():
         s = datapoint.S
         a = datapoint.A
-        # TODO Ask Restelli: is D - Model(F) a literal subtraction?
         res = datapoint.D - model.predict(np.expand_dims(datapoint.F, 0))
         sares.append([s, a, res])
     sares = np.array(sares)

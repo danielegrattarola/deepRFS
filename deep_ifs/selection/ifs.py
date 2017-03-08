@@ -302,8 +302,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
             old_score = score
 
             if self.scale:
-                target = StandardScaler().fit_transform(target.reshape(
-                    -1, 1))  # Removed ravel to deal with multi-dimensional target
+                target = StandardScaler().fit_transform(target)  # Removed ravel to deal with multi-dimensional target
                 # target = StandardScaler().fit_transform(target.reshape(
                 #     -1, 1)).ravel()
                 # target = MinMaxScaler().fit_transform(target.reshape(

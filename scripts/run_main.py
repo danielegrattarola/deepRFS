@@ -155,7 +155,6 @@ for i in range(alg_iterations):
         sfadf = build_sfadf(nn_stack, nn, support,sars)
         toc()
 
-        # TODO Ask Restelli: should this be a neural network, too?
         tic('Fitting residuals model')
         model = ExtraTreesRegressor(n_estimators=50)  # This should slightly underfit
         model.fit(pds_to_npa(sfadf.F), pds_to_npa(sfadf.D))
@@ -166,7 +165,6 @@ for i in range(alg_iterations):
         toc()
 
         tic('Fitting NN%s' % j)
-        # TODO Ask Restelli: do we need to convert the class weights to sample weights to give the same importance to samples as in the reward case?
         image_shape = sares.S.head(1)[0].shape
         target_size = sares.RES.head(1)[0].shape[0]  # Target is the residual support dynamics
         nn = ConvNet(image_shape, target_size)  # Maps frames to residual support dynamics
@@ -178,7 +176,6 @@ for i in range(alg_iterations):
         toc()
 
         tic('Running IFS with target D')
-        # TODO Ask Restelli: do we need to change parameters for IFS?
         ifs = IFS(**ifs_params)
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         preload_features = range(nn_stack.get_support_dim())
