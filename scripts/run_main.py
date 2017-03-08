@@ -141,6 +141,7 @@ for i in range(alg_iterations):
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+    ifs_y = ifs_y.reshape(-1, 1)
     ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
     toc()
@@ -152,7 +153,7 @@ for i in range(alg_iterations):
 
         tic('Building SFADF dataset for residuals model')
         # State, all features, action, support dynamics, all next_features
-        sfadf = build_sfadf(nn_stack, nn, support,sars)
+        sfadf = build_sfadf(nn_stack, nn, support, sars)
         toc()
 
         tic('Fitting residuals model')
@@ -166,9 +167,15 @@ for i in range(alg_iterations):
 
         tic('Fitting NN%s' % j)
         image_shape = sares.S.head(1)[0].shape
-        target_size = sares.RES.head(1)[0].shape[0]  # Target is the residual support dynamics
+        print sares.RES.head(1)[0].shape
+        print sares.RES.head(1)[0].squeeze().shape
+        raw_input()
+        if sares.RES.head(1)[0].shape != (1,):
+            target_size = sares.RES.head(1)[0].squeeze().shape[0]  # Target is the residual support dynamics
+        else:
+            target_size = sares.RES.head(1)[0].shape[0]
         nn = ConvNet(image_shape, target_size)  # Maps frames to residual support dynamics
-        nn.fit(pds_to_npa(sares.S), pds_to_npa(sares.RES))
+        nn.fit(pds_to_npa(sares.S), pds_to_npa(sares.RES).squeeze())
         toc()
 
         tic('Building FADF dataset for IFS')
@@ -180,15 +187,18 @@ for i in range(alg_iterations):
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         preload_features = range(nn_stack.get_support_dim())
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
-        toc()
-
         # TODO Ask Pirotta: preload_features are returned at the beginning of the support?
         support = ifs.get_support()
         support = support[len(preload_features):]  # Remove already selected features from support
+        toc()
+
         nn_stack.add(nn, support)
 
+        print '# new features', np.array(support).sum()
+        raw_input()
+
         # TODO Ask Pirotta: how to implement confidence threshold
-        if nn_stack.get_support_dim() <= prev_support_dim or ifs.scores_confidences_ < confidence_threshold:
+        if np.array(support).sum() == 0:
             print 'Done.'
             break
 

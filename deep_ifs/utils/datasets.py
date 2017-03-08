@@ -131,7 +131,7 @@ def build_sares(model, sfadf):
     for datapoint in sfadf.itertuples():
         s = datapoint.S
         a = datapoint.A
-        res = datapoint.D - model.predict(np.expand_dims(datapoint.F, 0))
+        res = datapoint.D - model.predict(np.expand_dims(datapoint.F,0))
         sares.append([s, a, res])
     sares = np.array(sares)
     header = ['S', 'A', 'RES']
