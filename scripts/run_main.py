@@ -71,6 +71,8 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
+sars_episodes = 100
+nn_nb_epochs = 30
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
@@ -116,13 +118,14 @@ toc()
 
 for i in range(alg_iterations):
     tic('Collecting SARS dataset')
-    sars = collect_sars(mdp, policy, episodes=1)  # State, action, reward, next_state
+    sars = collect_sars(mdp, policy, episodes=sars_episodes)  # State, action, reward, next_state
     sars_class_weight = get_class_weight(sars)
     toc()
 
     tic('Fitting NN0')
     target_size = 1  # Initial target is the scalar reward
-    nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight)  # Maps frames to reward
+    nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight,
+                 nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.R))
     toc()
 
@@ -189,9 +192,14 @@ for i in range(alg_iterations):
         support = support[len(preload_features):]  # Remove already selected features from support
         toc()
 
+        # print '# new features', np.array(support).sum()
+        # print 'Len preload features', len(preload_features)
+        # print 'Full IFS support', ifs.get_support()
+        # print 'Support', support
+        # raw_input()
+
         nn_stack.add(nn, support)
 
-        print '# new features', np.array(support).sum()
         # TODO Ask Pirotta: how to implement confidence threshold
         if np.array(support).sum() == 0:
             print 'Done.'

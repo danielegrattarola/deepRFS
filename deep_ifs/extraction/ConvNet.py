@@ -5,13 +5,14 @@ import numpy as np
 
 
 class ConvNet:
-    def __init__(self, input_shape, target_size, encoding_dim=512,
+    def __init__(self, input_shape, target_size, encoding_dim=512, nb_epochs=10,
                  dropout_prob=0.5, class_weight=None, sample_weight=None,
                  binarize=False, load_path=None, logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
         self.encoding_dim = encoding_dim
+        self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
         self.class_weight = class_weight
         self.sample_weight = sample_weight
@@ -73,7 +74,8 @@ class ConvNet:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
         return self.model.fit(x_train, y_train, class_weight=self.class_weight,
-                              sample_weight=self.sample_weight, nb_epoch=1)
+                              sample_weight=self.sample_weight,
+                              nb_epoch=self.nb_epochs)
 
     def train_on_batch(self, x, y):
         """
