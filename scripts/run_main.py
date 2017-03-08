@@ -137,7 +137,7 @@ for i in range(alg_iterations):
                   'n_features_step': 1,
                   'cv': None,
                   'scale': True,
-                  'verbose': 0,
+                  'verbose': 1,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
@@ -167,9 +167,6 @@ for i in range(alg_iterations):
 
         tic('Fitting NN%s' % j)
         image_shape = sares.S.head(1)[0].shape
-        print sares.RES.head(1)[0].shape
-        print sares.RES.head(1)[0].squeeze().shape
-        raw_input()
         if sares.RES.head(1)[0].shape != (1,):
             target_size = sares.RES.head(1)[0].squeeze().shape[0]  # Target is the residual support dynamics
         else:
@@ -195,8 +192,6 @@ for i in range(alg_iterations):
         nn_stack.add(nn, support)
 
         print '# new features', np.array(support).sum()
-        raw_input()
-
         # TODO Ask Pirotta: how to implement confidence threshold
         if np.array(support).sum() == 0:
             print 'Done.'
