@@ -28,6 +28,7 @@ else:
     from sklearn.utils import indexable
     from sklearn.externals.joblib import Parallel, delayed
     from sklearn.utils.validation import _num_samples
+    from sklearn.utils import check_array
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import scipy.sparse as sp
 import time
@@ -102,7 +103,8 @@ def my_cross_val_predict(estimator, X, y=None, groups=None, cv=None, n_jobs=1,
         predictions = sp.vstack(predictions, format=predictions[0].format)
     else:
         predictions = np.concatenate(predictions)
-    return predictions[inv_test_indices], scores
+    out_predictions = predictions[inv_test_indices]
+    return out_predictions.reshape(y.shape), scores
 
 
 class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
@@ -244,6 +246,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
              ranking_th=0.005):
         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc', 'coo'],
                          multi_output=True)
+        y = check_array(y, accept_sparse=['csr', 'csc', 'coo'])
         # Initialization
         n_features = X.shape[1]
         features = np.arange(n_features)
