@@ -119,12 +119,13 @@ toc()
 for i in range(alg_iterations):
     tic('Collecting SARS dataset')
     sars = collect_sars(mdp, policy, episodes=sars_episodes)  # State, action, reward, next_state
-    sars_class_weight = get_class_weight(sars)
+    #sars_class_weight = get_class_weight(sars)
+    sars_sample_weight = get_sample_weight(sars)
     toc()
 
     tic('Fitting NN0')
     target_size = mdp.action_space.n  # Initial target is the scalar reward
-    nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight,
+    nn = ConvNet(mdp.state_shape, target_size, sample_weight=sars_sample_weight,
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.A), pds_to_npa(sars.R))
     toc()

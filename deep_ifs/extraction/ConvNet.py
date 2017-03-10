@@ -1,4 +1,3 @@
-from keras.backend import gather
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
@@ -7,7 +6,8 @@ import numpy as np
 
 def gather_layer(args):
     params, indices = args
-    return gather(params[:, 0], indices)
+    params = K.transpose(params)
+    return K.gather(params, indices)
 
 
 class ConvNet:
