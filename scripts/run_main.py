@@ -76,7 +76,7 @@ nn_nb_epochs = 30
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
-ifs_significance = 0.1  # Significance for IFS
+ifs_significance = 0.3  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
 confidence_threshold = 0.01  # Threshold for IFS confidence below which to stop algorithm
 # END ARGS
