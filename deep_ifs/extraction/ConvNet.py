@@ -1,7 +1,13 @@
+from keras.backend import gather
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
 import numpy as np
+
+
+def gather_layer(args):
+    params, indices = args
+    return gather(params, indices)
 
 
 class ConvNet:
@@ -21,6 +27,7 @@ class ConvNet:
 
         # Build network
         self.input = Input(shape=self.input_shape)
+        self.u = Input(shape=(1,), dtype='int32')
 
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
@@ -36,10 +43,10 @@ class ConvNet:
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
         self.output = Dense(self.target_size, activation='linear')(
             self.features)
-        self.output = Dropout(self.dropout_prob)(self.output)
+        self.output_u = Lambda(gather_layer, output_shape=(1,))([self.output, self.u])
 
         # Models
-        self.model = Model(input=self.input, output=self.output)
+        self.model = Model(input=[self.input, self.u], output=self.output_u)
         self.encoder = Model(input=self.input, output=self.features)
 
         # Optimization algorithm
@@ -60,7 +67,7 @@ class ConvNet:
 
     # TODO One output for each action (change target when creating SARS' dataset?)
     # TODO Ask Restelli: do we need to do the above when learning residual dynamics? (YES, but we will need to implement both approaches with actions as input - for the continuous case)
-    def fit(self, x, y):
+    def fit(self, x, u, y):
         """
         Trains the model on a set of batches.
         :param x: f samples on which to train.
@@ -69,15 +76,16 @@ class ConvNet:
             accuracy, etc.)
         """
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        u_train = np.asarray(u)
         y_train = np.array(y)
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
-        return self.model.fit(x_train, y_train, class_weight=self.class_weight,
+        return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
                               nb_epoch=self.nb_epochs)
 
-    def train_on_batch(self, x, y):
+    def train_on_batch(self, x, u, y):
         """
         Trains the model on a batch.
         :param x: batch of samples on which to train.
@@ -86,11 +94,12 @@ class ConvNet:
             accuracy, etc.)
         """
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        u_train = np.asarray(u)
         y_train = np.array(y)
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
-        return self.model.train_on_batch(x_train, y_train, class_weight=self.class_weight,
+        return self.model.train_on_batch([x_train, u_train], y_train, class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
 
     def predict(self, x):

@@ -71,7 +71,7 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-sars_episodes = 100
+sars_episodes = 10
 nn_nb_epochs = 30
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 100  # Number of recursive steps to make
@@ -88,7 +88,7 @@ evaluation_results = []
 
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 
-mdp = Atari()
+mdp = Atari('BreakoutDeterministic-v3')
 action_values = mdp.action_space.values
 
 # Create epsilon FQI model
@@ -126,7 +126,7 @@ for i in range(alg_iterations):
     target_size = 1  # Initial target is the scalar reward
     nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight,
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
-    nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.R))
+    nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.A), pds_to_npa(sars.R))
     toc()
 
     tic('Building FARF dataset for IFS')
