@@ -123,7 +123,7 @@ for i in range(alg_iterations):
     toc()
 
     tic('Fitting NN0')
-    target_size = 1  # Initial target is the scalar reward
+    target_size = mdp.action_space.n  # Initial target is the scalar reward
     nn = ConvNet(mdp.state_shape, target_size, class_weight=sars_class_weight,
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.A), pds_to_npa(sars.R))

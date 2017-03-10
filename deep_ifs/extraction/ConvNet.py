@@ -7,7 +7,7 @@ import numpy as np
 
 def gather_layer(args):
     params, indices = args
-    return gather(params, indices)
+    return gather(params[:, 0], indices)
 
 
 class ConvNet:
@@ -78,6 +78,7 @@ class ConvNet:
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_train = np.asarray(u)
         y_train = np.array(y)
+
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
@@ -102,7 +103,7 @@ class ConvNet:
         return self.model.train_on_batch([x_train, u_train], y_train, class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
 
-    def predict(self, x):
+    def predict(self, x, u):
         """
         Runs the given images through the model and returns the predictions.
         :param x: a batch of samples on which to predict.
@@ -110,10 +111,11 @@ class ConvNet:
         """
         # Feed input to the model, return encoded and re-decoded images
         x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        u_test = np.asarray(u)
         if self.binarize:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
-        return self.model.predict_on_batch(x_test) * 255  # Restore original scale
+        return self.model.predict_on_batch([x_test, u_test]) * 255  # Restore original scale
 
     def test(self, x, y):
         """
