@@ -2,12 +2,15 @@ from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
 import numpy as np
+import tensorflow as tf
 
 
 def gather_layer(args):
     params, indices = args
-    params = K.transpose(params)
-    return K.gather(params, indices)
+    indices_one_hot = tf.one_hot(indices, 6)
+    res = tf.multiply(params, indices_one_hot)
+
+    return tf.reduce_sum(res)
 
 
 class ConvNet:
