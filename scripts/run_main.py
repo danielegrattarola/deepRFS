@@ -71,7 +71,7 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-sars_episodes = 10
+sars_episodes = 100
 nn_nb_epochs = 30
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 1  # Number of recursive steps to make

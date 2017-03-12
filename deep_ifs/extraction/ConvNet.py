@@ -75,7 +75,7 @@ class ConvNet:
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_train = np.asarray(u)
 
-        y_train = self.pre_y.fit_transform(np.array(y))
+        y_train = self.pre_y.fit_transform(np.array(y).reshape(-1, 1))
 
         return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
@@ -93,7 +93,7 @@ class ConvNet:
         u_train = np.asarray(u)
 
         self.pre_y = preprocessing.StandardScaler()
-        y_train = self.pre_y.fit_transform(np.array(y))
+        y_train = self.pre_y.fit_transform(np.array(y).reshape(-1, 1))
 
         return self.model.train_on_batch([x_train, u_train], y_train, class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
