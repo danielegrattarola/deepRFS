@@ -1,15 +1,16 @@
+import numpy as np
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
+from sklearn import preprocessing
+
 from deep_ifs.extraction.GatherLayer import GatherLayer
-import numpy as np
-import tensorflow as tf
 
 
 class ConvNet:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
-                 nb_epochs=10, dropout_prob=0.5, class_weight=None,
-                 sample_weight=None, binarize=False, load_path=None,
+                 nb_epochs=10, dropout_prob=0.5, scaled=True, class_weight=None,
+                 sample_weight=None, load_path=None,
                  logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
@@ -18,9 +19,10 @@ class ConvNet:
         self.encoding_dim = encoding_dim
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
+        if scaled:
+            self.pre_y = preprocessing.StandardScaler()
         self.class_weight = class_weight
         self.sample_weight = sample_weight
-        self.binarize = binarize  # Convert images to 1-bit color space
         self.logger = logger
 
         # Build network
@@ -72,11 +74,9 @@ class ConvNet:
         """
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_train = np.asarray(u)
-        y_train = np.array(y)
 
-        if self.binarize:
-            x_train[x_train < 0.1] = 0
-            x_train[x_train >= 0.1] = 1
+        y_train = self.pre_y.fit_transform(np.array(y))
+
         return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
                               nb_epoch=self.nb_epochs)
@@ -91,10 +91,10 @@ class ConvNet:
         """
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_train = np.asarray(u)
-        y_train = np.array(y)
-        if self.binarize:
-            x_train[x_train < 0.1] = 0
-            x_train[x_train >= 0.1] = 1
+
+        self.pre_y = preprocessing.StandardScaler()
+        y_train = self.pre_y.fit_transform(np.array(y))
+
         return self.model.train_on_batch([x_train, u_train], y_train, class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
 
@@ -107,10 +107,8 @@ class ConvNet:
         # Feed input to the model, return encoded and re-decoded images
         x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_test = np.asarray(u)
-        if self.binarize:
-            x_test[x_test < 0.1] = 0
-            x_test[x_test >= 0.1] = 1
-        return self.model.predict_on_batch([x_test, u_test]) * 255  # Restore original scale
+
+        return self.pre_y.inverse_transform(self.model.predict_on_batch([x_test, u_test]))
 
     def test(self, x, y):
         """
@@ -120,10 +118,8 @@ class ConvNet:
             accuracy, etc.)
         """
         x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
-        y_test = np.array(y)
-        if self.binarize:
-            x_test[x_test < 0.1] = 0
-            x_test[x_test >= 0.1] = 1
+        y_test = self.pre_y.transform(np.array(y))
+
         return self.model.test_on_batch(x_test, y_test)
 
     def all_features(self, sample):
@@ -135,9 +131,7 @@ class ConvNet:
         """
         # Feed input to the model, return encoded images flattened
         sample = np.asarray(sample).astype('float32') / 255  # Normalize in 0-1 range
-        if self.binarize:
-            sample[sample < 0.1] = 0
-            sample[sample >= 0.1] = 1
+
         return np.asarray(self.encoder.predict_on_batch(sample)).flatten()
 
     def s_features(self, sample, support):
