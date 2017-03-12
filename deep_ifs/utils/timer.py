@@ -3,8 +3,8 @@ time_stack = []
 
 def tic(message=None):
     time_stack.append(time())
-    if message is not None:
-        print '\t' * (len(time_stack) - 1) + message
+    if message:
+        print '\t' * (len(time_stack) - 1) + str(message)
 
 def toc(message=None):
     fmt = 'Elapsed: %.2f s'
@@ -12,7 +12,7 @@ def toc(message=None):
     try:
         print '\t' * n_tabs + fmt % (time() - time_stack.pop())
         if message:
-            print '\t' * n_tabs + message
+            print '\t' * n_tabs + str(message)
         print ''
     except IndexError:
-        print "You have to invoke toc() before calling tic()"
+        print "You have to invoke toc() before calling tic()\n"

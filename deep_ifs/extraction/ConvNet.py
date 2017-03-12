@@ -1,25 +1,20 @@
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
+from deep_ifs.extraction.GatherLayer import GatherLayer
 import numpy as np
 import tensorflow as tf
 
 
-def gather_layer(args):
-    params, indices = args
-    indices_one_hot = tf.squeeze(tf.one_hot(indices, 6), 1)
-    res = tf.multiply(params, indices_one_hot)
-
-    return tf.reduce_sum(res, 1)
-
-
 class ConvNet:
-    def __init__(self, input_shape, target_size, encoding_dim=512, nb_epochs=10,
-                 dropout_prob=0.5, class_weight=None, sample_weight=None,
-                 binarize=False, load_path=None, logger=None):
+    def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
+                 nb_epochs=10, dropout_prob=0.5, class_weight=None,
+                 sample_weight=None, binarize=False, load_path=None,
+                 logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
+        self.nb_actions = nb_actions
         self.encoding_dim = encoding_dim
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
@@ -44,9 +39,8 @@ class ConvNet:
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        self.output = Dense(self.target_size, activation='linear')(
-            self.features)
-        self.output_u = Lambda(gather_layer, output_shape=(1,))([self.output, self.u])
+        self.output = Dense(self.target_size * self.nb_actions, activation='linear')(self.features)
+        self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
         # Models
         self.model = Model(input=[self.input, self.u], output=self.output_u)
@@ -68,8 +62,6 @@ class ConvNet:
         self.model.compile(optimizer=self.optimizer, loss='mse',
                            metrics=['accuracy'])
 
-    # TODO One output for each action (change target when creating SARS' dataset?)
-    # TODO Ask Restelli: do we need to do the above when learning residual dynamics? (YES, but we will need to implement both approaches with actions as input - for the continuous case)
     def fit(self, x, u, y):
         """
         Trains the model on a set of batches.

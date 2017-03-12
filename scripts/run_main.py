@@ -74,7 +74,7 @@ tic('Initial setup')
 sars_episodes = 10
 nn_nb_epochs = 30
 alg_iterations = 100  # Number of algorithm steps to make
-rec_steps = 100  # Number of recursive steps to make
+rec_steps = 1  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.3  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
@@ -90,6 +90,7 @@ nn_stack = NNStack()  # To store all neural networks and IFS supports
 
 mdp = Atari('BreakoutDeterministic-v3')
 action_values = mdp.action_space.values
+nb_actions = mdp.action_space.n
 
 # Create epsilon FQI model
 # Action regressor of ExtraTreesRegressor for FQI
@@ -124,8 +125,9 @@ for i in range(alg_iterations):
     toc()
 
     tic('Fitting NN0')
-    target_size = mdp.action_space.n  # Initial target is the scalar reward
-    nn = ConvNet(mdp.state_shape, target_size, sample_weight=sars_sample_weight,
+    target_size = 1  # Initial target is the scalar reward
+    nn = ConvNet(mdp.state_shape, target_size, nb_actions=nb_actions,
+                 sample_weight=sars_sample_weight,
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.A), pds_to_npa(sars.R))
     toc()
@@ -175,7 +177,7 @@ for i in range(alg_iterations):
             target_size = sares.RES.head(1)[0].squeeze().shape[0]  # Target is the residual support dynamics
         else:
             target_size = sares.RES.head(1)[0].shape[0]
-        nn = ConvNet(image_shape, target_size)  # Maps frames to residual support dynamics
+        nn = ConvNet(image_shape, target_size, nb_actions=nb_actions)  # Maps frames to residual support dynamics
         nn.fit(pds_to_npa(sares.S), pds_to_npa(sares.RES).squeeze())
         toc()
 
@@ -220,7 +222,7 @@ for i in range(alg_iterations):
     tic('Evaluating policy after update')
     evaluation_metrics = evaluate_policy(mdp, policy, nn_stack)
     evaluation_results.append(evaluation_metrics)
-    toc()
+    toc(evaluation_results)
 
 # Plot evaluation results
 evaluation_results = pd.DataFrame(evaluation_results)
