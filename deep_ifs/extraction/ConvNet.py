@@ -7,9 +7,10 @@ import tensorflow as tf
 
 def gather_layer(args):
     params, indices = args
-    indices_one_hot = tf.one_hot(indices, 6)
+    indices_one_hot = tf.squeeze(tf.one_hot(indices, 6), 1)
     res = tf.multiply(params, indices_one_hot)
-    return tf.reduce_sum(res)
+
+    return tf.reduce_sum(res, 1)
 
 
 class ConvNet:
