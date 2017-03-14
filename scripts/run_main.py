@@ -157,7 +157,7 @@ for i in range(alg_iterations):
     ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
     nb_new_features = np.array(support).sum()
-    r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / ifs.scores_[0]
+    r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
     toc('IFS - New features: %s; R2 change: %s' % (nb_new_features, r2_change))
 
     # TODO Debug
@@ -204,7 +204,7 @@ for i in range(alg_iterations):
         support = ifs.get_support()
         support = support[len(preload_features):]  # Remove already selected features from support
         nb_new_features = np.array(support).sum()
-        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / ifs.scores_[0]
+        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
         toc('IFS - New features: %s; R2 change: %s' % (nb_new_features, r2_change))
 
         nn_stack.add(nn, support)
