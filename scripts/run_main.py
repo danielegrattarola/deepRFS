@@ -71,14 +71,18 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
+# TODO debug
+debug = False
 sars_episodes = 100
-nn_nb_epochs = 30
+# TODO debug
+nn_nb_epochs = 2 if debug else 50
 alg_iterations = 100  # Number of algorithm steps to make
-rec_steps = 1  # Number of recursive steps to make
+# TODO debug
+rec_steps = 1 if debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.3  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
-confidence_threshold = 0.01  # Threshold for IFS confidence below which to stop algorithm
+r2_change_threshold = 0.005  # Threshold for IFS confidence below which to stop algorithm
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -119,8 +123,8 @@ toc()
 
 for i in range(alg_iterations):
     tic('Collecting SARS dataset')
-    sars = collect_sars(mdp, policy, episodes=sars_episodes)  # State, action, reward, next_state
-    #sars_class_weight = get_class_weight(sars)
+    sars = collect_sars(mdp, policy, episodes=sars_episodes, debug=debug)  # State, action, reward, next_state
+    # sars_class_weight = get_class_weight(sars)
     sars_sample_weight = get_sample_weight(sars)
     toc()
 
@@ -147,14 +151,19 @@ for i in range(alg_iterations):
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+    # If scikit-learn version is < 0.19 this will throw a warning,
+    # keep it like this anyway
     ifs_y = ifs_y.reshape(-1, 1)
     ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
     toc()
 
-    nn_stack.add(nn, support)
+    # TODO Debug
+    if debug:
+        support[2] = True
+        nn_stack.add(nn, support)
 
-    for j in range(1, rec_steps):
+    for j in range(1, rec_steps + 1):
         prev_support_dim = nn_stack.get_support_dim()
 
         tic('Building SFADF dataset for residuals model')
@@ -178,7 +187,7 @@ for i in range(alg_iterations):
         else:
             target_size = sares.RES.head(1)[0].shape[0]
         nn = ConvNet(image_shape, target_size, nb_actions=nb_actions)  # Maps frames to residual support dynamics
-        nn.fit(pds_to_npa(sares.S), pds_to_npa(sares.RES).squeeze())
+        nn.fit(pds_to_npa(sares.S), pds_to_npa(sares.A), pds_to_npa(sares.RES).squeeze())
         toc()
 
         tic('Building FADF dataset for IFS')
@@ -190,21 +199,15 @@ for i in range(alg_iterations):
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         preload_features = range(nn_stack.get_support_dim())
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
-        # TODO Ask Pirotta: preload_features are returned at the beginning of the support?
         support = ifs.get_support()
         support = support[len(preload_features):]  # Remove already selected features from support
-        toc()
-
-        # print '# new features', np.array(support).sum()
-        # print 'Len preload features', len(preload_features)
-        # print 'Full IFS support', ifs.get_support()
-        # print 'Support', support
-        # raw_input()
+        nb_new_features = np.array(support).sum()
+        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / ifs.scores_[0]
+        toc('IFS - New features: %s; R2 change: %s' % (nb_new_features, r2_change))
 
         nn_stack.add(nn, support)
 
-        # TODO Ask Pirotta: how to implement confidence threshold
-        if np.array(support).sum() == 0:
+        if nb_new_features == 0 or r2_change < r2_change_threshold:
             print 'Done.'
             break
 
@@ -215,6 +218,15 @@ for i in range(alg_iterations):
     tic('Updating policy')
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
+    # Need to update ActionRegressor to only use the actions actually in the dataset
+    regressor = Regressor(regressor_class=ExtraTreesRegressor,
+                          **fqi_regressor_params)
+    action_values = pds_to_npa(global_farf.A.unique())
+    regressor = ActionRegressor(regressor,
+                                discrete_actions=action_values,
+                                tol=0.5,
+                                **fqi_regressor_params)
+    policy.fqi_params['estimator'] = regressor
     policy.fit_on_dataset(sast, r, all_features_dim)
     policy.epsilon_step()
     toc()

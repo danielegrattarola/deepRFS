@@ -54,7 +54,7 @@ def _eval(mdp, policy, nn_stack, metric, max_ep_len=np.inf, video=False):
 
     # Get current state
     state = mdp.reset()
-    encoded_state = nn_stack.s_features(state)
+    encoded_state = nn_stack.s_features(np.expand_dims(state,0))
     reward = 0
     done = False
 
@@ -65,7 +65,7 @@ def _eval(mdp, policy, nn_stack, metric, max_ep_len=np.inf, video=False):
         # Select and execute the action, get next state and reward
         action = policy.draw_action(encoded_state, done, evaluation=True)
         next_state, reward, done, info = mdp.step(action)
-        encoded_next_state = nn_stack.s_features(next_state)
+        encoded_next_state = nn_stack.s_features(np.expand_dims(next_state, 0))
 
         # Update figures of merit
         ep_performance += df * reward  # Update performance

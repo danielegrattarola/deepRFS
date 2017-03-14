@@ -36,13 +36,17 @@ def episode(env, policy, video=False):
     return ep_output
 
 
-def collect_sars(env, policy, episodes=100, n_jobs=-1):
+def collect_sars(env, policy, episodes=100, n_jobs=-1, debug=False):
     # Collect episodes in parallel
     dataset = Parallel(n_jobs=n_jobs)(
         delayed(episode)(env, policy) for _ in tqdm(xrange(episodes))
     )
     # Each episode is in a list, so the dataset needs to be flattened
     dataset = np.asarray(flat2list(dataset))
+
+    if debug:
+        dataset = dataset[:6]
+
     header = ['S', 'A', 'R', 'SS', 'DONE']
     return pd.DataFrame(dataset, columns=header)
 

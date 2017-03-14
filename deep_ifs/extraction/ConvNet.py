@@ -76,10 +76,10 @@ class ConvNet:
         u_train = np.asarray(u)
 
         y_train = self.pre_y.fit_transform(np.array(y).reshape(-1, 1))
-
+        y_train = y_train.reshape(len(y), -1)
         return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
-                              nb_epoch=self.nb_epochs)
+                              nb_epoch=self.nb_epochs, validation_split=0.1)
 
     def train_on_batch(self, x, u, y):
         """
