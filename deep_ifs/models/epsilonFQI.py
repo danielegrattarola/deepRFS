@@ -7,6 +7,7 @@ class EpsilonFQI:
         self.epsilon = epsilon
         self.epsilon_rate = epsilon_rate
         self.fqi_params = fqi_params
+        self.initial_actions = self.fqi_params['discrete_actions']
         self.fqi = FQI(**self.fqi_params)
 
     def fit_on_dataset(self, sast, r, state_dim):
@@ -21,7 +22,7 @@ class EpsilonFQI:
             self.epsilon *= epsilon_rate
 
     def draw_action(self, state, absorbing, evaluation=False):
-        if random() <= self.epsilon:
-            return choice(self.fqi_params['discrete_actions'])
+        if not evaluation and random() <= self.epsilon:
+            return choice(self.initial_actions)
         else:
             return self.fqi.draw_action(state, absorbing, evaluation=evaluation)

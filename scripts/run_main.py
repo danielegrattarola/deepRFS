@@ -239,8 +239,9 @@ for i in range(alg_iterations):
     toc(evaluation_results)
 
 # Plot evaluation results
-evaluation_results = pd.DataFrame(evaluation_results)
-evaluation_results.plot().get_figure().savefig(logger.path + 'evaluation.png')
+evaluation_results = pd.DataFrame(evaluation_results,
+                                  columns=['Score', 'Confidence (score)', 'Steps', 'Confidence (steps)'])
+evaluation_results[['Score', 'Steps']].plot().get_figure().savefig(logger.path + 'evaluation.png')
 
 # TODO Log run configuration
 
