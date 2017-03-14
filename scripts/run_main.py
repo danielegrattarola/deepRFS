@@ -156,12 +156,14 @@ for i in range(alg_iterations):
     ifs_y = ifs_y.reshape(-1, 1)
     ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
-    toc()
+    nb_new_features = np.array(support).sum()
+    r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / ifs.scores_[0]
+    toc('IFS - New features: %s; R2 change: %s' % (nb_new_features, r2_change))
 
     # TODO Debug
     if debug:
         support[2] = True
-        nn_stack.add(nn, support)
+    nn_stack.add(nn, support)
 
     for j in range(1, rec_steps + 1):
         prev_support_dim = nn_stack.get_support_dim()
