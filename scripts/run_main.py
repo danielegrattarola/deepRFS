@@ -75,14 +75,14 @@ tic('Initial setup')
 debug = False
 sars_episodes = 100
 # TODO debug
-nn_nb_epochs = 2 if debug else 50
+nn_nb_epochs = 2 if debug else 100
 alg_iterations = 100  # Number of algorithm steps to make
 # TODO debug
 rec_steps = 1 if debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.3  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
-r2_change_threshold = 1.05  # Threshold for IFS confidence below which to stop algorithm
+r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
 # END ARGS
 
 # ADDITIONAL OBJECTS
