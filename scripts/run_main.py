@@ -82,7 +82,7 @@ rec_steps = 1 if debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.3  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
-r2_change_threshold = 0.005  # Threshold for IFS confidence below which to stop algorithm
+r2_change_threshold = 1.05  # Threshold for IFS confidence below which to stop algorithm
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -188,7 +188,8 @@ for i in range(alg_iterations):
             target_size = sares.RES.head(1)[0].squeeze().shape[0]  # Target is the residual support dynamics
         else:
             target_size = sares.RES.head(1)[0].shape[0]
-        nn = ConvNet(image_shape, target_size, nb_actions=nb_actions)  # Maps frames to residual support dynamics
+        nn = ConvNet(image_shape, target_size, nb_actions=nb_actions,
+        			 nb_epochs=nn_nb_epochs)  # Maps frames to residual support dynamics
         nn.fit(pds_to_npa(sares.S), pds_to_npa(sares.A), pds_to_npa(sares.RES).squeeze())
         toc()
 
@@ -211,6 +212,7 @@ for i in range(alg_iterations):
 
         if nb_new_features == 0 or r2_change < r2_change_threshold:
             print 'Done.'
+            print '#' * 50 + '\n'
             break
 
     tic('Building global FARF dataset for FQI')
