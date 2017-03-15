@@ -35,7 +35,7 @@ fqi_params = {'estimator': None,
               'horizon': 1,
               'verbose': True}
 
-sars_episodes = 1
+sars_episodes = 100
 policy = EpsilonFQI(fqi_params, nn_stack, epsilon=1.0)  # Do not unpack the dict
 
 sars = collect_sars(mdp, policy, episodes=sars_episodes)  # State, action, reward, next_state
@@ -44,14 +44,19 @@ sars_sample_weight = get_sample_weight(sars)
 target_size = 1  # Initial target is the scalar reward
 nn = ConvNet(mdp.state_shape, target_size, nb_actions=nb_actions,
              sample_weight=sars_sample_weight,
-             nb_epochs=100)  # Maps frames to reward
+             nb_epochs=0)  # Maps frames to reward
 
-nn = nn.load(args.dataset_dir)
+nn.load(args.dataset_dir)
 s = pds_to_npa(sars.S)
 a = pds_to_npa(sars.A)
 r = pds_to_npa(sars.R)
 
+nn.fit(s, a, r)
 r_hat = nn.predict(s, a)
 
 from matplotlib import pyplot as plt
-plt.plot(r, r_hat)
+plt.subplot(2, 1, 1)
+plt.plot(r)
+plt.subplot(2, 1, 2)
+plt.plot(r_hat)
+plt.show()

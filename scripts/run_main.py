@@ -80,7 +80,7 @@ alg_iterations = 100  # Number of algorithm steps to make
 # TODO debug
 rec_steps = 1 if debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
-ifs_significance = 0.3  # Significance for IFS
+ifs_significance = 0.1  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
 r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
 # END ARGS
@@ -135,6 +135,9 @@ for i in range(alg_iterations):
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(pds_to_npa(sars.S), pds_to_npa(sars.A), pds_to_npa(sars.R))
     toc()
+
+    nn.save('rewNN.h5')
+    exit()
 
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
