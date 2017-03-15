@@ -123,7 +123,7 @@ toc()
 
 for i in range(alg_iterations):
     tic('Collecting SARS dataset')
-    sars = collect_sars(mdp, policy, nn_stack, episodes=sars_episodes, debug=debug)  # State, action, reward, next_state
+    sars = collect_sars(mdp, policy, episodes=sars_episodes, debug=debug)  # State, action, reward, next_state
     # sars_class_weight = get_class_weight(sars)
     sars_sample_weight = get_sample_weight(sars)
     toc()
