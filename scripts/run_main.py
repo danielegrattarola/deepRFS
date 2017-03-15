@@ -237,7 +237,7 @@ for i in range(alg_iterations):
     toc()
 
     tic('Evaluating policy after update')
-    evaluation_metrics = evaluate_policy(mdp, policy, nn_stack)
+    evaluation_metrics = evaluate_policy(mdp, policy)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
 

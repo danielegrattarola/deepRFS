@@ -46,7 +46,7 @@ def evaluate_policy(mdp, policy, nn_stack, metric='cumulative', n_episodes=1,
            steps.mean(), 2 * steps.std() / np.sqrt(n_episodes)
 
 
-def _eval(mdp, policy, nn_stack, metric, max_ep_len=np.inf, video=False):
+def _eval(mdp, policy, metric, max_ep_len=np.inf, video=False):
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
     df = 1.0  # Discount factor
@@ -54,7 +54,6 @@ def _eval(mdp, policy, nn_stack, metric, max_ep_len=np.inf, video=False):
 
     # Get current state
     state = mdp.reset()
-    encoded_state = nn_stack.s_features(np.expand_dims(state,0))
     reward = 0
     done = False
 
@@ -63,9 +62,8 @@ def _eval(mdp, policy, nn_stack, metric, max_ep_len=np.inf, video=False):
         frame_counter += 1
 
         # Select and execute the action, get next state and reward
-        action = policy.draw_action(encoded_state, done, evaluation=True)
+        action = policy.draw_action(state, done, evaluation=True)
         next_state, reward, done, info = mdp.step(action)
-        encoded_next_state = nn_stack.s_features(np.expand_dims(next_state, 0))
 
         # Update figures of merit
         ep_performance += df * reward  # Update performance
@@ -77,7 +75,6 @@ def _eval(mdp, policy, nn_stack, metric, max_ep_len=np.inf, video=False):
 
         # Update state
         state = next_state
-        encoded_state = encoded_next_state
 
     if metric == 'average':
         ep_performance /= frame_counter

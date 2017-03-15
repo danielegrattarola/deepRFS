@@ -36,7 +36,7 @@ def episode(env, policy, video=False):
     return ep_output
 
 
-def collect_sars(env, policy, episodes=100, n_jobs=-1, debug=False):
+def collect_sars(env, policy, episodes=100, n_jobs=1, debug=False):
     # Collect episodes in parallel
     dataset = Parallel(n_jobs=n_jobs)(
         delayed(episode)(env, policy) for _ in tqdm(xrange(episodes))
