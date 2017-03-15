@@ -3,10 +3,11 @@ from random import random, choice
 
 
 class EpsilonFQI:
-    def __init__(self, fqi_params, epsilon=1.0, epsilon_rate=0.99):
+    def __init__(self, fqi_params, nn_stack, epsilon=1.0, epsilon_rate=0.99):
         self.epsilon = epsilon
         self.epsilon_rate = epsilon_rate
         self.fqi_params = fqi_params
+        self.nn_stack = nn_stack
         self.initial_actions = self.fqi_params['discrete_actions']
         self.fqi = FQI(**self.fqi_params)
 
@@ -25,4 +26,6 @@ class EpsilonFQI:
         if not evaluation and random() <= self.epsilon:
             return choice(self.initial_actions)
         else:
-            return self.fqi.draw_action(state, absorbing, evaluation=evaluation)
+            preprocessed_state = self.nn_stack.s_features(state)
+            return self.fqi.draw_action(preprocessed_state, absorbing,
+                                        evaluation=evaluation)

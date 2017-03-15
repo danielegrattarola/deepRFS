@@ -118,12 +118,12 @@ fqi_params = {'estimator': regressor,
               'gamma': mdp.gamma,
               'horizon': fqi_iterations,
               'verbose': True}
-policy = EpsilonFQI(fqi_params, epsilon=1.0)  # Do not unpack the dict
+policy = EpsilonFQI(fqi_params, nn_stack, epsilon=1.0)  # Do not unpack the dict
 toc()
 
 for i in range(alg_iterations):
     tic('Collecting SARS dataset')
-    sars = collect_sars(mdp, policy, episodes=sars_episodes, debug=debug)  # State, action, reward, next_state
+    sars = collect_sars(mdp, policy, nn_stack, episodes=sars_episodes, debug=debug)  # State, action, reward, next_state
     # sars_class_weight = get_class_weight(sars)
     sars_sample_weight = get_sample_weight(sars)
     toc()
@@ -231,6 +231,7 @@ for i in range(alg_iterations):
                                 tol=0.5,
                                 **fqi_regressor_params)
     policy.fqi_params['estimator'] = regressor
+    # TODO if it crashes, update policy.nn_stack here
     policy.fit_on_dataset(sast, r, all_features_dim)
     policy.epsilon_step()
     toc()

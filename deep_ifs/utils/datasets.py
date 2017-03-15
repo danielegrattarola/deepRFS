@@ -44,6 +44,7 @@ def collect_sars(env, policy, episodes=100, n_jobs=-1, debug=False):
     # Each episode is in a list, so the dataset needs to be flattened
     dataset = np.asarray(flat2list(dataset))
 
+    # TODO debug
     if debug:
         dataset = dataset[:6]
 
