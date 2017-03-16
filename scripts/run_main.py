@@ -196,7 +196,7 @@ for i in range(alg_iterations):
         A = pds_to_npa(sares.A)  # Discrete action
         RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
         image_shape = S.shape[1:]
-        target_size = RES.shape[1]
+        target_size = RES.shape[1] if len(RES.shape) > 1 else 1
         nn = ConvNet(image_shape, target_size, nb_actions=nb_actions, nb_epochs=nn_nb_epochs)  # Maps frames to residual dynamics of last NN
         nn.fit(S, A, RES)
         toc()
