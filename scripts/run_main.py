@@ -80,7 +80,7 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.05  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
 r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
-save_nn0 = False  # Save the first network
+save_nn0 = True  # Save the first network
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -140,7 +140,7 @@ for i in range(alg_iterations):
     R = pds_to_npa(sars.R)  # Scalar reward
     nn.fit(S, A, R)
     if save_nn0:
-        nn.save('rewNN0_%s.h5' % i)
+        nn.save(logger.path + 'rewNN0_%s.h5' % i)
     toc()
 
     tic('Building FARF dataset for IFS')
