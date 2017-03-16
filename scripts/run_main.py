@@ -71,8 +71,8 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-debug = False  # TODO debug
-sars_episodes = 100
+debug = True  # TODO debug
+sars_episodes = 10 if debug else 100  # TODO debug
 nn_nb_epochs = 2 if debug else 150  # TODO debug
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 1 if debug else 100  # Number of recursive steps to make # TODO debug
@@ -124,6 +124,9 @@ for i in range(alg_iterations):
     # 4 frames, action, reward, 4 frames
     sars = collect_sars(mdp, policy, episodes=sars_episodes, debug=debug)
     sars_sample_weight = get_sample_weight(sars)
+    S = pds_to_npa(sars.S)  # 4 frames
+    A = pds_to_npa(sars.A)  # Discrete action
+    R = pds_to_npa(sars.R)  # Scalar reward
     toc('Got %s SARS\' samples' % len(sars))
 
     tic('Resetting NN stack')
@@ -135,16 +138,16 @@ for i in range(alg_iterations):
     nn = ConvNet(mdp.state_shape, target_size, nb_actions=nb_actions,
                  sample_weight=sars_sample_weight,
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
-    S = pds_to_npa(sars.S)  # 4 frames
-    A = pds_to_npa(sars.A)  # Discrete action
-    R = pds_to_npa(sars.R)  # Scalar reward
     nn.fit(S, A, R)
     if save_nn0:
-        nn.save(logger.path + 'rewNN0_%s.h5' % i)
+        nn.save('rewNN0_%s.h5' % i)
     toc()
 
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
+    ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+    # If scikit-learn version is < 0.19 this will throw a warning
+    ifs_y = ifs_y.reshape(-1, 1)
     toc()
 
     tic('Running IFS with target R')
@@ -157,9 +160,6 @@ for i in range(alg_iterations):
                   'verbose': 1,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
-    ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
-    # If scikit-learn version is < 0.19 this will throw a warning
-    ifs_y = ifs_y.reshape(-1, 1)
     ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
     got_action = support[-1]
@@ -181,11 +181,12 @@ for i in range(alg_iterations):
         tic('Building SFADF dataset for residuals model')
         # State, features (stack), action, dynamics (nn), features (stack)
         sfadf = build_sfadf(nn_stack, nn, support, sars)
+        F = pds_to_npa(sfadf.F)  # All features from NN stack
+        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
+        log('Mean dynamic values %s' % np.mean(D, axis=0))
         toc()
 
         tic('Fitting residuals model')
-        F = pds_to_npa(sfadf.F)  # All features from NN stack
-        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
         max_depth = F.shape[1]
         model = ExtraTreesRegressor(n_estimators=50, max_depth=max_depth)  # This should not overfit
         model.fit(F, D)
@@ -194,12 +195,13 @@ for i in range(alg_iterations):
         tic('Building SARes dataset')
         # Frames, action, residual dynamics of last NN (Res = D - model(F))
         sares = build_sares(model, sfadf)
-        toc()
-
-        tic('Fitting NN%s' % j)
         S = pds_to_npa(sares.S)  # 4 frames
         A = pds_to_npa(sares.A)  # Discrete action
         RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
+        log('Mean residual values %s' % np.mean(RES, axis=0))
+        toc()
+
+        tic('Fitting NN%s' % j)
         image_shape = S.shape[1:]
         target_size = RES.shape[1] if len(RES.shape) > 1 else 1
         nn = ConvNet(image_shape, target_size, nb_actions=nb_actions, nb_epochs=nn_nb_epochs)  # Maps frames to residual dynamics of last NN
@@ -209,11 +211,11 @@ for i in range(alg_iterations):
         tic('Building FADF dataset for IFS')
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
+        ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         toc()
 
         tic('Running IFS with target D')
         ifs = IFS(**ifs_params)
-        ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         preload_features = range(nn_stack.get_support_dim())
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
         support = ifs.get_support()
