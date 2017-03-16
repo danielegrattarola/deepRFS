@@ -3,6 +3,7 @@
 output/
 data/
 *.png
+*.json
 *.npy
 *.*~
 *.pyc

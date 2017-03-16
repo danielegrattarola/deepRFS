@@ -27,6 +27,10 @@ class NNStack:
         else:
             return self.stack[index]['support'].sum()
 
+    def reset(self):
+        self.stack = []
+        self.support_dim = 0
+
     def save(self):
         for idx, d in enumerate(self.stack):
             d['model'].save(filename='network_%d.h5' % idx)  # Save network

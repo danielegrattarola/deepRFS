@@ -2,7 +2,7 @@ from joblib import Parallel, delayed
 import numpy as np
 
 
-def evaluate_policy(mdp, policy, nn_stack, metric='cumulative', n_episodes=1,
+def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     max_ep_len=np.inf, video=False, n_jobs=1):
     """
         This function evaluate a policy on the given environment w.r.t.
@@ -36,7 +36,7 @@ def evaluate_policy(mdp, policy, nn_stack, metric='cumulative', n_episodes=1,
         "Unsupported metric"
     out = Parallel(n_jobs=n_jobs)(
         delayed(_eval)(
-            mdp, policy, nn_stack, metric, max_ep_len=max_ep_len, video=video
+            mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video
         )
         for _ in range(n_episodes)
     )
@@ -46,7 +46,7 @@ def evaluate_policy(mdp, policy, nn_stack, metric='cumulative', n_episodes=1,
            steps.mean(), 2 * steps.std() / np.sqrt(n_episodes)
 
 
-def _eval(mdp, policy, metric, max_ep_len=np.inf, video=False):
+def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False):
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
     df = 1.0  # Discount factor
