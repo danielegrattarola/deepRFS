@@ -6,6 +6,10 @@ def tic(message=None):
     if message:
         print '\t' * (len(time_stack) - 1) + str(message)
 
+def log(message):
+    n_tabs = (len(time_stack) - 1)
+    print '\t' * n_tabs + str(message)
+
 def toc(message=None):
     fmt = 'Elapsed: %.2f s'
     n_tabs = (len(time_stack) - 1)

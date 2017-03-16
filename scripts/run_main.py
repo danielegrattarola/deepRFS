@@ -162,9 +162,14 @@ for i in range(alg_iterations):
     ifs_y = ifs_y.reshape(-1, 1)
     ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
+    got_action = support[-1]
+    support = support[:-1]  # Remove action from support
     nb_new_features = np.array(support).sum()
     r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
-    toc('IFS - New features: %s; R2 change: %s' % (nb_new_features, r2_change))
+    log('IFS - New features: %s' % nb_new_features)
+    log('Action was%s selected' % ('' if got_action else ' NOT'))
+    log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+    toc()
 
     # TODO Debug
     if debug:
@@ -211,10 +216,15 @@ for i in range(alg_iterations):
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         preload_features = range(nn_stack.get_support_dim())
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
-        support = ifs.get_support()[len(preload_features):]  # Remove already selected features from support
+        support = ifs.get_support()
+        got_action = support[-1]
+        support = support[len(preload_features):-1]  # Remove already selected features and action from support
         nb_new_features = np.array(support).sum()
         r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
-        toc('\nIFS - New features: %s; R2 change: %s' % (nb_new_features, r2_change))
+        log('IFS - New features: %s' % nb_new_features)
+        log('Action was%s selected' % ('' if got_action else ' NOT'))
+        log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+        toc()
 
         nn_stack.add(nn, support)
 
