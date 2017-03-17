@@ -140,7 +140,7 @@ for i in range(alg_iterations):
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(S, A, R)
     if save_nn0:
-        nn.save('rewNN0_%s.h5' % i)
+        nn.save('NNLast.h5')
     toc()
 
     tic('Building FARF dataset for IFS')

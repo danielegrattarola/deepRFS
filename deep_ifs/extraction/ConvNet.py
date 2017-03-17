@@ -2,7 +2,7 @@ import numpy as np
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
@@ -31,20 +31,21 @@ class ConvNet:
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
                                     dim_ordering='th')(self.input)
-        self.hidden = BatchNormalization()(self.hidden)
+        #self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
                                     activation='relu', subsample=(2, 2),
                                     dim_ordering='th')(self.hidden)
-        self.hidden = BatchNormalization()(self.hidden)
+        #self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
                                     activation='relu', subsample=(1, 1),
                                     dim_ordering='th')(self.hidden)
-        self.hidden = BatchNormalization()(self.hidden)
+        #self.hidden = BatchNormalization()(self.hidden)
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        self.hidden = BatchNormalization()(self.features)
-        self.output = Dense(self.target_size * self.nb_actions, activation='linear')(self.features)
+        #self.hidden = BatchNormalization()(self.features)
+        from keras import regularizers
+        self.output = Dense(self.target_size * self.nb_actions, activation='linear', activity_regularizer=regularizers.l1(0.05))(self.features)
         self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
         # Models
@@ -53,12 +54,10 @@ class ConvNet:
 
         # Optimization algorithm
         try:
-            '''
             self.optimizer = RMSpropGraves(lr=0.00025,
                                            momentum=0.95,
                                            squared_momentum=0.95,
                                            epsilon=0.01)
-            '''
             self.optimizer = Adam()
         except NameError:
             self.optimizer = RMSprop()
@@ -83,6 +82,7 @@ class ConvNet:
         y_train = np.asarray(y)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
+        mc = ModelCheckpoint('NN.h5', monitor='val_loss', save_best_only=True, save_weights_only=True)
 
         if self.binarize:
             x_train[x_train < 0.1] = 0
@@ -90,7 +90,7 @@ class ConvNet:
         return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
                               nb_epoch=self.nb_epochs, validation_split=0.1,
-                              callbacks=[es])
+                              callbacks=[es, mc])
 
     def train_on_batch(self, x, u, y):
         """
