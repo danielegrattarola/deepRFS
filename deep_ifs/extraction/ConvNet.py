@@ -9,8 +9,8 @@ from deep_ifs.extraction.GatherLayer import GatherLayer
 
 class ConvNet:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
-                 nb_epochs=10, dropout_prob=0.5, scaled=True, class_weight=None,
-                 sample_weight=None, load_path=None,
+                 nb_epochs=10, dropout_prob=0.5, binarize=False,
+                 class_weight=None, sample_weight=None, load_path=None,
                  logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
@@ -19,8 +19,7 @@ class ConvNet:
         self.encoding_dim = encoding_dim
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
-        if scaled:
-            self.pre_y = preprocessing.StandardScaler()
+        self.binarize = binarize
         self.class_weight = class_weight
         self.sample_weight = sample_weight
         self.logger = logger
@@ -32,15 +31,19 @@ class ConvNet:
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
                                     dim_ordering='th')(self.input)
+        self.hidden = BatchNormalization()
         self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
                                     activation='relu', subsample=(2, 2),
                                     dim_ordering='th')(self.hidden)
+        self.hidden = BatchNormalization()
         self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
                                     activation='relu', subsample=(1, 1),
                                     dim_ordering='th')(self.hidden)
+        self.hidden = BatchNormalization()
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
+        self.hidden = BatchNormalization()
         self.output = Dense(self.target_size * self.nb_actions, activation='linear')(self.features)
         self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
@@ -50,10 +53,13 @@ class ConvNet:
 
         # Optimization algorithm
         try:
+            '''
             self.optimizer = RMSpropGraves(lr=0.00025,
                                            momentum=0.95,
                                            squared_momentum=0.95,
                                            epsilon=0.01)
+            '''
+            self.optimizer = Adam()
         except NameError:
             self.optimizer = RMSprop()
 
@@ -74,9 +80,11 @@ class ConvNet:
         """
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_train = np.asarray(u)
+        y_train = np.asarray(y)
 
-        y_train = self.pre_y.fit_transform(np.array(y).reshape(-1, 1))
-        y_train = y_train.reshape(len(y), -1)
+        if self.binarize:
+            x_train[x_train < 0.1] = 0
+            x_train[x_train >= 0.1] = 1
         return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
                               nb_epoch=self.nb_epochs, validation_split=0.1)
@@ -91,9 +99,11 @@ class ConvNet:
         """
         x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_train = np.asarray(u)
+        y_train = np.asarray(y)
 
-        self.pre_y = preprocessing.StandardScaler()
-        y_train = self.pre_y.fit_transform(np.array(y).reshape(-1, 1))
+        if self.binarize:
+            x_train[x_train < 0.1] = 0
+            x_train[x_train >= 0.1] = 1
 
         return self.model.train_on_batch([x_train, u_train], y_train, class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
@@ -108,7 +118,7 @@ class ConvNet:
         x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
         u_test = np.asarray(u)
 
-        return self.pre_y.inverse_transform(self.model.predict_on_batch([x_test, u_test]))
+        return self.model.predict_on_batch([x_test, u_test])
 
     def test(self, x, y):
         """
@@ -118,7 +128,11 @@ class ConvNet:
             accuracy, etc.)
         """
         x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
-        y_test = self.pre_y.transform(np.array(y))
+        y_test = np.asarray(y)
+
+        if self.binarize:
+            x_test[x_test < 0.1] = 0
+            x_test[x_test >= 0.1] = 1
 
         return self.model.test_on_batch(x_test, y_test)
 
