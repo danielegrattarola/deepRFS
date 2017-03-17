@@ -31,19 +31,19 @@ class ConvNet:
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
                                     dim_ordering='th')(self.input)
-        self.hidden = BatchNormalization()
+        self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
                                     activation='relu', subsample=(2, 2),
                                     dim_ordering='th')(self.hidden)
-        self.hidden = BatchNormalization()
+        self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
                                     activation='relu', subsample=(1, 1),
                                     dim_ordering='th')(self.hidden)
-        self.hidden = BatchNormalization()
+        self.hidden = BatchNormalization()(self.hidden)
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        self.hidden = BatchNormalization()
+        self.hidden = BatchNormalization()(self.features)
         self.output = Dense(self.target_size * self.nb_actions, activation='linear')(self.features)
         self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 

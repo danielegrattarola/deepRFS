@@ -71,13 +71,13 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-debug = True  # TODO debug
-sars_episodes = 10 if debug else 100  # TODO debug
-nn_nb_epochs = 2 if debug else 150  # TODO debug
+debug = False  # TODO debug
+sars_episodes = 10 if debug else 200  # TODO debug
+nn_nb_epochs = 2 if debug else 300  # TODO debug
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 1 if debug else 100  # Number of recursive steps to make # TODO debug
 ifs_nb_trees = 50  # Number of trees to use in IFS
-ifs_significance = 0.05  # Significance for IFS
+ifs_significance = 0.01  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
 r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
 save_nn0 = True  # Save the first network
