@@ -2,7 +2,7 @@ import numpy as np
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
-from sklearn import preprocessing
+from keras.callbacks import EarlyStopping
 
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
@@ -74,7 +74,7 @@ class ConvNet:
         """
         Trains the model on a set of batches.
         :param x: f samples on which to train.
-        :param y: targets on which to traih.
+        :param y: targets on which to train.
         :return: the metrics of interest as defined in the model (loss,
             accuracy, etc.)
         """
@@ -82,12 +82,15 @@ class ConvNet:
         u_train = np.asarray(u)
         y_train = np.asarray(y)
 
+        es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
+
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
         return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
-                              nb_epoch=self.nb_epochs, validation_split=0.1)
+                              nb_epoch=self.nb_epochs, validation_split=0.1,
+                              callbacks=[es])
 
     def train_on_batch(self, x, u, y):
         """

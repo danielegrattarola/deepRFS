@@ -7,14 +7,6 @@ from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.utils.helpers import *
 
-
-def atexit_handler():
-    global nn
-    nn.save()
-
-# Register callback to save on exit
-atexit.register(atexit_handler)
-
 # Read arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset-dir', type=str, default='data/', help='')
@@ -35,7 +27,7 @@ fqi_params = {'estimator': None,
               'horizon': 1,
               'verbose': True}
 
-sars_episodes = 100
+sars_episodes = 10
 policy = EpsilonFQI(fqi_params, nn_stack, epsilon=1.0)  # Do not unpack the dict
 
 sars = collect_sars(mdp, policy, episodes=sars_episodes)  # State, action, reward, next_state
@@ -55,8 +47,13 @@ nn.fit(s, a, r)
 r_hat = nn.predict(s, a)
 
 from matplotlib import pyplot as plt
+plt.figure()
 plt.subplot(2, 1, 1)
 plt.plot(r)
 plt.subplot(2, 1, 2)
 plt.plot(r_hat)
+
+plt.figure()
+plt.scatter(r, r_hat)
+
 plt.show()
