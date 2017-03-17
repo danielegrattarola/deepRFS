@@ -80,7 +80,6 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.01  # Significance for IFS
 fqi_iterations = 100  # Number of steps to train FQI
 r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
-save_nn0 = True  # Save the first network
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -139,9 +138,7 @@ for i in range(alg_iterations):
                  sample_weight=sars_sample_weight,
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(S, A, R)
-    if save_nn0:
-        nn.save('NNLast.h5')
-    toc()
+    nn.load('NN.h5')
 
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
@@ -206,6 +203,7 @@ for i in range(alg_iterations):
         target_size = RES.shape[1] if len(RES.shape) > 1 else 1
         nn = ConvNet(image_shape, target_size, nb_actions=nb_actions, nb_epochs=nn_nb_epochs)  # Maps frames to residual dynamics of last NN
         nn.fit(S, A, RES)
+        nn.load('NN.h5')
         toc()
 
         tic('Building FADF dataset for IFS')
