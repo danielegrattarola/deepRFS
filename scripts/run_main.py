@@ -71,7 +71,7 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-debug = False  # TODO debug
+debug = False      # TODO debug
 sars_episodes = 10 if debug else 200  # TODO debug
 nn_nb_epochs = 2 if debug else 300  # TODO debug
 alg_iterations = 100  # Number of algorithm steps to make
@@ -145,6 +145,10 @@ for i in range(alg_iterations):
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     # If scikit-learn version is < 0.19 this will throw a warning
     ifs_y = ifs_y.reshape(-1, 1)
+    mean_feature_values = np.mean(ifs_x[:-1], axis=0)
+    log('Mean state feature values \n%s' % mean_feature_values)
+    log('Non-zero features \n%s' % mean_feature_values[np.nonzero(mean_feature_values)])
+    log('Number of on-zero feature %s: %s' % np.count_nonzero(mean_feature_values))
     toc()
 
     tic('Running IFS with target R')
