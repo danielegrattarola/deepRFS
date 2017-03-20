@@ -20,7 +20,7 @@ def episode(env, policy, video=False):
         frame_counter += 1
 
         # Select and execute the action, get next state and reward
-        action = policy.draw_action(state, done)
+        action = policy.draw_action(np.expand_dims(state, 0), done)
         next_state, reward, done, info = env.step(action)
 
         # build SARS' tuple
