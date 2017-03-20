@@ -27,7 +27,7 @@ fqi_params = {'estimator': None,
               'horizon': 1,
               'verbose': True}
 
-sars_episodes = 10
+sars_episodes = 30
 policy = EpsilonFQI(fqi_params, nn_stack, epsilon=1.0)  # Do not unpack the dict
 
 sars = collect_sars(mdp, policy, episodes=sars_episodes)  # State, action, reward, next_state

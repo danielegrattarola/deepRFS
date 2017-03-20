@@ -62,7 +62,8 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False):
         frame_counter += 1
 
         # Select and execute the action, get next state and reward
-        action = policy.draw_action(state, done, evaluation=True)
+        action = policy.draw_action(np.expand_dims(state, 0), done,
+                                    evaluation=True)
         next_state, reward, done, info = mdp.step(action)
 
         # Update figures of merit
