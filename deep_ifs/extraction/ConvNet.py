@@ -3,13 +3,13 @@ from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import EarlyStopping, ModelCheckpoint
-
+from keras.regularizers import l1
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
 
 class ConvNet:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
-                 nb_epochs=10, dropout_prob=0.5, binarize=False,
+                 nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
                  logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
@@ -19,6 +19,7 @@ class ConvNet:
         self.encoding_dim = encoding_dim
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
+        self.l1_alpha = l1_alpha
         self.binarize = binarize
         self.class_weight = class_weight
         self.sample_weight = sample_weight
@@ -31,21 +32,21 @@ class ConvNet:
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
                                     dim_ordering='th')(self.input)
-        #self.hidden = BatchNormalization()(self.hidden)
+        # self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
                                     activation='relu', subsample=(2, 2),
                                     dim_ordering='th')(self.hidden)
-        #self.hidden = BatchNormalization()(self.hidden)
+        # self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
                                     activation='relu', subsample=(1, 1),
                                     dim_ordering='th')(self.hidden)
-        #self.hidden = BatchNormalization()(self.hidden)
+        # self.hidden = BatchNormalization()(self.hidden)
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        #self.hidden = BatchNormalization()(self.features)
+        # self.hidden = BatchNormalization()(self.features)
         from keras import regularizers
-        self.output = Dense(self.target_size * self.nb_actions, activation='linear', activity_regularizer=regularizers.l1(0.01))(self.features)
+        self.output = Dense(self.target_size * self.nb_actions, activation='linear', activity_regularizer=l1(self.l1_alpha))(self.features)
         self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
         # Models

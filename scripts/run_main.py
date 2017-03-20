@@ -71,7 +71,7 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-debug = False      # TODO debug
+debug = False  # TODO debug
 sars_episodes = 10 if debug else 200  # TODO debug
 nn_nb_epochs = 2 if debug else 300  # TODO debug
 alg_iterations = 100  # Number of algorithm steps to make
@@ -130,25 +130,30 @@ for i in range(alg_iterations):
 
     tic('Resetting NN stack')
     nn_stack.reset()  # Clear the stack after collecting sars' with last policy
-    toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
+    log('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
+    toc()
 
     tic('Fitting NN0')
     target_size = 1  # Initial target is the scalar reward
     nn = ConvNet(mdp.state_shape, target_size, nb_actions=nb_actions,
-                 sample_weight=sars_sample_weight,
+                 l1_alpha=0.01, sample_weight=sars_sample_weight,
                  nb_epochs=nn_nb_epochs)  # Maps frames to reward
     nn.fit(S, A, R)
-    nn.load('NN.h5')
+    nn.load('NN.h5')  # Load best network (saved by callback)
+    toc()
 
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     # If scikit-learn version is < 0.19 this will throw a warning
     ifs_y = ifs_y.reshape(-1, 1)
+    # Print the average value of the features
     mean_feature_values = np.mean(ifs_x[:-1], axis=0)
     log('Mean state feature values \n%s' % mean_feature_values)
-    log('Non-zero features \n%s' % mean_feature_values[np.nonzero(mean_feature_values)])
-    log('Number of on-zero feature: %s' % np.count_nonzero(mean_feature_values))
+    nonzero_mfv = mean_feature_values[np.nonzero(mean_feature_values)]
+    log('Non-zero features \n%s' % nonzero_mfv)
+    nonzero_mfv_counts = np.count_nonzero(mean_feature_values)
+    log('Number of non-zero feature %s: %s' % nonzero_mfv_counts)
     toc()
 
     tic('Running IFS with target R')
@@ -189,7 +194,8 @@ for i in range(alg_iterations):
 
         tic('Fitting residuals model')
         max_depth = F.shape[1]
-        model = ExtraTreesRegressor(n_estimators=50, max_depth=max_depth)  # This should not overfit
+        model = ExtraTreesRegressor(n_estimators=50,
+                                    max_depth=max_depth)  # This should underfit
         model.fit(F, D)
         toc()
 
@@ -205,9 +211,10 @@ for i in range(alg_iterations):
         tic('Fitting NN%s' % j)
         image_shape = S.shape[1:]
         target_size = RES.shape[1] if len(RES.shape) > 1 else 1
-        nn = ConvNet(image_shape, target_size, nb_actions=nb_actions, nb_epochs=nn_nb_epochs)  # Maps frames to residual dynamics of last NN
+        nn = ConvNet(image_shape, target_size, nb_actions=nb_actions,
+                     l1_alpha=0.0, nb_epochs=nn_nb_epochs)  # Maps frames to residual dynamics of last NN
         nn.fit(S, A, RES)
-        nn.load('NN.h5')
+        nn.load('NN.h5')  # Load best network (saved by callback)
         toc()
 
         tic('Building FADF dataset for IFS')
@@ -222,12 +229,14 @@ for i in range(alg_iterations):
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
         support = ifs.get_support()
         got_action = support[-1]
-        support = support[len(preload_features):-1]  # Remove already selected features and action from support
+        support = support[len(
+            preload_features):-1]  # Remove already selected features and action from support
         nb_new_features = np.array(support).sum()
         r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
         log('IFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
-        log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+        log('R2 change %s (from %s to %s)' % (
+        r2_change, ifs.scores_[0], ifs.scores_[-1]))
         toc()
 
         nn_stack.add(nn, support)
@@ -246,7 +255,8 @@ for i in range(alg_iterations):
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
     action_values = pds_to_npa(global_farf.A.unique())
     # Update ActionRegressor to only use the actions actually in the dataset
-    regressor = Regressor(regressor_class=ExtraTreesRegressor, **fqi_regressor_params)
+    regressor = Regressor(regressor_class=ExtraTreesRegressor,
+                          **fqi_regressor_params)
     regressor = ActionRegressor(regressor,
                                 discrete_actions=action_values,
                                 tol=0.5,
@@ -264,10 +274,9 @@ for i in range(alg_iterations):
 
 # Plot evaluation results
 evaluation_results = pd.DataFrame(evaluation_results,
-                                  columns=['Score', 'Confidence (score)', 'Steps', 'Confidence (steps)'])
-evaluation_results[['Score', 'Steps']].plot().get_figure().savefig(logger.path + 'evaluation.png')
+                                  columns=['Score', 'Confidence (score)',
+                                           'Steps', 'Confidence (steps)'])
+evaluation_results[['Score', 'Steps']].plot().get_figure().savefig(
+    logger.path + 'evaluation.png')
 
 # TODO Log run configuration
-
-
-
