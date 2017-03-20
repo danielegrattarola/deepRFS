@@ -45,7 +45,7 @@ class ConvNet:
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
         #self.hidden = BatchNormalization()(self.features)
         from keras import regularizers
-        self.output = Dense(self.target_size * self.nb_actions, activation='linear', activity_regularizer=regularizers.l1(0.05))(self.features)
+        self.output = Dense(self.target_size * self.nb_actions, activation='linear', activity_regularizer=regularizers.l1(0.01))(self.features)
         self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
         # Models

@@ -148,7 +148,7 @@ for i in range(alg_iterations):
     mean_feature_values = np.mean(ifs_x[:-1], axis=0)
     log('Mean state feature values \n%s' % mean_feature_values)
     log('Non-zero features \n%s' % mean_feature_values[np.nonzero(mean_feature_values)])
-    log('Number of on-zero feature %s: %s' % np.count_nonzero(mean_feature_values))
+    log('Number of on-zero feature: %s' % np.count_nonzero(mean_feature_values))
     toc()
 
     tic('Running IFS with target R')

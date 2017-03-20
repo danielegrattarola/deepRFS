@@ -443,7 +443,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
             confidence_interval = confidence_interval_or * self.significance  # do not trust confidence interval completely
 
             # check terminal condition
-            proceed = score - old_score > old_confidence_interval + confidence_interval
+            proceed = score - old_score > old_confidence_interval + confidence_interval if score >= 0 and old_score >= 0 else True
             if self.verbose > 0:
                 print("PROCEED: {}\n\t{} - {} > {} + {}\n\t{} > {} )".format(
                     proceed, score, old_score,
