@@ -71,7 +71,7 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-debug = True  # TODO debug
+debug = False  # TODO debug
 sars_episodes = 10 if debug else 200  # TODO debug
 nn_nb_epochs = 2 if debug else 300  # TODO debug
 alg_iterations = 100  # Number of algorithm steps to make
@@ -80,6 +80,7 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.01  # Significance for IFS
 fqi_iterations = 2 if debug else 100  # Number of steps to train FQI # TODO debug
 r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
+max_eval_steps = 2 if debug else 1000  # TODO debug
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -267,7 +268,7 @@ for i in range(alg_iterations):
     toc()
 
     tic('Evaluating policy after update')
-    evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=10)
+    evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=max_eval_steps)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
 
