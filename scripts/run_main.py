@@ -71,14 +71,14 @@ from sklearn.ensemble import ExtraTreesRegressor
 
 tic('Initial setup')
 # ARGS
-debug = False  # TODO debug
+debug = True  # TODO debug
 sars_episodes = 10 if debug else 200  # TODO debug
 nn_nb_epochs = 2 if debug else 300  # TODO debug
 alg_iterations = 100  # Number of algorithm steps to make
 rec_steps = 1 if debug else 100  # Number of recursive steps to make # TODO debug
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.01  # Significance for IFS
-fqi_iterations = 100  # Number of steps to train FQI
+fqi_iterations = 2 if debug else 100  # Number of steps to train FQI # TODO debug
 r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
 # END ARGS
 
@@ -153,7 +153,7 @@ for i in range(alg_iterations):
     nonzero_mfv = mean_feature_values[np.nonzero(mean_feature_values)]
     log('Non-zero features \n%s' % nonzero_mfv)
     nonzero_mfv_counts = np.count_nonzero(mean_feature_values)
-    log('Number of non-zero feature %s: %s' % nonzero_mfv_counts)
+    log('Number of non-zero feature: %s' % nonzero_mfv_counts)
     toc()
 
     tic('Running IFS with target R')
@@ -229,8 +229,7 @@ for i in range(alg_iterations):
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
         support = ifs.get_support()
         got_action = support[-1]
-        support = support[len(
-            preload_features):-1]  # Remove already selected features and action from support
+        support = support[len(preload_features):-1]  # Remove already selected features and action from support
         nb_new_features = np.array(support).sum()
         r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
         log('IFS - New features: %s' % nb_new_features)
@@ -268,7 +267,7 @@ for i in range(alg_iterations):
     toc()
 
     tic('Evaluating policy after update')
-    evaluation_metrics = evaluate_policy(mdp, policy)
+    evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=10)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
 
