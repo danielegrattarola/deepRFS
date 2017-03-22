@@ -208,7 +208,7 @@ for i in range(alg_iterations):
         print 'Unique targets\n', np.unique(ifs_y)
         log('Mean feature values \n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
         for f in feature_idxs:
-            print 'Feature values\n', ifs_x[:, f].reshape(-1)
+            np.save('farf_feature_%s.npy' % f, ifs_x[:, f].reshape(-1))
             plt.figure()
             plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
             plt.savefig('farf_scatter_%s_v_reward.png' % f)
