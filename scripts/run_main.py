@@ -76,7 +76,7 @@ tic('Initial setup')
 # ARGS
 # TODO debug
 debug = True
-farf_analysis = False
+farf_analysis = True
 r2_analysis = False
 # TODO debug
 sars_episodes = 10 if debug else 200  # Number of SARS episodes to collect
@@ -204,7 +204,7 @@ for i in range(alg_iterations):
 
     # TODO farf analysis
     if farf_analysis:
-        feature_idxs = np.argwhere(support).squeeze()
+        feature_idxs = np.argwhere(support).reshape(-1)
         for f in feature_idxs:
             plt.figure()
             plt.scatter(ifs_x[:, f], ifs_y)
