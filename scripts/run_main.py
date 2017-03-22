@@ -205,9 +205,10 @@ for i in range(alg_iterations):
     # TODO farf analysis
     if farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
-        print 'Unique targets', np.unique(ifs_y)
-        log('Mean feature values %s' % np.mean(ifs_x, axis=0))
+        print 'Unique targets\n', np.unique(ifs_y)
+        log('Mean feature values \n%s' % np.mean(ifs_x[feature_idxs], axis=0))
         for f in feature_idxs:
+            print 'Feature values\n', ifs_x[:, f].reshape(-1)
             plt.figure()
             plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
             plt.savefig('farf_scatter_%s_v_reward.png' % f)
