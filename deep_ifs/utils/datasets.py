@@ -80,7 +80,7 @@ def get_sample_weight(sars):
 
 def split_dataset_for_ifs(dataset, features='F', target='R'):
     f = pds_to_npa(dataset[features])
-    a = pds_to_npa(dataset['A']).reshape(-1,1)  # 1D discreet action
+    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
     x = np.concatenate((f, a), axis=1)
     y = pds_to_npa(dataset[target])
     return x, y

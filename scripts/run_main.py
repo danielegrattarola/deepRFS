@@ -205,9 +205,10 @@ for i in range(alg_iterations):
     # TODO farf analysis
     if farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
+        print 'Unique targets', np.unique(ifs_y)
         for f in feature_idxs:
             plt.figure()
-            plt.scatter( ifs_y, ifs_x[:, f])
+            plt.scatter(ifs_y, ifs_x[:, f])
             plt.savefig('farf_scatter_%s_v_reward.png' % f)
             plt.close()
         exit()
