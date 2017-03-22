@@ -56,7 +56,9 @@ Main loop:
 """
 
 # TODO Documentation
-
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
 from ifqi.models import Regressor, ActionRegressor
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.evaluation.evaluation import *
