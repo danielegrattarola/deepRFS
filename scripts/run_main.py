@@ -205,11 +205,12 @@ for i in range(alg_iterations):
     # TODO farf analysis
     if farf_analysis:
         feature_idxs = np.argwhere(support).squeeze()
-        for f in range(len(feature_idxs)):
+        for f in feature_idxs:
             plt.figure()
             plt.scatter(ifs_x[:, f], ifs_y)
             plt.savefig('farf_scatter_%s_v_reward.png' % f)
             plt.close()
+        exit()
 
     nn_stack.add(nn, support)
 
