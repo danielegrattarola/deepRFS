@@ -286,6 +286,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
         if preload_features is not None:
             preload_features = np.unique(preload_features).astype('int')
             current_support_[preload_features] = True
+            tentative_support_[preload_features] = True
 
             X_selected = X[:, features[current_support_]]
             y_hat, cv_scores = my_cross_val_predict(clone(self.estimator),
