@@ -55,7 +55,7 @@ Main loop:
     Update policy with FQI (using support features of all steps), decrease randomicity
 """
 
-# TODO Documentation for all classes/methods
+# TODO Documentation
 
 from ifqi.models import Regressor, ActionRegressor
 from deep_ifs.models.epsilonFQI import EpsilonFQI
@@ -68,19 +68,28 @@ from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import *
 from deep_ifs.envs.atari import Atari
 from sklearn.ensemble import ExtraTreesRegressor
+from matplotlib import pyplot as plt
 
 tic('Initial setup')
 # ARGS
-debug = False  # TODO debug
-sars_episodes = 10 if debug else 200  # TODO debug
-nn_nb_epochs = 2 if debug else 300  # TODO debug
-alg_iterations = 100  # Number of algorithm steps to make
-rec_steps = 1 if debug else 100  # Number of recursive steps to make # TODO debug
+# TODO debug
+debug = False
+farf_analysis = True
+r2_analysis = True
+# TODO debug
+sars_episodes = 10 if debug else 200  # Number of SARS episodes to collect
+# TODO debug
+nn_nb_epochs = 2 if debug else 300  # Number of epochs for the networks
+alg_iterations = 100  # Number of steps to make in the main loop
+# TODO debug
+rec_steps = 1 if debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.01  # Significance for IFS
-fqi_iterations = 2 if debug else 100  # Number of steps to train FQI # TODO debug
-r2_change_threshold = 0.10  # Threshold for IFS confidence below which to stop algorithm
-max_eval_steps = 2 if debug else 1000  # TODO debug
+# TODO debug
+fqi_iterations = 2 if debug else 100  # Number of steps to train FQI
+r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
+# TODO debug
+max_eval_steps = 2 if debug else 1000  # Maximum length of evaluation episodes
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -136,9 +145,10 @@ for i in range(alg_iterations):
 
     tic('Fitting NN0')
     target_size = 1  # Initial target is the scalar reward
+    # NN maps frames to reward
     nn = ConvNet(mdp.state_shape, target_size, nb_actions=nb_actions,
                  l1_alpha=0.01, sample_weight=sars_sample_weight,
-                 nb_epochs=nn_nb_epochs)  # Maps frames to reward
+                 nb_epochs=nn_nb_epochs)
     nn.fit(S, A, R)
     nn.load('NN.h5')  # Load best network (saved by callback)
     toc()
@@ -167,7 +177,7 @@ for i in range(alg_iterations):
                   'verbose': 1,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
-    ifs.fit(ifs_x, ifs_y)
+    ifs.fit(ifs_x, ifs_y, preload_features=(range(511) if r2_analysis else None))  # TODO R2 analysis
     support = ifs.get_support()
     got_action = support[-1]
     support = support[:-1]  # Remove action from support
@@ -175,12 +185,22 @@ for i in range(alg_iterations):
     r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
     log('IFS - New features: %s' % nb_new_features)
     log('Action was%s selected' % ('' if got_action else ' NOT'))
-    log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+    log('R2 change %s (from %s to %s)' %
+        (r2_change, ifs.scores_[0], ifs.scores_[-1]))
     toc()
 
     # TODO Debug
     if debug:
         support[2] = True
+
+    # TODO farf analysis
+    if farf_analysis:
+        feature_idxs = np.argwhere(support).squeeze()
+        for f in range(len(feature_idxs)):
+            plt.figure()
+            plt.scatter(ifs_x[:, f], ifs_y)
+            plt.savefig('farf_scatter_%s_v_reward.png' % f)
+            plt.close()
 
     nn_stack.add(nn, support)
 
@@ -212,8 +232,9 @@ for i in range(alg_iterations):
         tic('Fitting NN%s' % j)
         image_shape = S.shape[1:]
         target_size = RES.shape[1] if len(RES.shape) > 1 else 1
+        # NN maps frames to residual dynamics of last NN
         nn = ConvNet(image_shape, target_size, nb_actions=nb_actions,
-                     l1_alpha=0.0, nb_epochs=nn_nb_epochs)  # Maps frames to residual dynamics of last NN
+                     l1_alpha=0.0, nb_epochs=nn_nb_epochs)
         nn.fit(S, A, RES)
         nn.load('NN.h5')  # Load best network (saved by callback)
         toc()

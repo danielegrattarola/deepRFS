@@ -67,6 +67,12 @@ def get_class_weight(sars):
 
 
 def get_sample_weight(sars):
+    """
+    Takes as input a SARS' dataset in pandas format.
+    Returns a list with the class weight of each sample.
+    The return value can be passed directly to Keras's sample_weight parameter
+    in model.fit
+    """
     class_weight = get_class_weight(sars)
     sample_weight = [class_weight[r] for r in sars.R]
     return np.array(sample_weight)
@@ -74,7 +80,7 @@ def get_sample_weight(sars):
 
 def split_dataset_for_ifs(dataset, features='F', target='R'):
     f = pds_to_npa(dataset[features])
-    a = pds_to_npa(dataset['A']).reshape(-1,1)  # Monodimensional discreet action
+    a = pds_to_npa(dataset['A']).reshape(-1,1)  # 1D discreet action
     x = np.concatenate((f, a), axis=1)
     y = pds_to_npa(dataset[target])
     return x, y

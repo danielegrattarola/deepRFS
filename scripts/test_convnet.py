@@ -1,5 +1,4 @@
-import argparse, atexit
-
+import argparse
 from deep_ifs.envs.atari import Atari
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.utils.datasets import *

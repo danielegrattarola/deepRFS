@@ -32,22 +32,20 @@ class ConvNet:
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
                                     dim_ordering='th')(self.input)
-        # self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
                                     activation='relu', subsample=(2, 2),
                                     dim_ordering='th')(self.hidden)
-        # self.hidden = BatchNormalization()(self.hidden)
         self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
                                     activation='relu', subsample=(1, 1),
                                     dim_ordering='th')(self.hidden)
-        # self.hidden = BatchNormalization()(self.hidden)
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        # self.hidden = BatchNormalization()(self.features)
-        from keras import regularizers
-        self.output = Dense(self.target_size * self.nb_actions, activation='linear', activity_regularizer=l1(self.l1_alpha))(self.features)
-        self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
+        self.output = Dense(self.target_size * self.nb_actions,
+                            activation='linear',
+                            activity_regularizer=l1(self.l1_alpha))(self.features)
+        self.output_u = GatherLayer(self.target_size,
+                                    self.nb_actions)([self.output, self.u])
 
         # Models
         self.model = Model(input=[self.input, self.u], output=self.output_u)
@@ -73,22 +71,26 @@ class ConvNet:
     def fit(self, x, u, y):
         """
         Trains the model on a set of batches.
-        :param x: f samples on which to train.
+        :param x: samples on which to train.https://www.dropbox.com/sh/qtmosx0fxm1c3to/AADd8SrX5yOsI8WP5DTJkVdua?dl=0
+        :param u: actions associated to the samples.
         :param y: targets on which to train.
         :return: the metrics of interest as defined in the model (loss,
             accuracy, etc.)
         """
-        x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
         y_train = np.asarray(y)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
-        mc = ModelCheckpoint('NN.h5', monitor='val_loss', save_best_only=True, save_weights_only=True)
+        mc = ModelCheckpoint('NN.h5', monitor='val_loss', save_best_only=True,
+                             save_weights_only=True)
 
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
-        return self.model.fit([x_train, u_train], y_train, class_weight=self.class_weight,
+
+        return self.model.fit([x_train, u_train], y_train,
+                              class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
                               nb_epoch=self.nb_epochs, validation_split=0.1,
                               callbacks=[es, mc])
@@ -97,47 +99,46 @@ class ConvNet:
         """
         Trains the model on a batch.
         :param x: batch of samples on which to train.
+        :param u: actions associated to the samples.
         :param y: targets for the batch.
         :return: the metrics of interest as defined in the model (loss,
             accuracy, etc.)
         """
-        x_train = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
         y_train = np.asarray(y)
-
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
-
-        return self.model.train_on_batch([x_train, u_train], y_train, class_weight=self.class_weight,
+        return self.model.train_on_batch([x_train, u_train], y_train,
+                                         class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
 
     def predict(self, x, u):
         """
         Runs the given images through the model and returns the predictions.
         :param x: a batch of samples on which to predict.
+        :param u: actions associated to the samples.
         :return: the predictions of the batch.
         """
         # Feed input to the model, return encoded and re-decoded images
-        x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_test = np.asarray(u)
-
         return self.model.predict_on_batch([x_test, u_test])
 
     def test(self, x, y):
         """
         Tests the model on a batch.
         :param x: batch of samples on which to test.
+        :param y: real targets for the batch.
         :return: the metrics of interest as defined in the model (loss,
             accuracy, etc.)
         """
-        x_test = np.asarray(x).astype('float32') / 255  # Normalize in 0-1 range
+        x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         y_test = np.asarray(y)
-
         if self.binarize:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
-
         return self.model.test_on_batch(x_test, y_test)
 
     def all_features(self, sample):
@@ -148,8 +149,7 @@ class ConvNet:
         :return: the encoded sample.
         """
         # Feed input to the model, return encoded images flattened
-        sample = np.asarray(sample).astype('float32') / 255  # Normalize in 0-1 range
-
+        sample = np.asarray(sample).astype('float32') / 255  # To 0-1 range
         return np.asarray(self.encoder.predict_on_batch(sample)).flatten()
 
     def s_features(self, sample, support):
@@ -177,7 +177,6 @@ class ConvNet:
         if not f.endswith('.h5'):
             f += '.h5'
         a = 'architecture_' + f.lstrip('.h5') + '.json'
-
         if self.logger is not None:
             self.logger.log('Saving model as %s' % self.logger.path + f)
             self.model.save_weights(self.logger.path + f)

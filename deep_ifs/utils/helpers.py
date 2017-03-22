@@ -65,7 +65,7 @@ def resize_state(to_resize, new_size=(72, 72)):
     :param new_size: the size to which resize the images
     :return: a numpy array with the resized images
     """
-    # Iterate over channels (theano dimension ordering (ch, rows, cols) is assumed)
+    # Iterate over channels (th dimension ordering (ch, rows, cols) is assumed)
     resized = []
     for image in to_resize:
         data = Image.fromarray(image).resize(new_size)
@@ -93,7 +93,8 @@ def flat2gen(alist):
     """
     for item in alist:
         if isinstance(item, list) or isinstance(item, np.ndarray):
-            for subitem in item: yield subitem
+            for subitem in item:
+                yield subitem
         else:
             yield item
 
@@ -101,7 +102,7 @@ def flat2gen(alist):
 def flat2list(alist, as_tuple=False, as_set=False):
     """
     :param as_tuple: return a tuple instead of a list
-    :param as_tuple: return a set instead of a list
+    :param as_set: return a set instead of a list
     :param alist: a 2d list
     :return: a flattened version of the list
     """
@@ -141,6 +142,7 @@ def p_dump(obj, filename):
     :param filename: the filename to which save the object.
     """
     np.save(filename, obj)
+
 
 def pds_to_npa(pandas_series):
     return np.array([_ for _ in pandas_series])
