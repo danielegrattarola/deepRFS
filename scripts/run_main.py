@@ -73,9 +73,9 @@ from matplotlib import pyplot as plt
 tic('Initial setup')
 # ARGS
 # TODO debug
-debug = False
-farf_analysis = True
-r2_analysis = True
+debug = True
+farf_analysis = False
+r2_analysis = False
 # TODO debug
 sars_episodes = 10 if debug else 200  # Number of SARS episodes to collect
 # TODO debug
@@ -95,7 +95,6 @@ max_eval_steps = 2 if debug else 1000  # Maximum length of evaluation episodes
 # ADDITIONAL OBJECTS
 logger = Logger(output_folder='../output/')
 evaluation_results = []
-# END ADDITIONAL OBJECTS
 
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 
@@ -126,9 +125,11 @@ fqi_params = {'estimator': regressor,
               'horizon': fqi_iterations,
               'verbose': True}
 policy = EpsilonFQI(fqi_params, nn_stack, epsilon=1.0)  # Do not unpack the dict
+# END ADDITIONAL OBJECTS
 toc()
 
 for i in range(alg_iterations):
+    # NEURAL NETWORK 0 #
     tic('Collecting SARS dataset')
     # 4 frames, action, reward, 4 frames
     sars = collect_sars(mdp, policy, episodes=sars_episodes, debug=debug)
@@ -151,19 +152,20 @@ for i in range(alg_iterations):
                  nb_epochs=nn_nb_epochs)
     nn.fit(S, A, R)
     nn.load('NN.h5')  # Load best network (saved by callback)
-    toc()
 
+    log('Cleaning memory (S, A, R)')
+    del S, A, R
+    toc()
+    # END NEURAL NETWORK 0 #
+
+    # ITERATIVE FEATURE SELECTION 0 #
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     # If scikit-learn version is < 0.19 this will throw a warning
     ifs_y = ifs_y.reshape(-1, 1)
-    # Print the average value of the features
-    mean_feature_values = np.mean(ifs_x[:-1], axis=0)
-    log('Mean state feature values \n%s' % mean_feature_values)
-    nonzero_mfv = mean_feature_values[np.nonzero(mean_feature_values)]
-    log('Non-zero features \n%s' % nonzero_mfv)
-    nonzero_mfv_counts = np.count_nonzero(mean_feature_values)
+    # Print the number of nonzero features
+    nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
     toc()
 
@@ -187,7 +189,12 @@ for i in range(alg_iterations):
     log('Action was%s selected' % ('' if got_action else ' NOT'))
     log('R2 change %s (from %s to %s)' %
         (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+
+    if not farf_analysis:  # TODO farf analysis
+        log('Cleaning memory (farf, ifs_x, ifs_y)')
+        del farf, ifs_x, ifs_y
     toc()
+    # END ITERATIVE FEATURE SELECTION 0 #
 
     # TODO Debug
     if debug:
@@ -205,6 +212,7 @@ for i in range(alg_iterations):
     nn_stack.add(nn, support)
 
     for j in range(1, rec_steps + 1):
+        # RESIDUALS MODEL #
         tic('Building SFADF dataset for residuals model')
         # State, features (stack), action, dynamics (nn), features (stack)
         sfadf = build_sfadf(nn_stack, nn, support, sars)
@@ -218,8 +226,13 @@ for i in range(alg_iterations):
         model = ExtraTreesRegressor(n_estimators=50,
                                     max_depth=max_depth)  # This should underfit
         model.fit(F, D)
-        toc()
 
+        log('Cleaning memory (F, D)')
+        del F, D
+        toc()
+        # END RESIDUALS MODEL #
+
+        # NEURAL NETWORK > 0 #
         tic('Building SARes dataset')
         # Frames, action, residual dynamics of last NN (Res = D - model(F))
         sares = build_sares(model, sfadf)
@@ -237,8 +250,13 @@ for i in range(alg_iterations):
                      l1_alpha=0.0, nb_epochs=nn_nb_epochs)
         nn.fit(S, A, RES)
         nn.load('NN.h5')  # Load best network (saved by callback)
-        toc()
 
+        log('Cleaning memory (sares, S, A, RES')
+        del sares, S, A, RES
+        toc()
+        # END NEURAL NETWORK > 0 #
+
+        # ITERATIVE FEATURE SELECTION > 0 #
         tic('Building FADF dataset for IFS')
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
@@ -258,7 +276,11 @@ for i in range(alg_iterations):
         log('Action was%s selected' % ('' if got_action else ' NOT'))
         log('R2 change %s (from %s to %s)' % (
         r2_change, ifs.scores_[0], ifs.scores_[-1]))
+
+        log('Cleaning memory (fadf, ifs_x, ifs_y)')
+        del fadf, ifs_x, ifs_y
         toc()
+        # END ITERATIVE FEATURE SELECTION > 0 #
 
         nn_stack.add(nn, support)
 
@@ -266,15 +288,16 @@ for i in range(alg_iterations):
             print 'Done.\n' + '#' * 50 + '\n'
             break
 
+    # FITTED Q-ITERATION #
     tic('Building global FARF dataset for FQI')
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
-    toc()
-
-    tic('Updating policy')
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
     action_values = pds_to_npa(global_farf.A.unique())
+    toc()
+
+    tic('Updating policy')
     # Update ActionRegressor to only use the actions actually in the dataset
     regressor = Regressor(regressor_class=ExtraTreesRegressor,
                           **fqi_regressor_params)
@@ -286,13 +309,18 @@ for i in range(alg_iterations):
     # TODO if it crashes, update policy.nn_stack here
     policy.fit_on_dataset(sast, r, all_features_dim)
     policy.epsilon_step()
+
+    log('Cleaning memory (global_farf, sast, r)')
+    del global_farf, sast, r
     toc()
 
     tic('Evaluating policy after update')
     evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=max_eval_steps)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
+    # END FITTED Q-ITERATION #
 
+# FINAL OUTPUT #
 # Plot evaluation results
 evaluation_results = pd.DataFrame(evaluation_results,
                                   columns=['Score', 'Confidence (score)',
@@ -301,3 +329,4 @@ evaluation_results[['Score', 'Steps']].plot().get_figure().savefig(
     logger.path + 'evaluation.png')
 
 # TODO Log run configuration
+# END #
