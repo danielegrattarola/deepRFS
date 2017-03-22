@@ -75,7 +75,7 @@ from matplotlib import pyplot as plt
 tic('Initial setup')
 # ARGS
 # TODO debug
-debug = False
+debug = True
 farf_analysis = True
 r2_analysis = False
 # TODO debug
@@ -206,7 +206,7 @@ for i in range(alg_iterations):
     if farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
         print 'Unique targets\n', np.unique(ifs_y)
-        log('Mean feature values \n%s' % np.mean(ifs_x[feature_idxs], axis=0))
+        log('Mean feature values \n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
         for f in feature_idxs:
             print 'Feature values\n', ifs_x[:, f].reshape(-1)
             plt.figure()
