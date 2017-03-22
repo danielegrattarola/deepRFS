@@ -75,7 +75,7 @@ from matplotlib import pyplot as plt
 tic('Initial setup')
 # ARGS
 # TODO debug
-debug = True
+debug = False
 farf_analysis = True
 r2_analysis = False
 # TODO debug
@@ -207,7 +207,7 @@ for i in range(alg_iterations):
         feature_idxs = np.argwhere(support).reshape(-1)
         for f in feature_idxs:
             plt.figure()
-            plt.scatter(ifs_x[:, f], ifs_y)
+            plt.scatter( ifs_y, ifs_x[:, f])
             plt.savefig('farf_scatter_%s_v_reward.png' % f)
             plt.close()
         exit()
