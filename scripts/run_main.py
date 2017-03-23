@@ -59,6 +59,7 @@ Main loop:
 import matplotlib
 # Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
+import gc
 from ifqi.models import Regressor, ActionRegressor
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.evaluation.evaluation import *
@@ -206,6 +207,12 @@ for i in range(alg_iterations):
     if farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
         print 'Unique targets\n', np.unique(ifs_y)
+
+        try:
+            assert len(np.unique(ifs_y)) <= 3, 'Too many rewards'
+        except AssertionError:
+            np.save('sars.npy')
+
         log('Mean feature values \n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
         for f in feature_idxs:
             np.save('farf_feature_%s.npy' % f, ifs_x[:, f].reshape(-1))
@@ -316,8 +323,9 @@ for i in range(alg_iterations):
     policy.fit_on_dataset(sast, r, all_features_dim)
     policy.epsilon_step()
 
-    log('Cleaning memory (global_farf, sast, r)')
-    del global_farf, sast, r
+    log('Cleaning memory (global_farf, sast, r, sars)')
+    del global_farf, sast, r, sars
+    gc.collect()
     toc()
 
     tic('Evaluating policy after update')

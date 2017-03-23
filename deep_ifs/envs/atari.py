@@ -41,6 +41,12 @@ class Atari(gym.Env):
             reward = -1.0 / (1.0 - self.gamma)
         obs = self._preprocess_observation(obs)
         self.env.state = self._get_next_state(current_state, obs)
+
+        try:
+            assert reward <= 1, 'Unexpected reward from MDP'
+        except AssertionError:
+            np.save('transition_with_reward_%s.npy' % reward, obs)
+
         return self.get_state(), reward, done, info
 
     def get_state(self):

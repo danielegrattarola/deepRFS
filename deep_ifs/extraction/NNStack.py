@@ -1,4 +1,5 @@
 import numpy as np
+import gc
 
 
 class NNStack:
@@ -29,6 +30,7 @@ class NNStack:
 
     def reset(self):
         self.stack = []
+        gc.collect()
         self.support_dim = 0
 
     def save(self):
