@@ -77,21 +77,18 @@ tic('Initial setup')
 # ARGS
 # TODO debug
 debug = True
-farf_analysis = True
+farf_analysis = False
 r2_analysis = False
-# TODO debug
+use_residuals = False
+
 sars_episodes = 10 if debug else 200  # Number of SARS episodes to collect
-# TODO debug
 nn_nb_epochs = 2 if debug else 300  # Number of epochs for the networks
 alg_iterations = 100  # Number of steps to make in the main loop
-# TODO debug
 rec_steps = 1 if debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.01  # Significance for IFS
-# TODO debug
 fqi_iterations = 2 if debug else 100  # Number of steps to train FQI
 r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
-# TODO debug
 max_eval_steps = 2 if debug else 1000  # Maximum length of evaluation episodes
 # END ARGS
 
@@ -234,26 +231,36 @@ for i in range(alg_iterations):
         log('Mean dynamic values %s' % np.mean(D, axis=0))
         toc()
 
-        tic('Fitting residuals model')
-        max_depth = F.shape[1]
-        model = ExtraTreesRegressor(n_estimators=50,
-                                    max_depth=max_depth)  # This should underfit
-        model.fit(F, D)
+        if use_residuals:
+            tic('Fitting residuals model')
+            max_depth = F.shape[1]
+            model = ExtraTreesRegressor(n_estimators=50,
+                                        max_depth=max_depth)  # This should underfit
+            model.fit(F, D)
 
-        log('Cleaning memory (F, D)')
-        del F, D
-        toc()
+            log('Cleaning memory (F, D)')
+            del F, D
+            toc()
         # END RESIDUALS MODEL #
 
         # NEURAL NETWORK > 0 #
-        tic('Building SARes dataset')
-        # Frames, action, residual dynamics of last NN (Res = D - model(F))
-        sares = build_sares(model, sfadf)
-        S = pds_to_npa(sares.S)  # 4 frames
-        A = pds_to_npa(sares.A)  # Discrete action
-        RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
-        log('Mean residual values %s' % np.mean(RES, axis=0))
-        toc()
+        if use_residuals:
+            tic('Building SARes dataset')
+            # Frames, action, residual dynamics of last NN (Res = D - model(F))
+            sares = build_sares(model, sfadf)
+            S = pds_to_npa(sares.S)  # 4 frames
+            A = pds_to_npa(sares.A)  # Discrete action
+            RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
+            log('Mean residual values %s' % np.mean(RES, axis=0))
+            toc()
+        else:
+            tic('Building SAD dataset')
+            # Frames, action, residual dynamics of last NN (Res = D - model(F))
+            S = pds_to_npa(sfadf.S)  # 4 frames
+            A = pds_to_npa(sfadf.A)  # Discrete action
+            RES = pds_to_npa(sfadf.D)  # Dynamics of last NN
+            log('Mean dynamics values %s' % np.mean(RES, axis=0))
+            toc()
 
         tic('Fitting NN%s' % j)
         image_shape = S.shape[1:]
@@ -265,7 +272,9 @@ for i in range(alg_iterations):
         nn.load('NN.h5')  # Load best network (saved by callback)
 
         log('Cleaning memory (sares, S, A, RES')
-        del sares, S, A, RES
+        del S, A, RES
+        if use_residuals:
+            del sares
         toc()
         # END NEURAL NETWORK > 0 #
 
