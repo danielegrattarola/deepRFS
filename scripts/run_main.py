@@ -206,9 +206,10 @@ for i in range(alg_iterations):
         print 'Unique targets\n', np.unique(ifs_y)
 
         try:
-            assert len(np.unique(ifs_y)) <= 3, 'Too many rewards'
+            assert len(np.unique(ifs_y)) <= 3, 'Unexpected rewards'
         except AssertionError:
-            np.save('sars.npy')
+            log('Unexpected reward: saving SARS to disk for anaylsis.')
+            np.save('sars.npy', sars)
 
         log('Mean feature values \n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
         for f in feature_idxs:
@@ -307,7 +308,7 @@ for i in range(alg_iterations):
         nn_stack.add(nn, support)
 
         if nb_new_features == 0 or r2_change < r2_change_threshold:
-            print 'Done.\n' + '#' * 50 + '\n'
+            print 'Done.\n'
             break
 
     # FITTED Q-ITERATION #
@@ -342,6 +343,8 @@ for i in range(alg_iterations):
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
     # END FITTED Q-ITERATION #
+
+    print 'Done.\n' + '#' * 50 + '\n'
 
 # FINAL OUTPUT #
 # Plot evaluation results
