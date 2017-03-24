@@ -45,8 +45,7 @@ class Atari(gym.Env):
         try:
             assert reward <= 1, 'Unexpected reward from MDP'
         except AssertionError:
-            print 'Atari: got a reward greater than expected (%s)' % reward
-            np.save('transition_with_reward_%s.npy' % reward, obs)
+            reward = 1
 
         return self.get_state(), reward, done, info
 

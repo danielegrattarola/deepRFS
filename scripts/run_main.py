@@ -218,7 +218,6 @@ for i in range(alg_iterations):
             plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
             plt.savefig('farf_scatter_%s_v_reward.png' % f)
             plt.close()
-        exit()
 
     nn_stack.add(nn, support)
 
