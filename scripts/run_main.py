@@ -76,8 +76,8 @@ from matplotlib import pyplot as plt
 tic('Initial setup')
 # ARGS
 # TODO debug
-debug = True
-farf_analysis = False
+debug = False
+farf_analysis = True
 r2_analysis = False
 use_residuals = False
 
@@ -89,7 +89,7 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.01  # Significance for IFS
 fqi_iterations = 2 if debug else 100  # Number of steps to train FQI
 r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
-max_eval_steps = 2 if debug else 1000  # Maximum length of evaluation episodes
+max_eval_steps = 2 if debug else 4000  # Maximum length of evaluation episodes
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -338,7 +338,7 @@ for i in range(alg_iterations):
     toc()
 
     tic('Evaluating policy after update')
-    evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=max_eval_steps)
+    evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=max_eval_steps, n_episodes=4)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
     # END FITTED Q-ITERATION #
