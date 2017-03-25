@@ -80,6 +80,7 @@ debug = False
 farf_analysis = True
 r2_analysis = False
 use_residuals = False
+save_video = True
 
 sars_episodes = 10 if debug else 200  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if debug else 300  # Number of epochs for the networks
@@ -89,6 +90,7 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 0.01  # Significance for IFS
 fqi_iterations = 2 if debug else 100  # Number of steps to train FQI
 r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
+eval_episodes = 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if debug else 4000  # Maximum length of evaluation episodes
 # END ARGS
 
@@ -316,7 +318,7 @@ for i in range(alg_iterations):
     global_farf = build_global_farf(nn_stack, sars)
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
-    action_values = pds_to_npa(global_farf.A.unique())
+    action_values = np.unique(pds_to_npa(global_farf.A))
     toc()
 
     tic('Updating policy')
@@ -338,7 +340,9 @@ for i in range(alg_iterations):
     toc()
 
     tic('Evaluating policy after update')
-    evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=max_eval_steps, n_episodes=4)
+    evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=max_eval_steps,
+                                         n_episodes=eval_episodes,
+                                         save_video=save_video)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
     # END FITTED Q-ITERATION #

@@ -1,9 +1,10 @@
 from joblib import Parallel, delayed
 import numpy as np
+import imageio, time
 
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
-                    max_ep_len=np.inf, video=False, n_jobs=1):
+                    max_ep_len=np.inf, video=False, save_video=False, n_jobs=1):
     """
         This function evaluate a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
@@ -20,6 +21,8 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
             max_ep_len (int, inf): allow evaluation episodes to run at most
                 this number of frames.
             video (bool, False): whether to render the environment.
+            save_video (bool, False): whether to save the video of the
+                evaluation episodes.
             n_jobs (int, 1): the number of processes to use for evaluation
                 (leave default value if the feature extraction model runs
                 on GPU).
@@ -46,7 +49,9 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
            steps.mean(), 2 * steps.std() / np.sqrt(n_episodes)
 
 
-def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False):
+def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
+          save_video=False):
+    frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
     df = 1.0  # Discount factor
@@ -54,6 +59,10 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False):
 
     # Get current state
     state = mdp.reset()
+
+    if save_video:
+        frames.append(state[-1])
+
     reward = 0
     done = False
 
@@ -76,8 +85,13 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False):
 
         # Update state
         state = next_state
+        if save_video:
+            frames.append(state[-1])
 
     if metric == 'average':
         ep_performance /= frame_counter
+
+    if save_video:
+        imageio.mimsave('evaluation_ep_%s' % time.time(), frames)
 
     return ep_performance, frame_counter
