@@ -93,6 +93,6 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         ep_performance /= frame_counter
 
     if save_video:
-        imageio.mimsave('evaluation_ep_%s' % time.time(), frames)
+        imageio.mimsave('evaluation_ep_%s.gif' % time.time(), frames)
 
     return ep_performance, frame_counter
