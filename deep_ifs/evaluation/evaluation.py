@@ -39,7 +39,8 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
         "Unsupported metric"
     out = Parallel(n_jobs=n_jobs)(
         delayed(_eval)(
-            mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video
+            mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
+            save_video=save_video
         )
         for _ in range(n_episodes)
     )
