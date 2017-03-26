@@ -72,6 +72,8 @@ from deep_ifs.utils.timer import *
 from deep_ifs.envs.atari import Atari
 from sklearn.ensemble import ExtraTreesRegressor
 from matplotlib import pyplot as plt
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import PolynomialFeatures
 
 tic('Initial setup')
 # ARGS
@@ -79,7 +81,8 @@ tic('Initial setup')
 debug = False
 farf_analysis = True
 r2_analysis = False
-use_residuals = False
+use_residuals = True
+residual_model = 'linear'
 save_video = True
 
 sars_episodes = 10 if debug else 200  # Number of SARS episodes to collect
@@ -235,9 +238,14 @@ for i in range(alg_iterations):
 
         if use_residuals:
             tic('Fitting residuals model')
-            max_depth = F.shape[1]
-            model = ExtraTreesRegressor(n_estimators=50,
-                                        max_depth=max_depth)  # This should underfit
+
+            if residual_model == 'extra':
+                max_depth = F.shape[1] / 2
+                model = ExtraTreesRegressor(n_estimators=50,
+                                            max_depth=max_depth)  # This should underfit
+            elif residual_model == 'linear':
+                F = PolynomialFeatures(degree=5).fit_transform(F)
+                model = Ridge()
             model.fit(F, D)
 
             log('Cleaning memory (F, D)')
