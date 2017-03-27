@@ -78,8 +78,8 @@ from sklearn.preprocessing import PolynomialFeatures
 tic('Initial setup')
 # ARGS
 # TODO debug
-debug = True
-farf_analysis = True
+debug = False
+farf_analysis = False
 r2_analysis = False
 use_residuals = True
 residual_model = 'linear'
@@ -262,7 +262,7 @@ for i in range(alg_iterations):
             S = pds_to_npa(sares.S)  # 4 frames
             A = pds_to_npa(sares.A)  # Discrete action
             RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
-            log('Mean residual values %s' % np.mean(RES, axis=0))
+            log('Max residual values %s' % np.max(RES, axis=0))
             toc()
         else:
             tic('Building SAD dataset')
