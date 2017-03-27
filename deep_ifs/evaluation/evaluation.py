@@ -4,7 +4,8 @@ import imageio, time
 
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
-                    max_ep_len=np.inf, video=False, save_video=False, n_jobs=1):
+                    max_ep_len=np.inf, video=False, save_video=False,
+                    save_path='', n_jobs=1):
     """
         This function evaluate a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
@@ -23,6 +24,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
             video (bool, False): whether to render the environment.
             save_video (bool, False): whether to save the video of the
                 evaluation episodes.
+            save_path (string, ''): where to save videos of evaluation episodes.
             n_jobs (int, 1): the number of processes to use for evaluation
                 (leave default value if the feature extraction model runs
                 on GPU).
@@ -40,7 +42,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
     out = Parallel(n_jobs=n_jobs)(
         delayed(_eval)(
             mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
-            save_video=save_video
+            save_video=save_video, save_path=save_path
         )
         for _ in range(n_episodes)
     )
@@ -51,7 +53,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
 
 def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
-          save_video=False):
+          save_video=False, save_path=''):
     frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
@@ -93,6 +95,6 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         ep_performance /= frame_counter
 
     if save_video:
-        imageio.mimsave('evaluation_ep_%s.gif' % time.time(), frames)
+        imageio.mimsave(save_path + 'eval_%s.gif' % time.time(), frames)
 
     return ep_performance, frame_counter

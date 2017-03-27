@@ -136,6 +136,7 @@ toc()
 for i in range(alg_iterations):
     # NEURAL NETWORK 0 #
     log('##### STEP %s #####' % i)
+
     tic('Collecting SARS dataset')
     # 4 frames, action, reward, 4 frames
     sars = collect_sars(mdp, policy, episodes=sars_episodes, debug=debug)
@@ -147,8 +148,7 @@ for i in range(alg_iterations):
 
     tic('Resetting NN stack')
     nn_stack.reset()  # Clear the stack after collecting sars' with last policy
-    log('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
-    toc()
+    toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
 
     tic('Fitting NN0')
     target_size = 1  # Initial target is the scalar reward
@@ -158,7 +158,6 @@ for i in range(alg_iterations):
                  nb_epochs=nn_nb_epochs)
     nn.fit(S, A, R)
     nn.load('NN.h5')  # Load best network (saved by callback)
-
     log('Cleaning memory (S, A, R)')
     del S, A, R
     toc()
@@ -216,14 +215,14 @@ for i in range(alg_iterations):
             assert len(np.unique(ifs_y)) <= 3, 'Unexpected rewards'
         except AssertionError:
             log('Unexpected reward: saving SARS to disk for anaylsis.')
-            np.save('sars.npy', sars)
+            np.save(logger.path + 'sars.npy', sars)
 
         log('Mean feature values \n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
         for f in feature_idxs:
-            np.save('farf_feature_%s.npy' % f, ifs_x[:, f].reshape(-1))
+            np.save(logger.path + 'farf_feature_%s.npy' % f, ifs_x[:, f].reshape(-1))
             plt.figure()
             plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
-            plt.savefig('farf_scatter_%s_v_reward.png' % f)
+            plt.savefig(logger.path + 'farf_scatter_%s_v_reward.png' % f)
             plt.close()
 
     nn_stack.add(nn, support)
@@ -351,7 +350,8 @@ for i in range(alg_iterations):
     tic('Evaluating policy after update')
     evaluation_metrics = evaluate_policy(mdp, policy, max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
-                                         save_video=save_video)
+                                         save_video=save_video,
+                                         save_path=logger.path)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
     # END FITTED Q-ITERATION #
