@@ -3,9 +3,11 @@ from random import random, choice
 
 
 class EpsilonFQI:
-    def __init__(self, fqi_params, nn_stack, epsilon=1.0, epsilon_rate=0.99):
+    def __init__(self, fqi_params, nn_stack, epsilon=1.0, epsilon_rate=0.99,
+                 min_epsilon=0.05):
         self.epsilon = epsilon
         self.epsilon_rate = epsilon_rate
+        self.min_epsilon = min_epsilon
         self.fqi_params = fqi_params
         self.nn_stack = nn_stack
         self.initial_actions = self.fqi_params['discrete_actions']
@@ -16,14 +18,18 @@ class EpsilonFQI:
         self.fqi = FQI(**self.fqi_params)
         self.fqi.fit(sast, r)
 
+    def set_epsilon(self, epsilon):
+        self.epsilon = epsilon
+
     def epsilon_step(self, epsilon_rate=None):
-        if epsilon_rate is None:
-            self.epsilon *= self.epsilon_rate
-        else:
-            self.epsilon *= epsilon_rate
+        if self.epsilon * self.epsilon_rate >= self.min_epsilon:
+            if epsilon_rate is None:
+                self.epsilon *= self.epsilon_rate
+            else:
+                self.epsilon *= epsilon_rate
 
     def draw_action(self, state, absorbing, evaluation=False):
-        if not evaluation and random() <= self.epsilon:
+        if random() <= (self.epsilon if not evaluation else self.min_epsilon):
             return choice(self.initial_actions)
         else:
             preprocessed_state = self.nn_stack.s_features(state)

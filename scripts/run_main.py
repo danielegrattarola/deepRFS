@@ -235,6 +235,8 @@ for i in range(alg_iterations):
         F = pds_to_npa(sfadf.F)  # All features from NN stack
         D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
         log('Mean dynamic values %s' % np.mean(D, axis=0))
+        log('Dynamic values variance %s' % np.std(D, axis=0))
+        log('Max dynamic values %s' % np.max(D, axis=0))
         toc()
 
         if use_residuals:
@@ -262,6 +264,8 @@ for i in range(alg_iterations):
             S = pds_to_npa(sares.S)  # 4 frames
             A = pds_to_npa(sares.A)  # Discrete action
             RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
+            log('Mean residual values %s' % np.mean(RES, axis=0))
+            log('Residual values variance %s' % np.std(RES, axis=0))
             log('Max residual values %s' % np.max(RES, axis=0))
             toc()
         else:
