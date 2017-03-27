@@ -147,8 +147,8 @@ def build_sares(model, sfadf, model_type='linear'):
         a = datapoint.A
 
         features = np.expand_dims(datapoint.F, 0)
-        if model_type == 'linear':
-            features = PolynomialFeatures(degree=5).fit_transform(features)
+        # if model_type == 'linear':
+        #     features = PolynomialFeatures(degree=5).fit_transform(features)
 
         prediction = model.predict(features)
         res = datapoint.D - prediction

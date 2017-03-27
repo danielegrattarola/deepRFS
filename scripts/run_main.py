@@ -245,7 +245,7 @@ for i in range(alg_iterations):
                 model = ExtraTreesRegressor(n_estimators=50,
                                             max_depth=max_depth)  # This should underfit
             elif residual_model == 'linear':
-                F = PolynomialFeatures(degree=5).fit_transform(F)
+                # F = PolynomialFeatures(degree=5).fit_transform(F)
                 model = Ridge()
             model.fit(F, D)
 
