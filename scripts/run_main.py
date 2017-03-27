@@ -78,7 +78,7 @@ from sklearn.preprocessing import PolynomialFeatures
 tic('Initial setup')
 # ARGS
 # TODO debug
-debug = False
+debug = True
 farf_analysis = True
 r2_analysis = False
 use_residuals = True
@@ -135,6 +135,7 @@ toc()
 
 for i in range(alg_iterations):
     # NEURAL NETWORK 0 #
+    log('##### STEP %s #####' % i)
     tic('Collecting SARS dataset')
     # 4 frames, action, reward, 4 frames
     sars = collect_sars(mdp, policy, episodes=sars_episodes, debug=debug)
@@ -181,7 +182,7 @@ for i in range(alg_iterations):
                   'n_features_step': 1,
                   'cv': None,
                   'scale': True,
-                  'verbose': 1,
+                  'verbose': 0,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
     ifs.fit(ifs_x, ifs_y, preload_features=(range(511) if r2_analysis else None))  # TODO R2 analysis
@@ -190,6 +191,7 @@ for i in range(alg_iterations):
     support = support[:-1]  # Remove action from support
     nb_new_features = np.array(support).sum()
     r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
+    log('Features:\n%s' % np.array(support).nonzero())
     log('IFS - New features: %s' % nb_new_features)
     log('Action was%s selected' % ('' if got_action else ' NOT'))
     log('R2 change %s (from %s to %s)' %
@@ -257,7 +259,7 @@ for i in range(alg_iterations):
         if use_residuals:
             tic('Building SARes dataset')
             # Frames, action, residual dynamics of last NN (Res = D - model(F))
-            sares = build_sares(model, sfadf)
+            sares = build_sares(model, sfadf, model_type=residual_model)
             S = pds_to_npa(sares.S)  # 4 frames
             A = pds_to_npa(sares.A)  # Discrete action
             RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
@@ -317,7 +319,7 @@ for i in range(alg_iterations):
         nn_stack.add(nn, support)
 
         if nb_new_features == 0 or r2_change < r2_change_threshold:
-            print 'Done.\n'
+            log('Done.\n')
             break
 
     # FITTED Q-ITERATION #
@@ -338,7 +340,6 @@ for i in range(alg_iterations):
                                 tol=0.5,
                                 **fqi_regressor_params)
     policy.fqi_params['estimator'] = regressor
-    # TODO if it crashes, update policy.nn_stack here
     policy.fit_on_dataset(sast, r, all_features_dim)
     policy.epsilon_step()
 
@@ -355,7 +356,7 @@ for i in range(alg_iterations):
     toc(evaluation_results)
     # END FITTED Q-ITERATION #
 
-    print 'Done.\n' + '#' * 50 + '\n'
+    log('Done.\n' + '#' * 50 + '\n')
 
 # FINAL OUTPUT #
 # Plot evaluation results

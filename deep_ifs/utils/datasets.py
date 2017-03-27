@@ -4,6 +4,7 @@ from tqdm import tqdm
 from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import PolynomialFeatures
 
 
 def episode(env, policy, video=False):
@@ -46,7 +47,7 @@ def collect_sars(env, policy, episodes=100, n_jobs=1, debug=False):
 
     # TODO debug
     if debug:
-        dataset = dataset[:6]
+        dataset = dataset[:10]
 
     header = ['S', 'A', 'R', 'SS', 'DONE']
     return pd.DataFrame(dataset, columns=header)
@@ -135,7 +136,7 @@ def build_sfadf(nn_stack, nn, support, sars):
     return pd.DataFrame(sfadf, columns=header)
 
 
-def build_sares(model, sfadf):
+def build_sares(model, sfadf, model_type='linear'):
     # Build SARes dataset from SFADF':
     # S = S
     # A = A
@@ -144,7 +145,13 @@ def build_sares(model, sfadf):
     for datapoint in sfadf.itertuples():
         s = datapoint.S
         a = datapoint.A
-        res = datapoint.D - model.predict(np.expand_dims(datapoint.F,0))
+
+        features = np.expand_dims(datapoint.F, 0)
+        if model_type == 'linear':
+            features = PolynomialFeatures(degree=5).fit_transform(features)
+
+        prediction = model.predict(features)
+        res = datapoint.D - prediction
         sares.append([s, a, res])
     sares = np.array(sares)
     header = ['S', 'A', 'RES']
