@@ -52,14 +52,7 @@ class ConvNet:
         self.encoder = Model(input=self.input, output=self.features)
 
         # Optimization algorithm
-        try:
-            self.optimizer = RMSpropGraves(lr=0.00025,
-                                           momentum=0.95,
-                                           squared_momentum=0.95,
-                                           epsilon=0.01)
-            self.optimizer = Adam()
-        except NameError:
-            self.optimizer = RMSprop()
+        self.optimizer = Adam()
 
         # Load the network from saved model
         if load_path is not None:
@@ -188,6 +181,9 @@ class ConvNet:
             with open(a, 'w') as a_file:
                 a_file.write(self.model.to_json())
                 a_file.close()
+
+    def save_encoder(self, filepath):
+        self.encoder.save(filepath)
 
     def load(self, path):
         """

@@ -1,6 +1,7 @@
 from joblib import Parallel, delayed
 import numpy as np
 import imageio, time
+from deep_ifs.utils.helpers import is_stuck
 
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
@@ -59,6 +60,7 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
     ep_performance = 0.0
     df = 1.0  # Discount factor
     frame_counter = 0
+    patience = mdp.action_space.n
 
     # Get current state
     state = mdp.reset()
@@ -77,6 +79,12 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         action = policy.draw_action(np.expand_dims(state, 0), done,
                                     evaluation=True)
         next_state, reward, done, info = mdp.step(action)
+
+        if is_stuck(next_state):
+            patience -= 1
+        if patience == 0:
+            patience = mdp.action_space.n
+            next_state, reward, done, info = mdp.step(1)  # Force start
 
         # Update figures of merit
         ep_performance += df * reward  # Update performance

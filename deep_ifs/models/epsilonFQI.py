@@ -18,6 +18,9 @@ class EpsilonFQI:
         self.fqi = FQI(**self.fqi_params)
         self.fqi.fit(sast, r)
 
+    def partial_fit_on_dataset(self, sast=None, r=None):
+        self.fqi.partial_fit(sast, r)
+
     def set_epsilon(self, epsilon):
         self.epsilon = epsilon
 
@@ -29,7 +32,7 @@ class EpsilonFQI:
                 self.epsilon *= epsilon_rate
 
     def draw_action(self, state, absorbing, evaluation=False):
-        if random() <= (self.epsilon if not evaluation else self.min_epsilon):
+        if not evaluation and random() <= self.epsilon:
             return choice(self.initial_actions)
         else:
             preprocessed_state = self.nn_stack.s_features(state)
