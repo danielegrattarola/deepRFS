@@ -5,6 +5,7 @@ matplotlib.use('Agg')
 import pandas as pd
 import numpy as np
 import argparse
+from tqdm import tqdm
 from ifqi.models import Regressor, ActionRegressor
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.evaluation.evaluation import evaluate_policy
@@ -67,15 +68,14 @@ fqi_params = {'estimator': regressor,
 policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 toc()
 
+nb_reward_features = nn_stack.get_support_dim(index=0)
+log('%s reward features' % nb_reward_features)
+log('%s dynamics features' % (nn_stack.get_support_dim() - nb_reward_features))
+
 # Initial fit
 policy.partial_fit_on_dataset(sast, r, sample_weight=farf_sample_weight)
-for i in range(args.iter):
-    # FITTED Q-ITERATION #
-    tic('Updating policy')
+for i in tqdm(range(args.iter)):
     policy.partial_fit_on_dataset(sample_weight=farf_sample_weight)
-    toc()
-
-    tic('Evaluating policy after update')
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
                                          max_ep_len=max_eval_steps,
@@ -83,8 +83,7 @@ for i in range(args.iter):
                                          save_video=args.save_video,
                                          save_path=logger.path)
     evaluation_results.append(evaluation_metrics)
-    toc(evaluation_results[-1])
-    # END FITTED Q-ITERATION #
+    tqdm.write('Step %s: %s', (i, evaluation_results[-1][[0, 2]]))
 
 # FINAL OUTPUT #
 # Plot evaluation results

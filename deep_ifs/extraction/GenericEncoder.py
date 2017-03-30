@@ -2,6 +2,7 @@ import numpy as np
 from keras.models import load_model
 from keras.optimizers import Adam
 
+
 class GenericEncoder:
     def __init__(self, path):
         self.model = load_model(path)
