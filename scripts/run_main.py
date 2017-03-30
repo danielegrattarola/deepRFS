@@ -243,7 +243,7 @@ for i in range(alg_iterations):
                                         max_depth=max_depth)
         elif residual_model == 'linear':
             model = Ridge()
-        model.fit(F, D)
+        model.fit(F, D, sample_weight=sars_sample_weight)
 
         log('Cleaning memory (F, D)')
         del F, D
@@ -337,7 +337,10 @@ for i in range(alg_iterations):
                                 tol=0.5,
                                 **fqi_regressor_params)
     policy.fqi_params['estimator'] = regressor
-    policy.fit_on_dataset(sast, r, all_features_dim)
+    policy.fit_on_dataset(sast,
+                          r,
+                          all_features_dim,
+                          sample_weight=sars_sample_weight)
 
     # Set random/greedy split to 0.9 after the 0-th step
     random_greedy_split = 0.9

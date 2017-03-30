@@ -13,13 +13,13 @@ class EpsilonFQI:
         self.initial_actions = self.fqi_params['discrete_actions']
         self.fqi = FQI(**self.fqi_params)
 
-    def fit_on_dataset(self, sast, r, state_dim):
+    def fit_on_dataset(self, sast, r, state_dim, **kwargs):
         self.fqi_params['state_dim'] = state_dim
         self.fqi = FQI(**self.fqi_params)
-        self.fqi.fit(sast, r)
+        self.fqi.fit(sast, r, **kwargs)
 
-    def partial_fit_on_dataset(self, sast=None, r=None):
-        self.fqi.partial_fit(sast, r)
+    def partial_fit_on_dataset(self, sast=None, r=None, **kwargs):
+        self.fqi.partial_fit(sast, r, **kwargs)
 
     def set_epsilon(self, epsilon):
         self.epsilon = epsilon

@@ -14,6 +14,7 @@ from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import tic, toc, log
 from deep_ifs.envs.atari import Atari
 from sklearn.linear_model import Ridge
+from deep_ifs.utils.datasets import get_sample_weight
 
 # ARGS
 parser = argparse.ArgumentParser()
@@ -33,6 +34,7 @@ tic('Reading data...')
 nn_stack = NNStack()  # To store all neural networks and IFS support
 nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 global_farf = pd.read_pickle(args.base_folder + 'global_farf_%s.pickle' % args.iteration_id)
+farf_sample_weight = get_sample_weight(global_farf)
 toc()
 
 tic('Setup...')
@@ -66,11 +68,11 @@ policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 toc()
 
 # Initial fit
-policy.partial_fit_on_dataset(sast, r)
+policy.partial_fit_on_dataset(sast, r, sample_weight=farf_sample_weight)
 for i in range(args.iter):
     # FITTED Q-ITERATION #
     tic('Updating policy')
-    policy.partial_fit_on_dataset()
+    policy.partial_fit_on_dataset(sample_weight=farf_sample_weight)
     toc()
 
     tic('Evaluating policy after update')
