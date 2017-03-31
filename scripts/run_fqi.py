@@ -14,7 +14,8 @@ from deep_ifs.utils.datasets import pds_to_npa, split_dataset_for_fqi
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import tic, toc, log
 from deep_ifs.envs.atari import Atari
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import ExtraTreesRegressor
 from deep_ifs.utils.datasets import get_sample_weight
 
 # ARGS
@@ -22,12 +23,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('base_folder', type=str, help='path to run folder with dataset and nn_stack')
 parser.add_argument('iteration_id', type=int, help='number of iteration saved in the base folder that you want to use')
 parser.add_argument('-d', action='store_true', help='debug')
+parser.add_argument('--regressor', type=str, default='linear', help='fqi regressor for actionregressor')
 parser.add_argument('--save-video', action='store_true', help='save evaluation gifs')
+parser.add_argument('--sample-weights', action='store_true', help='use sample weights')
 parser.add_argument('--iter', type=int, default=100, help='fqi iterations')
 parser.add_argument('--episodes', type=int, default=10, help='number of evaluation episodes to run at each step')
+parser.add_argument('--eval-freq', type=int, default=5, help='frequency with which to evaluate')
 args = parser.parse_args()
 
-max_eval_steps = 2 if args.d else 4000  # Maximum length of evaluation episodes
+max_eval_steps = 2 if args.d else 500  # Maximum length of evaluation episodes
 
 # SETUP
 # Read from disk
@@ -35,7 +39,7 @@ tic('Reading data...')
 nn_stack = NNStack()  # To store all neural networks and IFS support
 nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 global_farf = pd.read_pickle(args.base_folder + 'global_farf_%s.pickle' % args.iteration_id)
-farf_sample_weight = get_sample_weight(global_farf)
+farf_sample_weight = get_sample_weight(global_farf) if args.sample_weights else None
 toc()
 
 tic('Setup...')
@@ -51,12 +55,20 @@ action_values = np.unique(pds_to_npa(global_farf.A))
 toc()
 
 # Create policy
-fqi_regressor_params = {}
-regressor = Regressor(regressor_class=Ridge)
+if args.regressor == 'extra':
+    fqi_regressor_params = {'n_estimators': 50,
+                            'n_jobs': 1}
+    regressor = Regressor(regressor_class=ExtraTreesRegressor,
+                          **fqi_regressor_params)
+elif args.regressor == 'linear':
+    fqi_regressor_params = {'n_jobs': 1}
+    regressor = Regressor(regressor_class=LinearRegression,
+                          **fqi_regressor_params)
+
+
 regressor = ActionRegressor(regressor,
                             discrete_actions=action_values,
-                            tol=0.5,
-                            **fqi_regressor_params)
+                            tol=0.5)
 state_dim = nn_stack.get_support_dim()
 fqi_params = {'estimator': regressor,
               'state_dim': state_dim,  # Don't care at this step
@@ -64,7 +76,7 @@ fqi_params = {'estimator': regressor,
               'discrete_actions': action_values,
               'gamma': mdp.gamma,
               'horizon': args.iter,
-              'verbose': True}
+              'verbose': False}
 policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 toc()
 
@@ -76,14 +88,16 @@ log('%s dynamics features' % (nn_stack.get_support_dim() - nb_reward_features))
 policy.partial_fit_on_dataset(sast, r, sample_weight=farf_sample_weight)
 for i in tqdm(range(args.iter)):
     policy.partial_fit_on_dataset(sample_weight=farf_sample_weight)
-    evaluation_metrics = evaluate_policy(mdp,
-                                         policy,
-                                         max_ep_len=max_eval_steps,
-                                         n_episodes=args.episodes,
-                                         save_video=args.save_video,
-                                         save_path=logger.path)
-    evaluation_results.append(evaluation_metrics)
-    tqdm.write('Step %s: %s', (i, evaluation_results[-1][[0, 2]]))
+    if i % args.eval_freq == 0:
+        tqdm.write('Step %s: started eval...' % i)
+        evaluation_metrics = evaluate_policy(mdp,
+                                             policy,
+                                             max_ep_len=max_eval_steps,
+                                             n_episodes=args.episodes,
+                                             save_video=args.save_video,
+                                             save_path=logger.path)
+        evaluation_results.append(evaluation_metrics)
+        tqdm.write('Step %s: %s' % (i, evaluation_results[-1]))
 
 # FINAL OUTPUT #
 # Plot evaluation results

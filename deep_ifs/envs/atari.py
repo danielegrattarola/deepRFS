@@ -42,11 +42,6 @@ class Atari(gym.Env):
         obs = self._preprocess_observation(obs)
         self.env.state = self._get_next_state(current_state, obs)
 
-        try:
-            assert reward <= 1, 'Unexpected reward from MDP'
-        except AssertionError:
-            reward = 1
-
         return self.get_state(), reward, done, info
 
     def get_state(self):

@@ -76,13 +76,13 @@ from deep_ifs.utils.timer import *
 from deep_ifs.envs.atari import Atari
 from sklearn.ensemble import ExtraTreesRegressor
 from matplotlib import pyplot as plt
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import LinearRegression
 import os
 
 tic('Initial setup')
 # ARGS
 # TODO debug
-debug = True
+debug = False
 farf_analysis = False
 residual_model = 'linear'
 save_video = True
@@ -96,7 +96,7 @@ ifs_significance = 0.01  # Significance for IFS
 fqi_iterations = 2 if debug else 20  # Number of steps to train FQI
 r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
 eval_episodes = 4  # Number of evaluation episodes to run
-max_eval_steps = 2 if debug else 4000  # Maximum length of evaluation episodes
+max_eval_steps = 2 if debug else 500  # Maximum length of evaluation episodes
 # END ARGS
 
 # ADDITIONAL OBJECTS
@@ -111,8 +111,13 @@ nb_actions = mdp.action_space.n
 
 # Create epsilon FQI model
 # Action regressor of ExtraTreesRegressor for FQI
-fqi_regressor_params = {}
-regressor = Regressor(regressor_class=Ridge)
+if residual_model == 'extra':
+    fqi_regressor_params = {'n_estimators': 50}
+    regressor = Regressor(regressor_class=ExtraTreesRegressor)
+elif residual_model == 'linear':
+    fqi_regressor_params = {}
+    regressor = Regressor(regressor_class=LinearRegression)
+
 regressor = ActionRegressor(regressor,
                             discrete_actions=action_values,
                             tol=0.5,
@@ -242,7 +247,7 @@ for i in range(alg_iterations):
             model = ExtraTreesRegressor(n_estimators=50,
                                         max_depth=max_depth)
         elif residual_model == 'linear':
-            model = Ridge()
+            model = LinearRegression()
         model.fit(F, D, sample_weight=sars_sample_weight)
 
         log('Cleaning memory (F, D)')
@@ -330,7 +335,7 @@ for i in range(alg_iterations):
 
     tic('Updating policy')
     # Update ActionRegressor to only use the actions actually in the dataset
-    regressor = Regressor(regressor_class=Ridge,
+    regressor = Regressor(regressor_class=LinearRegression,
                           **fqi_regressor_params)
     regressor = ActionRegressor(regressor,
                                 discrete_actions=action_values,
