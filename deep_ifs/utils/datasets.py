@@ -164,7 +164,7 @@ def build_sfadf(nn_stack, nn, support, sars):
     return pd.DataFrame(sfadf, columns=header)
 
 
-def build_sares(model, sfadf, model_type='linear'):
+def build_sares(model, sfadf):
     # Build SARes dataset from SFADF':
     # S = S
     # A = A

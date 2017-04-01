@@ -63,78 +63,104 @@ import matplotlib
 
 # Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
+import argparse
 import gc
-from ifqi.models import Regressor, ActionRegressor
-from deep_ifs.models.epsilonFQI import EpsilonFQI
+import joblib
+import os
+from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
+from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.selection.ifs import IFS
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import *
-from deep_ifs.envs.atari import Atari
-from sklearn.ensemble import ExtraTreesRegressor
+from ifqi.models import Regressor, ActionRegressor
 from matplotlib import pyplot as plt
-from sklearn.linear_model import LinearRegression
-import os
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.linear_model import LinearRegression, Ridge
 
-tic('Initial setup')
 # ARGS
-# TODO debug
-debug = False
-farf_analysis = False
-residual_model = 'linear'
-save_video = True
-
-sars_episodes = 10 if debug else 200  # Number of SARS episodes to collect
-nn_nb_epochs = 2 if debug else 300  # Number of epochs for the networks
-alg_iterations = 100  # Number of steps to make in the main loop
-rec_steps = 1 if debug else 100  # Number of recursive steps to make
-ifs_nb_trees = 50  # Number of trees to use in IFS
-ifs_significance = 0.01  # Significance for IFS
-fqi_iterations = 2 if debug else 20  # Number of steps to train FQI
-r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
-eval_episodes = 4  # Number of evaluation episodes to run
-max_eval_steps = 2 if debug else 500  # Maximum length of evaluation episodes
+parser = argparse.ArgumentParser()
+parser.add_argument('-d', '--debug', action='store_true')
+parser.add_argument('--farf-analysis', action='store_true')
+parser.add_argument('--save-video', action='store_true')
+parser.add_argument('--residual-model', type=str, default='linear')
+parser.add_argument('--fqi-model-type', type=str, default='extra')
+parser.add_argument('--fqi-model', type=str, default=None)
+parser.add_argument('--nn-stack', type=str, default=None)
+parser.add_argument('-e', '--env', type=str, default=None)
+args = parser.parse_args()
 # END ARGS
 
-# ADDITIONAL OBJECTS
+# HYPERPARAMETERS
+sars_episodes = 10 if args.debug else 200  # Number of SARS episodes to collect
+nn_nb_epochs = 2 if args.debug else 300  # Number of epochs for the networks
+alg_iterations = 100  # Number of steps to make in the main loop
+rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
+ifs_nb_trees = 50  # Number of trees to use in IFS
+ifs_significance = 1  # Significance for IFS
+fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
+r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
+eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
+max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
+initial_random_greedy_split = 1  # Initial R/G split for SARS collection
+final_random_greedy_split = 0.9
+random_greedy_split = initial_random_greedy_split
+
+# SETUP
 logger = Logger(output_folder='../output/')
 evaluation_results = []
-
 nn_stack = NNStack()  # To store all neural networks and IFS supports
-
 mdp = Atari('BreakoutDeterministic-v3')
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
-# Create epsilon FQI model
-# Action regressor of ExtraTreesRegressor for FQI
-if residual_model == 'extra':
-    fqi_regressor_params = {'n_estimators': 50}
-    regressor = Regressor(regressor_class=ExtraTreesRegressor)
-elif residual_model == 'linear':
-    fqi_regressor_params = {}
-    regressor = Regressor(regressor_class=LinearRegression)
+# Create policy
+# Create ActionRegressor
+if args.fqi_model_type == 'extra':
+    fqi_regressor_params = {'n_estimators': 50,
+                            'n_jobs': -1}
+    regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
+                                          **fqi_regressor_params),
+                                discrete_actions=action_values,
+                                tol=0.5)
+elif args.fqi_model_type == 'linear':
+    fqi_regressor_params = {'n_jobs': -1}
+    regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
+                                          **fqi_regressor_params),
+                                discrete_actions=action_values,
+                                tol=0.5)
+elif args.fqi_model_type == 'ridge':
+    fqi_regressor_params = {'n_jobs': -1}
+    regressor = ActionRegressor(Regressor(regressor_class=Ridge,
+                                          **fqi_regressor_params),
+                                discrete_actions=action_values,
+                                tol=0.5)
+else:
+    raise NotImplementedError('Allowed models: \'extra\', \'linear\', '
+                              '\'ridge\'.')
 
-regressor = ActionRegressor(regressor,
-                            discrete_actions=action_values,
-                            tol=0.5,
-                            **fqi_regressor_params)
-fqi_params = {'estimator': regressor,
-              'state_dim': 10,  # Don't care at this step
-              'action_dim': 1,  # Action is discrete monodimensional
-              'discrete_actions': action_values,
-              'gamma': mdp.gamma,
-              'horizon': fqi_iterations,
-              'verbose': True}
-policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
+# Create EpsilonFQI
+if args.fqi_model is not None and args.nn_stack is not None:
+    log('Loading NN stack from %s' % args.nn_stack)
+    nn_stack.load(args.nn_stack)
+    log('Loading policy from %s' % args.fqi_model)
+    policy = EpsilonFQI(None, nn_stack, fqi=joblib.load(args.fqi_model))
+    random_greedy_split = final_random_greedy_split
+else:
+    fqi_params = {'estimator': regressor,
+                  'state_dim': nn_stack.get_support_dim(),
+                  'action_dim': 1,  # Action is discrete monodimensional
+                  'discrete_actions': action_values,
+                  'gamma': mdp.gamma,
+                  'horizon': fqi_iterations,
+                  'verbose': True}
+    policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 
-random_greedy_split = 1
-# END ADDITIONAL OBJECTS
-toc()
 
+log('######## START ########')
 for i in range(alg_iterations):
     # NEURAL NETWORK 0 #
     log('######## STEP %s ########' % i)
@@ -144,7 +170,7 @@ for i in range(alg_iterations):
     sars = collect_sars(mdp,
                         policy,
                         episodes=sars_episodes,
-                        debug=debug,
+                        debug=args.debug,
                         random_greedy_split=random_greedy_split)
     sars_sample_weight = get_sample_weight(sars)
     S = pds_to_npa(sars.S)  # 4 frames
@@ -167,16 +193,16 @@ for i in range(alg_iterations):
                  nb_epochs=nn_nb_epochs)
     nn.fit(S, A, R)
     nn.load('NN.h5')  # Load best network (saved by callback)
+
     log('Cleaning memory (S, A, R)')
     del S, A, R
     toc()
-    # END NEURAL NETWORK 0 #
 
     # ITERATIVE FEATURE SELECTION 0 #
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
-    ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version <0.19 will throw a warning
+    ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     # Print the number of nonzero features
     nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
@@ -194,31 +220,23 @@ for i in range(alg_iterations):
     ifs = IFS(**ifs_params)
     ifs.fit(ifs_x, ifs_y)
     support = ifs.get_support()
-    got_action = support[-1]
+    got_action = support[-1]  # Action is the last feature
     support = support[:-1]  # Remove action from support
     nb_new_features = np.array(support).sum()
     r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
     log('Features:\n%s' % np.array(support).nonzero())
     log('IFS - New features: %s' % nb_new_features)
     log('Action was%s selected' % ('' if got_action else ' NOT'))
-    log('R2 change %s (from %s to %s)' %
-        (r2_change, ifs.scores_[0], ifs.scores_[-1]))
-
-    if not farf_analysis:  # TODO farf analysis
-        log('Cleaning memory (farf, ifs_x, ifs_y)')
-        del farf, ifs_x, ifs_y
+    log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
     toc()
-    # END ITERATIVE FEATURE SELECTION 0 #
 
     # TODO Debug
-    if debug:
+    if args.debug:
         support[2] = True
-
     # TODO farf analysis
-    if farf_analysis:
+    if args.farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
-        log('Mean feature values \n%s' % np.mean(ifs_x[:, feature_idxs],
-                                                 axis=0))
+        log('Mean feature values\n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
         for f in feature_idxs:
             np.save(logger.path + 'farf_feature_%s.npy' % f,
                     ifs_x[:, f].reshape(-1))
@@ -226,6 +244,9 @@ for i in range(alg_iterations):
             plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
             plt.savefig(logger.path + 'farf_scatter_%s_v_reward.png' % f)
             plt.close()
+    else:
+        log('Cleaning memory (farf, ifs_x, ifs_y)')
+        del farf, ifs_x, ifs_y
 
     nn_stack.add(nn, support)
 
@@ -242,23 +263,25 @@ for i in range(alg_iterations):
         toc()
 
         tic('Fitting residuals model')
-        if residual_model == 'extra':
+        if args.residual_model == 'extra':
             max_depth = F.shape[1] / 2
             model = ExtraTreesRegressor(n_estimators=50,
-                                        max_depth=max_depth)
-        elif residual_model == 'linear':
-            model = LinearRegression()
-        model.fit(F, D, sample_weight=sars_sample_weight)
+                                        max_depth=max_depth,
+                                        n_jobs=-1)
+        elif args.residual_model == 'linear':
+            model = LinearRegression(n_jobs=-1)
+        model.fit(F,
+                  D,
+                  sample_weight=sars_sample_weight)
 
         log('Cleaning memory (F, D)')
         del F, D
         toc()
-        # END RESIDUALS MODEL #
 
         # NEURAL NETWORK i #
         tic('Building SARes dataset')
         # Frames, action, residual dynamics of last NN (Res = D - model(F))
-        sares = build_sares(model, sfadf, model_type=residual_model)
+        sares = build_sares(model, sfadf)
         S = pds_to_npa(sares.S)  # 4 frames
         A = pds_to_npa(sares.A)  # Discrete action
         RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
@@ -280,32 +303,29 @@ for i in range(alg_iterations):
         nn.fit(S, A, RES)
         nn.load('NN.h5')  # Load best network (saved by callback)
 
-        log('Cleaning memory (sares, S, A, RES')
+        log('Cleaning memory (sares, S, A, RES)')
         del S, A, RES, sares
         toc()
-        # END NEURAL NETWORK i #
 
         # ITERATIVE FEATURE SELECTION i #
-        tic('Building FADF dataset for IFS')
+        tic('Building FADF dataset for IFS %s' % j)
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         toc()
 
-        tic('Running IFS with target D')
+        tic('Running IFS %s with target D' % j)
         ifs = IFS(**ifs_params)
         preload_features = range(nn_stack.get_support_dim())
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
         support = ifs.get_support()
         got_action = support[-1]
-        support = support[len(
-            preload_features):-1]  # Remove already selected features and action from support
+        support = support[len(preload_features):-1]  # Remove already selected features and action from support
         nb_new_features = np.array(support).sum()
         r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
         log('IFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
-        log('R2 change %s (from %s to %s)' % (
-            r2_change, ifs.scores_[0], ifs.scores_[-1]))
+        log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
 
         log('Cleaning memory (fadf, ifs_x, ifs_y)')
         del fadf, ifs_x, ifs_y
@@ -333,23 +353,29 @@ for i in range(alg_iterations):
     action_values = np.unique(pds_to_npa(global_farf.A))
     toc()
 
-    tic('Updating policy')
+    tic('Updating policy %s', i)
     # Update ActionRegressor to only use the actions actually in the dataset
-    regressor = Regressor(regressor_class=LinearRegression,
-                          **fqi_regressor_params)
-    regressor = ActionRegressor(regressor,
-                                discrete_actions=action_values,
-                                tol=0.5,
-                                **fqi_regressor_params)
+    if args.fqi_model_type == 'extra':
+        fqi_regressor_params = {'n_estimators': 50}
+        regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
+                                              **fqi_regressor_params),
+                                    discrete_actions=action_values,
+                                    tol=0.5)
+    elif args.fqi_model_type == 'linear':
+        regressor = ActionRegressor(Regressor(regressor_class=LinearRegression),
+                                    discrete_actions=action_values,
+                                    tol=0.5)
+    elif args.fqi_model_type == 'ridge':
+        regressor = ActionRegressor(Regressor(regressor_class=Ridge),
+                                    discrete_actions=action_values,
+                                    tol=0.5)
     policy.fqi_params['estimator'] = regressor
     policy.fit_on_dataset(sast,
                           r,
                           all_features_dim,
                           sample_weight=sars_sample_weight)
-
     # Set random/greedy split to 0.9 after the 0-th step
-    random_greedy_split = 0.9
-
+    random_greedy_split = final_random_greedy_split
     log('Cleaning memory (global_farf, sast, r, sars)')
     del global_farf, sast, r, sars
     gc.collect()
@@ -360,7 +386,7 @@ for i in range(alg_iterations):
                                          policy,
                                          max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
-                                         save_video=save_video,
+                                         save_video=args.save_video,
                                          save_path=logger.path)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
@@ -370,6 +396,7 @@ for i in range(alg_iterations):
 
 # FINAL OUTPUT #
 # Plot evaluation results
+tic('Plotting evaluation results')
 evaluation_results = pd.DataFrame(evaluation_results,
                                   columns=['score', 'confidence_score',
                                            'steps', 'confidence_steps'])
@@ -378,4 +405,5 @@ fig = evaluation_results[['score', 'steps']].plot().get_figure()
 fig.savefig(logger.path + 'evaluation.png')
 
 # TODO Log run configuration
+toc('Done. Exit...')
 # END #

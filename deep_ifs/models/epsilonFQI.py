@@ -4,14 +4,17 @@ from random import random, choice
 
 class EpsilonFQI:
     def __init__(self, fqi_params, nn_stack, epsilon=1.0, epsilon_rate=0.99,
-                 min_epsilon=0.05):
-        self.epsilon = epsilon
-        self.epsilon_rate = epsilon_rate
-        self.min_epsilon = min_epsilon
+                 min_epsilon=0.05, fqi=None):
         self.fqi_params = fqi_params
         self.nn_stack = nn_stack
+        self.epsilon = epsilon
+        self.min_epsilon = min_epsilon
+        self.epsilon_rate = epsilon_rate
         self.initial_actions = self.fqi_params['discrete_actions']
-        self.fqi = FQI(**self.fqi_params)
+        if fqi is None:
+            self.fqi = FQI(**self.fqi_params)
+        else:
+            self.fqi = fqi
 
     def fit_on_dataset(self, sast, r, state_dim, **kwargs):
         self.fqi_params['state_dim'] = state_dim

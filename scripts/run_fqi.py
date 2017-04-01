@@ -1,28 +1,27 @@
 # TODO Documentation
 import matplotlib
-# Force matplotlib to not use any Xwindows backend.
-matplotlib.use('Agg')
-import pandas as pd
-import numpy as np
+matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import argparse
-from tqdm import tqdm
-from ifqi.models import Regressor, ActionRegressor
-from deep_ifs.models.epsilonFQI import EpsilonFQI
+import joblib
+import numpy as np
+import pandas as pd
+from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import evaluate_policy
 from deep_ifs.extraction.NNStack import NNStack
-from deep_ifs.utils.datasets import pds_to_npa, split_dataset_for_fqi
+from deep_ifs.models.epsilonFQI import EpsilonFQI
+from deep_ifs.utils.datasets import get_sample_weight, pds_to_npa, split_dataset_for_fqi
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import tic, toc, log
-from deep_ifs.envs.atari import Atari
-from sklearn.linear_model import LinearRegression
+from ifqi.models import Regressor, ActionRegressor
 from sklearn.ensemble import ExtraTreesRegressor
-from deep_ifs.utils.datasets import get_sample_weight
+from sklearn.linear_model import LinearRegression
+from tqdm import tqdm
 
 # ARGS
 parser = argparse.ArgumentParser()
 parser.add_argument('base_folder', type=str, help='path to run folder with dataset and nn_stack')
 parser.add_argument('iteration_id', type=int, help='number of iteration saved in the base folder that you want to use')
-parser.add_argument('-d', action='store_true', help='debug')
+parser.add_argument('-d', '--debug', action='store_true', help='debug')
 parser.add_argument('--regressor', type=str, default='linear', help='fqi regressor for actionregressor')
 parser.add_argument('--save-video', action='store_true', help='save evaluation gifs')
 parser.add_argument('--sample-weights', action='store_true', help='use sample weights')
@@ -31,10 +30,9 @@ parser.add_argument('--episodes', type=int, default=10, help='number of evaluati
 parser.add_argument('--eval-freq', type=int, default=5, help='frequency with which to evaluate')
 args = parser.parse_args()
 
-max_eval_steps = 2 if args.d else 500  # Maximum length of evaluation episodes
+max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
 
 # SETUP
-# Read from disk
 tic('Reading data...')
 nn_stack = NNStack()  # To store all neural networks and IFS support
 nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
@@ -54,24 +52,25 @@ all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "
 action_values = np.unique(pds_to_npa(global_farf.A))
 toc()
 
+tic('Creating policy')
 # Create policy
 if args.regressor == 'extra':
     fqi_regressor_params = {'n_estimators': 50,
-                            'n_jobs': 1}
-    regressor = Regressor(regressor_class=ExtraTreesRegressor,
-                          **fqi_regressor_params)
+                            'n_jobs': -1}
+    regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
+                                          **fqi_regressor_params),
+                                discrete_actions=action_values,
+                                tol=0.5)
 elif args.regressor == 'linear':
-    fqi_regressor_params = {'n_jobs': 1}
-    regressor = Regressor(regressor_class=LinearRegression,
-                          **fqi_regressor_params)
+    fqi_regressor_params = {'n_jobs': -1}
+    regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
+                                          **fqi_regressor_params),
+                                discrete_actions=action_values,
+                                tol=0.5)
 
-
-regressor = ActionRegressor(regressor,
-                            discrete_actions=action_values,
-                            tol=0.5)
 state_dim = nn_stack.get_support_dim()
 fqi_params = {'estimator': regressor,
-              'state_dim': state_dim,  # Don't care at this step
+              'state_dim': state_dim,
               'action_dim': 1,  # Action is discrete monodimensional
               'discrete_actions': action_values,
               'gamma': mdp.gamma,
@@ -79,16 +78,17 @@ fqi_params = {'estimator': regressor,
               'verbose': False}
 policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 toc()
+toc()
 
 nb_reward_features = nn_stack.get_support_dim(index=0)
-log('%s reward features' % nb_reward_features)
-log('%s dynamics features' % (nn_stack.get_support_dim() - nb_reward_features))
+log('\n%s reward features' % nb_reward_features)
+log('%s dynamics features\n' % (nn_stack.get_support_dim() - nb_reward_features))
 
 # Initial fit
 policy.partial_fit_on_dataset(sast, r, sample_weight=farf_sample_weight)
 for i in tqdm(range(args.iter)):
     policy.partial_fit_on_dataset(sample_weight=farf_sample_weight)
-    if i % args.eval_freq == 0:
+    if i % args.eval_freq == 0 or i == (args.iter-1):
         tqdm.write('Step %s: started eval...' % i)
         evaluation_metrics = evaluate_policy(mdp,
                                              policy,
@@ -97,6 +97,9 @@ for i in tqdm(range(args.iter)):
                                              save_video=args.save_video,
                                              save_path=logger.path)
         evaluation_results.append(evaluation_metrics)
+        # Save fqi policy
+        joblib.dump(policy.fqi, 'fqi_step_%s_eval_%s.pkl' %
+                    (i, int(evaluation_results[-1][0])))
         tqdm.write('Step %s: %s' % (i, evaluation_results[-1]))
 
 # FINAL OUTPUT #
@@ -105,6 +108,7 @@ evaluation_results = pd.DataFrame(evaluation_results,
                                   columns=['score', 'confidence_score',
                                            'steps', 'confidence_steps'])
 evaluation_results.to_csv('evaluation.csv', index=False)
-fig = evaluation_results[['score', 'steps']].plot().get_figure()
-fig.savefig(logger.path + 'evaluation.png')
-
+fig = evaluation_results['score'].plot().get_figure()
+fig.savefig(logger.path + 'evaluation_score.png')
+fig = evaluation_results['steps'].plot().get_figure()
+fig.savefig(logger.path + 'evaluation_steps.png')
