@@ -353,7 +353,7 @@ for i in range(alg_iterations):
     action_values = np.unique(pds_to_npa(global_farf.A))
     toc()
 
-    tic('Updating policy %s', i)
+    tic('Updating policy %s' % i)
     # Update ActionRegressor to only use the actions actually in the dataset
     if args.fqi_model_type == 'extra':
         fqi_regressor_params = {'n_estimators': 50}

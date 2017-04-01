@@ -104,7 +104,8 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         ep_performance /= frame_counter
 
     if save_video:
-        filename = save_path + 'eval_%s_%s_%s.gif' % \
+        append_filename = append_filename.lstrip('_')
+        filename = save_path + 'eval_%s_score_%s_steps_%s.gif' % \
                                (append_filename, ep_performance, frame_counter)
         filename = time.strftime(filename)
         imageio.mimsave(filename, frames)

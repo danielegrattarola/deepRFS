@@ -2,6 +2,7 @@
 import matplotlib
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import argparse
+import atexit
 import joblib
 import numpy as np
 import pandas as pd
@@ -17,12 +18,20 @@ from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression
 from tqdm import tqdm
 
+
+def exit_callback():
+    log('\n\nIf you want to test a policy use the following:\n'
+        '\tnn_stack: %s\n'
+        '\tpolicy: %s' % (logger.path + 'fqi_step_X_eval_Y.pkl',
+                          args.base_folder + 'nn_stack_%s/' % args.iteration_id))
+atexit.register(exit_callback)
+
 # ARGS
 parser = argparse.ArgumentParser()
 parser.add_argument('base_folder', type=str, help='path to run folder with dataset and nn_stack')
 parser.add_argument('iteration_id', type=int, help='number of iteration saved in the base folder that you want to use')
 parser.add_argument('-d', '--debug', action='store_true', help='debug')
-parser.add_argument('--regressor', type=str, default='linear', help='fqi regressor for actionregressor')
+parser.add_argument('--regressor', type=str, default='extra', help='fqi regressor for actionregressor')
 parser.add_argument('--save-video', action='store_true', help='save evaluation gifs')
 parser.add_argument('--sample-weights', action='store_true', help='use sample weights')
 parser.add_argument('--iter', type=int, default=100, help='fqi iterations')
@@ -99,7 +108,7 @@ for i in tqdm(range(args.iter)):
                                              append_filename='step_%s' % i)
         evaluation_results.append(evaluation_metrics)
         # Save fqi policy
-        joblib.dump(policy.fqi, 'fqi_step_%s_eval_%s.pkl' %
+        joblib.dump(policy.fqi, logger.path + 'fqi_step_%s_eval_%s.pkl' %
                     (i, int(evaluation_results[-1][0])))
         tqdm.write('Step %s: %s' % (i, evaluation_results[-1]))
 
@@ -113,3 +122,4 @@ fig = evaluation_results['score'].plot().get_figure()
 fig.savefig(logger.path + 'evaluation_score.png')
 fig = evaluation_results['steps'].plot().get_figure()
 fig.savefig(logger.path + 'evaluation_steps.png')
+

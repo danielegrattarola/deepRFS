@@ -10,11 +10,12 @@ class EpsilonFQI:
         self.epsilon = epsilon
         self.min_epsilon = min_epsilon
         self.epsilon_rate = epsilon_rate
-        self.initial_actions = self.fqi_params['discrete_actions']
         if fqi is None:
+            self.initial_actions = self.fqi_params['discrete_actions']
             self.fqi = FQI(**self.fqi_params)
         else:
             self.fqi = fqi
+            self.initial_actions = self.fqi._actions
 
     def fit_on_dataset(self, sast, r, state_dim, **kwargs):
         self.fqi_params['state_dim'] = state_dim
