@@ -8,18 +8,18 @@ from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import tic, toc, log
 
 parser = argparse.ArgumentParser()
-parser.add_argument('fqi_model', type=str, default=None)
-parser.add_argument('nn_stack', type=str, default=None)
-parser.add_argument('-d', '--debug', action='store_true')
-parser.add_argument('-e', '--env', type=str, default=None)
-parser.add_argument('--episodes', type=int, default=10)
-parser.add_argument('--save-video', action='store_true')
+parser.add_argument('fqi_model', type=str, default=None, help='Path to a saved FQI pickle to load as policy')
+parser.add_argument('nn_stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor')
+parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
+parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
+parser.add_argument('--episodes', type=int, default=10, help='Number of episodes to run in evaluation')
 args = parser.parse_args()
 
 max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
 
 logger = Logger(output_folder='../output/', custom_run_name='test%Y%m%d-%H%M%S')
-mdp = Atari('BreakoutDeterministic-v3')
+mdp = Atari(args.env)
 
 tic('Reading data...')
 nn_stack = NNStack()
@@ -28,8 +28,8 @@ policy = EpsilonFQI(None, nn_stack, fqi=joblib.load(args.fqi_model))
 toc()
 
 log('Using:\n'
-    '\tnn_stack: %s\n'
-    '\tfqi: %s' % (args.nn_stack, args.fqi_model))
+    '\tfqi-model: %s\n'
+    '\tnn_stack: %s' % (args.fqi_model, args.nn_stack))
 
 nb_reward_features = nn_stack.get_support_dim(index=0)
 log('\n%s reward features' % nb_reward_features)
