@@ -387,7 +387,8 @@ for i in range(alg_iterations):
                                          max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
-                                         save_path=logger.path)
+                                         save_path=logger.path,
+                                         append_filename='step_%s' % i)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
     # END FITTED Q-ITERATION #

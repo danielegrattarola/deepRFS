@@ -41,7 +41,7 @@ farf_sample_weight = get_sample_weight(global_farf) if args.sample_weights else 
 toc()
 
 tic('Setup...')
-logger = Logger(output_folder='../output/')
+logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 evaluation_results = []
 mdp = Atari('BreakoutDeterministic-v3')
 nb_actions = mdp.action_space.n
@@ -95,7 +95,8 @@ for i in tqdm(range(args.iter)):
                                              max_ep_len=max_eval_steps,
                                              n_episodes=args.episodes,
                                              save_video=args.save_video,
-                                             save_path=logger.path)
+                                             save_path=logger.path,
+                                             append_filename='step_%s' % i)
         evaluation_results.append(evaluation_metrics)
         # Save fqi policy
         joblib.dump(policy.fqi, 'fqi_step_%s_eval_%s.pkl' %

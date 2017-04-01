@@ -6,7 +6,7 @@ from deep_ifs.utils.helpers import is_stuck
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     max_ep_len=np.inf, video=False, save_video=False,
-                    save_path='', n_jobs=1):
+                    save_path='', append_filename='', n_jobs=1):
     """
         This function evaluate a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
@@ -43,9 +43,10 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
     out = Parallel(n_jobs=n_jobs)(
         delayed(_eval)(
             mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
-            save_video=save_video, save_path=save_path
+            save_video=save_video, save_path=save_path,
+            append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid
         )
-        for _ in range(n_episodes)
+        for eid in range(n_episodes)
     )
 
     values, steps = np.array(zip(*out))
@@ -54,7 +55,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
 
 def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
-          save_video=False, save_path=''):
+          save_video=False, save_path='', append_filename=''):
     frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
@@ -104,7 +105,8 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
 
     if save_video:
         filename = save_path + 'eval_%s_%s_%s.gif' % \
-                               (int(time.time()), ep_performance, frame_counter)
+                               (append_filename, ep_performance, frame_counter)
+        filename = time.strftime(filename)
         imageio.mimsave(filename, frames)
 
     return ep_performance, frame_counter
