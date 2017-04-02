@@ -93,7 +93,7 @@ parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved
 parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
-assert not (args.fqi_model is not None ^ args.nn_stack is not None), 'Set both or neither --fqi-model and --nn-stack.'
+assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
 # END ARGS
 
 # HYPERPARAMETERS
