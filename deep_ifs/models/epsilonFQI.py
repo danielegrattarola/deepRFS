@@ -35,7 +35,7 @@ class EpsilonFQI:
             self.nn_stack = NNStack()
             self.nn_stack.load(nn_stack)
         else:
-            self.fqi = nn_stack
+            self.nn_stack = nn_stack
 
     def save_nn_stack(self, folder):
         self.nn_stack.save(folder)
