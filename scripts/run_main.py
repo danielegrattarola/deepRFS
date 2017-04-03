@@ -110,6 +110,7 @@ max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 final_random_greedy_split = 0.9
 random_greedy_split = initial_random_greedy_split
+es_patience = 15
 
 # SETUP
 logger = Logger(output_folder='../output/')
@@ -149,7 +150,7 @@ if args.fqi_model is not None and args.nn_stack is not None:
     log('Loading NN stack from %s' % args.nn_stack)
     nn_stack.load(args.nn_stack)
     log('Loading policy from %s' % args.fqi_model)
-    policy = EpsilonFQI(None, nn_stack, fqi=joblib.load(args.fqi_model))
+    policy = EpsilonFQI(None, nn_stack, fqi=args.fqi_model)
     random_greedy_split = final_random_greedy_split
 else:
     fqi_params = {'estimator': regressor,
@@ -348,7 +349,7 @@ for i in range(alg_iterations):
     # Save dataset and nn_stack
     global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % i)
     os.mkdir(logger.path + 'nn_stack_%s/' % i)
-    policy.nn_stack.save(logger.path + 'nn_stack_%s/' % i)
+    nn_stack.save(logger.path + 'nn_stack_%s/' % i)
 
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
@@ -372,10 +373,33 @@ for i in range(alg_iterations):
                                     discrete_actions=action_values,
                                     tol=0.5)
     policy.fqi_params['estimator'] = regressor
-    policy.fit_on_dataset(sast,
-                          r,
-                          all_features_dim,
-                          sample_weight=sars_sample_weight)
+
+    es_current_patience = es_patience
+    es_best = (-np.inf, 0, -np.inf, 0)
+
+    policy.set_new_state_dim(all_features_dim)
+    policy.partial_fit_on_dataset(sast, r)
+    for partial_iter in range(args.iter):
+        policy.partial_fit_on_dataset()
+        if i % args.eval_freq == 0 or i == (args.iter - 1):
+            es_evaluation = evaluate_policy(mdp,
+                                            policy,
+                                            max_ep_len=max_eval_steps,
+                                            n_episodes=3,
+                                            save_path=logger.path)
+            if es_evaluation[0] > es_best[0] and es_evaluation[2] >= es_best[2]:
+                es_best = es_evaluation
+                es_current_patience = es_patience
+                # Save best policy to restore it later
+                policy.save_fqi(logger.path + 'best_fqi_%s.pkl' % i)
+            else:
+                es_current_patience -= 1
+                if es_current_patience == 0:
+                    break
+
+    # Restore best policy
+    policy.load_fqi(logger.path + 'best_fqi_%s.pkl' % i)
+
     # Set random/greedy split to 0.9 after the 0-th step
     random_greedy_split = final_random_greedy_split
     log('Cleaning memory (global_farf, sast, r, sars)')
