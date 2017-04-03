@@ -111,6 +111,8 @@ initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 final_random_greedy_split = 0.9
 random_greedy_split = initial_random_greedy_split
 es_patience = 15
+es_iter = 150
+es_eval_freq = 5
 
 # SETUP
 logger = Logger(output_folder='../output/')
@@ -379,9 +381,9 @@ for i in range(alg_iterations):
 
     policy.set_new_state_dim(all_features_dim)
     policy.partial_fit_on_dataset(sast, r)
-    for partial_iter in range(args.iter):
+    for partial_iter in range(es_iter):
         policy.partial_fit_on_dataset()
-        if i % args.eval_freq == 0 or i == (args.iter - 1):
+        if i % es_eval_freq == 0 or i == (es_iter - 1):
             es_evaluation = evaluate_policy(mdp,
                                             policy,
                                             max_ep_len=max_eval_steps,
