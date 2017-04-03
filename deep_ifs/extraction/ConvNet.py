@@ -64,7 +64,7 @@ class ConvNet:
     def fit(self, x, u, y):
         """
         Trains the model on a set of batches.
-        :param x: samples on which to train.https://www.dropbox.com/sh/qtmosx0fxm1c3to/AADd8SrX5yOsI8WP5DTJkVdua?dl=0
+        :param x: samples on which to train.
         :param u: actions associated to the samples.
         :param y: targets on which to train.
         :return: the metrics of interest as defined in the model (loss,

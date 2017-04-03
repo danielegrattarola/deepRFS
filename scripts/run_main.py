@@ -275,9 +275,7 @@ for i in range(alg_iterations):
                                         n_jobs=-1)
         elif args.residual_model == 'linear':
             model = LinearRegression(n_jobs=-1)
-        model.fit(F,
-                  D,
-                  sample_weight=sars_sample_weight)
+        model.fit(F, D, sample_weight=sars_sample_weight)
 
         log('Cleaning memory (F, D)')
         del F, D
@@ -348,8 +346,9 @@ for i in range(alg_iterations):
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
 
-    # Save dataset and nn_stack
+    # Save dataset
     global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % i)
+    # Save nn_stack
     os.mkdir(logger.path + 'nn_stack_%s/' % i)
     nn_stack.save(logger.path + 'nn_stack_%s/' % i)
 
@@ -359,6 +358,11 @@ for i in range(alg_iterations):
     toc()
 
     tic('Updating policy %s' % i)
+    nb_reward_features = nn_stack.get_support_dim(index=0)
+    nb_dynamics_features = nn_stack.get_support_dim() - nb_reward_features
+    log('%s reward features' % nb_reward_features)
+    log('%s dynamics features' % nb_dynamics_features)
+
     # Update ActionRegressor to only use the actions actually in the dataset
     if args.fqi_model_type == 'extra':
         fqi_regressor_params = {'n_estimators': 50}
@@ -376,13 +380,14 @@ for i in range(alg_iterations):
                                     tol=0.5)
     policy.fqi_params['estimator'] = regressor
 
+    # Update policy using early stopping
     es_current_patience = es_patience
     es_best = (-np.inf, 0, -np.inf, 0)
 
-    policy.set_new_state_dim(all_features_dim)
-    policy.partial_fit_on_dataset(sast, r)
+    policy.set_state_dim(all_features_dim)
+    policy.partial_fit(sast, r)
     for partial_iter in range(es_iter):
-        policy.partial_fit_on_dataset()
+        policy.partial_fit()
         if i % es_eval_freq == 0 or i == (es_iter - 1):
             es_evaluation = evaluate_policy(mdp,
                                             policy,
@@ -393,14 +398,14 @@ for i in range(alg_iterations):
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
-                policy.save_fqi(logger.path + 'best_fqi_%s.pkl' % i)
+                policy.save_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, es_best))
             else:
                 es_current_patience -= 1
                 if es_current_patience == 0:
                     break
 
     # Restore best policy
-    policy.load_fqi(logger.path + 'best_fqi_%s.pkl' % i)
+    policy.load_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, es_best))
 
     # Set random/greedy split to 0.9 after the 0-th step
     random_greedy_split = final_random_greedy_split

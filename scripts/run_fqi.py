@@ -101,9 +101,9 @@ log('\n%s reward features' % nb_reward_features)
 log('%s dynamics features\n' % (nn_stack.get_support_dim() - nb_reward_features))
 
 # Initial fit
-policy.partial_fit_on_dataset(sast, r, sample_weight=farf_sample_weight)
+policy.partial_fit(sast, r, sample_weight=farf_sample_weight)
 for i in tqdm(range(args.iter)):
-    policy.partial_fit_on_dataset(sample_weight=farf_sample_weight)
+    policy.partial_fit(sample_weight=farf_sample_weight)
     if i % args.eval_freq == 0 or i == (args.iter-1):
         tqdm.write('Step %s: started eval...' % i)
         evaluation_metrics = evaluate_policy(mdp,
@@ -115,8 +115,8 @@ for i in tqdm(range(args.iter)):
                                              append_filename='step_%s' % i)
         evaluation_results.append(evaluation_metrics)
         # Save fqi policy
-        joblib.dump(policy.fqi, logger.path + 'fqi_step_%s_eval_%s.pkl' %
-                    (i, int(evaluation_results[-1][0])))
+        policy.save_fqi(logger.path + 'fqi_step_%s_eval_%s.pkl' %
+                        (i, int(evaluation_results[-1][0])))
         tqdm.write('Step %s: %s' % (i, evaluation_results[-1]))
 
 # FINAL OUTPUT #
