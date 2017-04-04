@@ -388,7 +388,7 @@ for i in range(alg_iterations):
     policy.partial_fit(sast, r)
     for partial_iter in range(es_iter):
         policy.partial_fit()
-        if i % es_eval_freq == 0 or i == (es_iter - 1):
+        if partial_iter % es_eval_freq == 0 or partial_iter == (es_iter - 1):
             es_evaluation = evaluate_policy(mdp,
                                             policy,
                                             max_ep_len=max_eval_steps,
@@ -398,7 +398,7 @@ for i in range(alg_iterations):
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
-                policy.save_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, es_best))
+                policy.save_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, es_best[0]))
             else:
                 es_current_patience -= 1
                 if es_current_patience == 0:
