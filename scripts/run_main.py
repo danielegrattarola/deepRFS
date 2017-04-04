@@ -393,7 +393,9 @@ for i in range(alg_iterations):
                                             max_ep_len=max_eval_steps,
                                             n_episodes=3,
                                             save_path=logger.path)
+            log('Evaluation: %s' % es_evaluation)
             if es_evaluation[0] > es_best[0] and es_evaluation[2] >= es_best[2]:
+                log('Saving best policy')
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
