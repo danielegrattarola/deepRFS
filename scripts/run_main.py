@@ -399,14 +399,14 @@ for i in range(alg_iterations):
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
-                policy.save_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, es_best[0]))
+                policy.save_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
             else:
                 es_current_patience -= 1
                 if es_current_patience == 0:
                     break
 
     # Restore best policy
-    policy.load_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, es_best))
+    policy.load_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
 
     # Set random/greedy split to 0.9 after the 0-th step
     random_greedy_split = final_random_greedy_split
