@@ -72,6 +72,7 @@ from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.selection.ifs import IFS
+from deep_ifs.selection.rfs import RFS
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import *
@@ -202,17 +203,17 @@ for i in range(alg_iterations):
     del S, A, R
     toc()
 
-    # ITERATIVE FEATURE SELECTION 0 #
-    tic('Building FARF dataset for IFS')
+    # RECURSIVE FEATURE SELECTION 0 #
+    tic('Building FARF dataset for RFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
-    ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
-    ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
+    rfs_x, rfs_a, rfs_xx, rfs_y = split_dataset_for_rfs(farf, features='F', next_features='FF', target='R')
+    rfs_y = rfs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     # Print the number of nonzero features
-    nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
+    nonzero_mfv_counts = np.count_nonzero(np.mean(rfs_x[:-1], axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
     toc()
 
-    tic('Running IFS with target R')
+    tic('Running RFS with target R')
     ifs_estimator_params = {'n_estimators': ifs_nb_trees,
                             'n_jobs': -1}
     ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
@@ -222,35 +223,32 @@ for i in range(alg_iterations):
                   'verbose': 0,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
-    ifs.fit(ifs_x, ifs_y)
-    support = ifs.get_support()
+    rfs_params = {'feature_selector': ifs,
+                  'verbose': 1}
+    rfs = RFS(**rfs_params)
+    rfs.fit(rfs_x, rfs_a, rfs_xx, rfs_y)
+
+    support = rfs.get_support()
     got_action = support[-1]  # Action is the last feature
     support = support[:-1]  # Remove action from support
     nb_new_features = np.array(support).sum()
-    r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
     log('Features:\n%s' % np.array(support).nonzero())
-    log('IFS - New features: %s' % nb_new_features)
+    log('RFS - New features: %s' % nb_new_features)
     log('Action was%s selected' % ('' if got_action else ' NOT'))
-    log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+
+    # Save RFS tree
+    tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree.gv')
+    tree.save()  # Save GV source
+    tree.format = 'pdf'
+    tree.render()  # Save PDF
     toc()
 
     # TODO Debug
     if args.debug:
         support[2] = True
-    # TODO farf analysis
-    if args.farf_analysis:
-        feature_idxs = np.argwhere(support).reshape(-1)
-        log('Mean feature values\n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
-        for f in feature_idxs:
-            np.save(logger.path + 'farf_feature_%s.npy' % f,
-                    ifs_x[:, f].reshape(-1))
-            plt.figure()
-            plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
-            plt.savefig(logger.path + 'farf_scatter_%s_v_reward.png' % f)
-            plt.close()
-    else:
-        log('Cleaning memory (farf, ifs_x, ifs_y)')
-        del farf, ifs_x, ifs_y
+
+    log('Cleaning memory (farf, rfs_x, rfs_a, rfs_xx, rfs_y)')
+    del farf, rfs_x, rfs_a, rfs_xx, rfs_y
 
     nn_stack.add(nn, support)
 
@@ -309,36 +307,27 @@ for i in range(alg_iterations):
         del S, A, RES, sares
         toc()
 
-        # ITERATIVE FEATURE SELECTION i #
-        tic('Building FADF dataset for IFS %s' % j)
+        # RECURSIVE FEATURE SELECTION i #
+        tic('Building FADF dataset for RFS %s' % j)
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
-        ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
+        rfs_x, rfs_a, rfs_xx, rfs_y = split_dataset_for_rfs(fadf, features='F', next_features='FF', target='D')
         toc()
 
-        tic('Running IFS %s with target D' % j)
-        ifs = IFS(**ifs_params)
-        preload_features = range(nn_stack.get_support_dim())
-        ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
-        support = ifs.get_support()
+        tic('Running RFS %s with target D' % j)
+        rfs = RFS(**rfs_params)
+        rfs.fit(rfs_x, rfs_a, rfs_xx, rfs_y)
+        support = rfs.get_support()
         got_action = support[-1]
-        support = support[len(preload_features):-1]  # Remove already selected features and action from support
         nb_new_features = np.array(support).sum()
-        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
-        log('IFS - New features: %s' % nb_new_features)
+        log('RFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
-        log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
 
-        log('Cleaning memory (fadf, ifs_x, ifs_y)')
-        del fadf, ifs_x, ifs_y
+        log('Cleaning memory (fadf, rfs_x, rfs_a, rfs_xx, rfs_y)')
+        del fadf, rfs_x, rfs_a, rfs_xx, rfs_y
         toc()
-        # END ITERATIVE FEATURE SELECTION i #
 
         nn_stack.add(nn, support)
-
-        if nb_new_features == 0 or r2_change < r2_change_threshold:
-            log('Done.\n')
-            break
 
     # FITTED Q-ITERATION #
     tic('Building global FARF dataset for FQI')
@@ -425,7 +414,6 @@ for i in range(alg_iterations):
                                          append_filename='step_%s' % i)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
-    # END FITTED Q-ITERATION #
 
     log('######## DONE %s ########' % i + '\n')
 

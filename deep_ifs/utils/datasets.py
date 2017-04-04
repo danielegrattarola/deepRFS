@@ -119,6 +119,14 @@ def split_dataset_for_ifs(dataset, features='F', target='R'):
     return x, y
 
 
+def split_dataset_for_rfs(dataset, features='F', next_features='FF', target='R'):
+    f = pds_to_npa(dataset[features])
+    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
+    ff = pds_to_npa(dataset[next_features])
+    y = pds_to_npa(dataset[target])
+    return f, a, ff, y
+
+
 def split_dataset_for_fqi(global_farf):
     f = pds_to_npa(global_farf.F)
     a = global_farf.A.as_matrix()
