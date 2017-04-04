@@ -65,7 +65,6 @@ import matplotlib
 matplotlib.use('Agg')
 import argparse
 import gc
-import joblib
 import os
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *

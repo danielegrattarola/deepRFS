@@ -145,10 +145,16 @@ def p_dump(obj, filename):
 
 
 def pds_to_npa(pandas_series):
+    """
+    Converts a pandas series to a numpy array
+    """
     return np.array([_ for _ in pandas_series])
 
 
 def is_stuck(state):
+    """
+    Returns true if the given state does not change along the 0-th axis.
+    """
     equals = True
     for i in range(len(state) - 1):
         equals = equals and (np.sum(state[i] - state[i+1]) == 0)

@@ -10,13 +10,26 @@ class NNStack:
         self.support_dim = 0
 
     def add(self, model, support):
+        """
+        Add a ConvNet and its support to the stack.
+
+        Args
+            model (ConvNet): a ConvNet object to store
+            support (np.array): boolean mask for the model s_features and
+                all_features methods
+        """
         d = {'model': model, 'support': np.array(support)}
         self.stack.append(d)
         self.support_dim += d['support'].sum()
 
     def s_features(self, state):
-        # Runs all neural networks on the given state,
-        # returns the selected features of each NN as a single array.
+        """
+        Runs all neural networks on the given state, returns the selected
+        features of each NN as a single array.
+
+        Args
+            state (np.array): the current state of the MDP.
+        """
         output = []
         for d in self.stack:
             prediction = d['model'].s_features(state, d['support'])
@@ -24,18 +37,28 @@ class NNStack:
         return np.array(output)
 
     def get_support_dim(self, index=None):
-        # index is used to get the support dim of a specific network
+        """
+        Returns the cumulative dimension of all supports in the stack, or the
+        dimension of the index-th support if index is given.
+        """
         if index is None:
             return sum([d['support'].sum() for d in self.stack])
         else:
             return self.stack[index]['support'].sum()
 
     def reset(self):
+        """
+        Empties the stack and forcibly frees memory.
+        """
         self.stack = []
         self.support_dim = 0
         gc.collect()
 
     def save(self, folder):
+        """
+        Saves the encoders of all models in the stack and their supports
+        in folder, as .h5 and .npy files respectively.
+        """
         if not folder.endswith('/'):
             folder += '/'
         for idx, d in enumerate(self.stack):
@@ -43,6 +66,12 @@ class NNStack:
             np.save(folder + 'support_%d.npy' % idx, d['support'])  # Save support array
 
     def load(self, folder):
+        """
+        Loads all models (as .h5 files) and their supports (as .npy files) from
+        folder.
+        Note that the loaded models are instantiated as GenericEncoder models
+        and are not trainable.
+        """
         # Get all filepaths
         models = glob.glob(folder + 'encoder_*.h5')
         supports = glob.glob(folder + 'support_*.npy')

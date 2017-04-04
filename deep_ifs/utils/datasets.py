@@ -83,11 +83,13 @@ def collect_sars(env, policy, episodes=100, n_jobs=1, random_greedy_split=0.9, d
 
 def get_class_weight(sars):
     """
-    Takes as input a SARS' dataset in pandas format.
     Returns a dictionary with classes (reward values) as keys and weights as
     values.
     The return value can be passed directly to Keras's class_weight parameter
-    in model.fit
+    in model.fit.
+
+    Args
+        sars (pd.DataFrame): a SARS' dataset in pandas format.
     """
     classes = sars.R.unique()
     y = sars.R.as_matrix()
@@ -97,10 +99,12 @@ def get_class_weight(sars):
 
 def get_sample_weight(sars):
     """
-    Takes as input a SARS' dataset in pandas format.
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
     in model.fit
+
+    Args
+        sars (pd.DataFrame): a SARS' dataset in pandas format.
     """
     class_weight = get_class_weight(sars)
     sample_weight = [class_weight[r] for r in sars.R]
@@ -126,11 +130,13 @@ def split_dataset_for_fqi(global_farf):
 
 
 def build_farf(nn, sars):
-    # Build FARF' dataset using SARS' dataset:
-    # F = NN[0].features(S)
-    # A = A
-    # R = R
-    # F' = NN[0].features(S')
+    """
+    Builds FARF' dataset using SARS' dataset:
+        F = NN[0].features(S)
+        A = A
+        R = R
+        F' = NN[0].features(S')
+    """
     farf = []
     for datapoint in sars.itertuples():
         f = nn.all_features(np.expand_dims(datapoint.S, 0))
@@ -144,12 +150,14 @@ def build_farf(nn, sars):
 
 
 def build_sfadf(nn_stack, nn, support, sars):
-    # Build SFADF' dataset using SARS' dataset:
-    # S = S
-    # F = NN_stack.s_features(S)
-    # A = A
-    # D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
-    # F' = NN_stack.s_features(S')
+    """
+    # Builds SFADF' dataset using SARS' dataset:
+        S = S
+        F = NN_stack.s_features(S)
+        A = A
+        D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
+        F' = NN_stack.s_features(S')
+    """
     sfadf = []
     for datapoint in sars.itertuples():
         s = datapoint.S
@@ -165,10 +173,12 @@ def build_sfadf(nn_stack, nn, support, sars):
 
 
 def build_sares(model, sfadf):
-    # Build SARes dataset from SFADF':
-    # S = S
-    # A = A
-    # Res = D - M(F)
+    """
+    Builds SARes dataset from SFADF':
+        S = S
+        A = A
+        Res = D - M(F)
+    """
     sares = []
     for datapoint in sfadf.itertuples():
         s = datapoint.S
@@ -187,11 +197,13 @@ def build_sares(model, sfadf):
 
 
 def build_fadf(nn_stack, nn, sars, sfadf):
-    # Build new FADF' dataset from SARS' and SFADF':
-    # F = NN_stack.s_features(S) + NN[i].features(S)
-    # A = A
-    # D = SFADF'.D
-    # F' = NN_stack.s_features(S') + NN[i].features(S')
+    """
+    Builds new FADF' dataset from SARS' and SFADF':
+        F = NN_stack.s_features(S) + NN[i].features(S)
+        A = A
+        D = SFADF'.D
+        F' = NN_stack.s_features(S') + NN[i].features(S')
+    """
     faf = []
     for datapoint in sars.itertuples():
         f = np.append(nn_stack.s_features(np.expand_dims(datapoint.S, 0)),
@@ -209,11 +221,13 @@ def build_fadf(nn_stack, nn, sars, sfadf):
 
 
 def build_global_farf(nn_stack, sars):
-    # Build FARF' dataset using SARS' dataset:
-    # F = NN_stack.s_features(S)
-    # A = A
-    # R = R
-    # F' = NN_stack.s_features(S')
+    """
+    Builds FARF' dataset using SARS' dataset:
+        F = NN_stack.s_features(S)
+        A = A
+        R = R
+        F' = NN_stack.s_features(S')
+    """
     farf = []
     for datapoint in sars.itertuples():
         f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))

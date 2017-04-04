@@ -35,4 +35,10 @@ class GenericEncoder:
         return prediction
 
     def save_encoder(self, filepath):
+        """
+        Save the model weights at filepath.
+
+        Args
+            filepath: path to an hdf5 file to store weights for the model.
+        """
         self.model.save(filepath)

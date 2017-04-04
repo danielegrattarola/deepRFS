@@ -1,7 +1,7 @@
 import numpy as np
 from keras.models import Model
-from keras.layers import *
-from keras.optimizers import *
+from keras.layers import Input, Convolution2D, Flatten, Dense
+from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.regularizers import l1
 from deep_ifs.extraction.GatherLayer import GatherLayer
@@ -64,11 +64,14 @@ class ConvNet:
     def fit(self, x, u, y):
         """
         Trains the model on a set of batches.
-        :param x: samples on which to train.
-        :param u: actions associated to the samples.
-        :param y: targets on which to train.
-        :return: the metrics of interest as defined in the model (loss,
-            accuracy, etc.)
+
+        Args
+            x: samples on which to train.
+            u: actions associated to the samples.
+            y: targets on which to train.
+        Returns
+            The metrics of interest as defined in the model (loss, accuracy,
+                etc.)
         """
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
@@ -91,11 +94,14 @@ class ConvNet:
     def train_on_batch(self, x, u, y):
         """
         Trains the model on a batch.
-        :param x: batch of samples on which to train.
-        :param u: actions associated to the samples.
-        :param y: targets for the batch.
-        :return: the metrics of interest as defined in the model (loss,
-            accuracy, etc.)
+
+        Args
+            x: batch of samples on which to train.
+            u: actions associated to the samples.
+            y: targets for the batch.
+        Returns
+            The metrics of interest as defined in the model (loss, accuracy,
+                etc.)
         """
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
@@ -110,9 +116,12 @@ class ConvNet:
     def predict(self, x, u):
         """
         Runs the given images through the model and returns the predictions.
-        :param x: a batch of samples on which to predict.
-        :param u: actions associated to the samples.
-        :return: the predictions of the batch.
+
+        Args
+            x: a batch of samples on which to predict.
+            u: actions associated to the samples.
+        Returns
+            The predictions of the batch.
         """
         # Feed input to the model, return encoded and re-decoded images
         x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
@@ -122,10 +131,13 @@ class ConvNet:
     def test(self, x, y):
         """
         Tests the model on a batch.
-        :param x: batch of samples on which to test.
-        :param y: real targets for the batch.
-        :return: the metrics of interest as defined in the model (loss,
-            accuracy, etc.)
+
+        Args
+            x: batch of samples on which to test.
+            y: real targets for the batch.
+        Returns
+            The metrics of interest as defined in the model (loss, accuracy,
+                etc.)
         """
         x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         y_test = np.asarray(y)
@@ -138,8 +150,11 @@ class ConvNet:
         """
         Runs the given sample on the model and returns the features of the last
         dense layer in a 1d array.
-        :param sample: a single sample to encode.
-        :return: the encoded sample.
+
+        Args
+            sample: a single sample to encode.
+        Returns
+            The encoded sample.
         """
         # Feed input to the model, return encoded images flattened
         sample = np.asarray(sample).astype('float32') / 255  # To 0-1 range
@@ -149,9 +164,12 @@ class ConvNet:
         """
         Runs the given sample on the model and returns the features of the last
         dense layer filtered by the support mask.
-        :param sample: a single sample to encode.
-        :param support: a boolean mask with which to filter the output.
-        :return: the encoded sample.
+
+        Args
+            sample: a single sample to encode.
+            support: a boolean mask with which to filter the output.
+        Returns
+            The encoded sample.
         """
         prediction = self.all_features(sample)
         prediction = prediction[support]  # Keep only support features
@@ -161,9 +179,11 @@ class ConvNet:
         """
         Saves the model weights to disk (in the run folder if a logger was
         given, otherwise in the current folder)
-        :param filename: custom filename for the hdf5 file.
-        :param append: the model will be saved as model_append.h5 if a value is
-            provided.
+
+        Args
+            filename: custom filename for the hdf5 file.
+            append: the model will be saved as model_append.h5 if a value is
+                provided.
         """
         # Save the DQN weights to disk
         f = ('model%s.h5' % append) if filename is None else filename
@@ -183,12 +203,20 @@ class ConvNet:
                 a_file.close()
 
     def save_encoder(self, filepath):
+        """
+        Save the encoder weights at filepath.
+
+        Args
+            filepath: path to an hdf5 file to store weights for the model.
+        """
         self.encoder.save(filepath)
 
     def load(self, path):
         """
         Load the model and its weights from path.
-        :param path: path to an hdf5 file that stores weights for the model.
+
+        Args
+            path: path to an hdf5 file that stores weights for the model.
         """
         if self.logger is not None:
             self.logger.log('Loading weights from file...')

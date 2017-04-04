@@ -3,7 +3,6 @@ import matplotlib
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import argparse
 import atexit
-import joblib
 import numpy as np
 import pandas as pd
 from deep_ifs.envs.atari import Atari

@@ -1,5 +1,4 @@
 import argparse
-import joblib
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import evaluate_policy
 from deep_ifs.extraction.NNStack import NNStack
@@ -24,7 +23,7 @@ mdp = Atari(args.env)
 tic('Reading data...')
 nn_stack = NNStack()
 nn_stack.load(args.nn_stack)
-policy = EpsilonFQI(None, nn_stack, fqi=joblib.load(args.fqi_model))
+policy = EpsilonFQI(None, nn_stack, fqi=args.fqi_model)
 toc()
 
 log('Using:\n'

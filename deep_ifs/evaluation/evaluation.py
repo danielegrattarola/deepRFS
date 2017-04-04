@@ -8,7 +8,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     max_ep_len=np.inf, video=False, save_video=False,
                     save_path='', append_filename='', n_jobs=1):
     """
-        This function evaluate a policy on the given environment w.r.t.
+        This function evaluates a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
         provided feature extraction model to encode states.
         Params:
