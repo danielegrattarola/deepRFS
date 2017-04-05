@@ -118,9 +118,9 @@ class RFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
             fs.set_feature_names(self.features_names)
 
         start_t = time.time()
-        if len(X.shape) == 1:
-            X = X.reshape(-1, 1)
-        print('X shape: %s' % str(X.shape))
+        if len(Y.shape) == 1:
+            Y = Y.reshape(-1, 1)
+
         fs.fit(X, Y)
         end_t = time.time() - start_t
         if self.verbose > 0:
