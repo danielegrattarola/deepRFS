@@ -120,6 +120,7 @@ class RFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
         start_t = time.time()
         if len(X.shape) == 1:
             X = X.reshape(-1, 1)
+        print('X shape: %s' % str(X.shape))
         fs.fit(X, Y)
         end_t = time.time() - start_t
         if self.verbose > 0:

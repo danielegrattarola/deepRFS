@@ -115,7 +115,7 @@ es_iter = 150
 es_eval_freq = 5
 
 # SETUP
-logger = Logger(output_folder='../output/')
+logger = Logger(output_folder='../output/', custom_run_name='run_rfs%Y%m%d-%H%M%S')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 mdp = Atari(args.env)
@@ -324,6 +324,7 @@ for i in range(alg_iterations):
         rfs.fit(rfs_x, rfs_a, rfs_xx, rfs_y)
         support = rfs.get_support()
         got_action = support[-1]
+        support = support[:-1]  # Remove action from support
         nb_new_features = np.array(support).sum()
         log('RFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
