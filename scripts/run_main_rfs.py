@@ -224,6 +224,7 @@ for i in range(alg_iterations):
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
     rfs_params = {'feature_selector': ifs,
+                  'feature_names': map(str, range(rfs_x.shape[1])) + ['A'],
                   'verbose': 1}
     rfs = RFS(**rfs_params)
     rfs.fit(rfs_x, rfs_a, rfs_xx, rfs_y)
@@ -315,6 +316,7 @@ for i in range(alg_iterations):
         toc()
 
         tic('Running RFS %s with target D' % j)
+        rfs_params['feature_names'] = map(str, range(rfs_x.shape[1])) + ['A']
         rfs = RFS(**rfs_params)
         rfs.fit(rfs_x, rfs_a, rfs_xx, rfs_y)
         support = rfs.get_support()
