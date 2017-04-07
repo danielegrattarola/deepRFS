@@ -90,6 +90,7 @@ parser.add_argument('--residual-model', type=str, default='linear', help='Type o
 parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\')')
 parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved FQI pickle file to load as policy in the first iteration')
 parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
+parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
@@ -112,6 +113,7 @@ random_greedy_split = initial_random_greedy_split
 es_patience = 15
 es_iter = 150
 es_eval_freq = 5
+initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
 logger = Logger(output_folder='../output/')
@@ -175,7 +177,8 @@ for i in range(alg_iterations):
                         policy,
                         episodes=sars_episodes,
                         debug=args.debug,
-                        random_greedy_split=random_greedy_split)
+                        random_greedy_split=random_greedy_split,
+                        initial_actions=initial_actions)
     sars_sample_weight = get_sample_weight(sars)
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
@@ -194,7 +197,8 @@ for i in range(alg_iterations):
                  nb_actions=nb_actions,
                  l1_alpha=0.01,
                  sample_weight=sars_sample_weight,
-                 nb_epochs=nn_nb_epochs)
+                 nb_epochs=nn_nb_epochs,
+                 binarize=args.binarize)
     nn.fit(S, A, R)
     nn.load('NN.h5')  # Load best network (saved by callback)
 
@@ -301,7 +305,8 @@ for i in range(alg_iterations):
                      nb_actions=nb_actions,
                      l1_alpha=0.0,
                      sample_weight=sars_sample_weight,
-                     nb_epochs=nn_nb_epochs)
+                     nb_epochs=nn_nb_epochs,
+                     binarize=args.binarize)
         nn.fit(S, A, RES)
         nn.load('NN.h5')  # Load best network (saved by callback)
 
@@ -392,9 +397,10 @@ for i in range(alg_iterations):
                                             policy,
                                             max_ep_len=max_eval_steps,
                                             n_episodes=3,
-                                            save_path=logger.path)
+                                            save_path=logger.path,
+                                            initial_actions=initial_actions)
             log('Evaluation: %s' % str(es_evaluation))
-            if es_evaluation[0] > es_best[0] and es_evaluation[2] >= es_best[2]:
+            if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
                 es_best = es_evaluation
                 es_current_patience = es_patience
@@ -422,7 +428,8 @@ for i in range(alg_iterations):
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,
-                                         append_filename='step_%s' % i)
+                                         append_filename='step_%s' % i,
+                                         initial_actions=initial_actions)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
     # END FITTED Q-ITERATION #

@@ -40,6 +40,7 @@ parser.add_argument('--sample-weights', action='store_true', help='Use sample we
 args = parser.parse_args()
 
 max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
+initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
 tic('Reading data...')
@@ -111,7 +112,8 @@ for i in tqdm(range(args.iter)):
                                              n_episodes=args.episodes,
                                              save_video=args.save_video,
                                              save_path=logger.path,
-                                             append_filename='step_%s' % i)
+                                             append_filename='step_%s' % i,
+                                             initial_actions=initial_actions)
         evaluation_results.append(evaluation_metrics)
         # Save fqi policy
         policy.save_fqi(logger.path + 'fqi_step_%s_eval_%s.pkl' %

@@ -158,6 +158,9 @@ class ConvNet:
         """
         # Feed input to the model, return encoded images flattened
         sample = np.asarray(sample).astype('float32') / 255  # To 0-1 range
+        if self.binarize:
+            sample[sample < 0.1] = 0
+            sample[sample >= 0.1] = 1
         return np.asarray(self.encoder.predict_on_batch(sample)).flatten()
 
     def s_features(self, sample, support):

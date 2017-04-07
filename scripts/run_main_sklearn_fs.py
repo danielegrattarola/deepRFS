@@ -72,7 +72,6 @@ from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.selection.ifs import IFS
-from deep_ifs.selection.rfs import RFS
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import *
@@ -101,7 +100,7 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set bo
 sars_episodes = 10 if args.debug else 200  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of epochs for the networks
 alg_iterations = 100  # Number of steps to make in the main loop
-rec_steps = 1 if args.debug else 1  # Number of recursive steps to make
+rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
@@ -117,7 +116,7 @@ es_eval_freq = 5
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
-logger = Logger(output_folder='../output/', custom_run_name='run_rfs%Y%m%d-%H%M%S')
+logger = Logger(output_folder='../output/')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 mdp = Atari(args.env)
@@ -178,7 +177,8 @@ for i in range(alg_iterations):
                         policy,
                         episodes=sars_episodes,
                         debug=args.debug,
-                        random_greedy_split=random_greedy_split)
+                        random_greedy_split=random_greedy_split,
+                        initial_actions=initial_actions)
     sars_sample_weight = get_sample_weight(sars)
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
@@ -206,17 +206,17 @@ for i in range(alg_iterations):
     del S, A, R
     toc()
 
-    # RECURSIVE FEATURE SELECTION 0 #
-    tic('Building FARF dataset for RFS')
+    # ITERATIVE FEATURE SELECTION 0 #
+    tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
-    rfs_x, rfs_a, rfs_xx, rfs_y = split_dataset_for_rfs(farf, features='F', next_features='FF', target='R')
-    rfs_y = rfs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
+    ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+    ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     # Print the number of nonzero features
-    nonzero_mfv_counts = np.count_nonzero(np.mean(rfs_x[:-1], axis=0))
+    nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
     toc()
 
-    tic('Running RFS with target R')
+    tic('Running IFS with target R')
     ifs_estimator_params = {'n_estimators': ifs_nb_trees,
                             'n_jobs': -1}
     ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
@@ -226,35 +226,35 @@ for i in range(alg_iterations):
                   'verbose': 0,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
-    features_names = np.array(map(str, range(rfs_x.shape[1])) + ['A'])
-    rfs_params = {'feature_selector': ifs,
-                  'features_names': features_names,
-                  'verbose': 1}
-    print rfs_params['features_names']
-    rfs = RFS(**rfs_params)
-    rfs.fit(rfs_x, rfs_a, rfs_xx, rfs_y)
-
-    support = rfs.get_support()
+    ifs.fit(ifs_x, ifs_y)
+    support = ifs.get_support()
     got_action = support[-1]  # Action is the last feature
     support = support[:-1]  # Remove action from support
     nb_new_features = np.array(support).sum()
+    r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
     log('Features:\n%s' % np.array(support).nonzero())
-    log('RFS - New features: %s' % nb_new_features)
+    log('IFS - New features: %s' % nb_new_features)
     log('Action was%s selected' % ('' if got_action else ' NOT'))
-
-    # Save RFS tree
-    tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree.gv')
-    tree.save()  # Save GV source
-    tree.format = 'pdf'
-    tree.render()  # Save PDF
+    log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
     toc()
 
     # TODO Debug
     if args.debug:
         support[2] = True
-
-    log('Cleaning memory (farf, rfs_x, rfs_a, rfs_xx, rfs_y)')
-    del farf, rfs_x, rfs_a, rfs_xx, rfs_y
+    # TODO farf analysis
+    if args.farf_analysis:
+        feature_idxs = np.argwhere(support).reshape(-1)
+        log('Mean feature values\n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
+        for f in feature_idxs:
+            np.save(logger.path + 'farf_feature_%s.npy' % f,
+                    ifs_x[:, f].reshape(-1))
+            plt.figure()
+            plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
+            plt.savefig(logger.path + 'farf_scatter_%s_v_reward.png' % f)
+            plt.close()
+    else:
+        log('Cleaning memory (farf, ifs_x, ifs_y)')
+        del farf, ifs_x, ifs_y
 
     nn_stack.add(nn, support)
 
@@ -314,30 +314,36 @@ for i in range(alg_iterations):
         del S, A, RES, sares
         toc()
 
-        # RECURSIVE FEATURE SELECTION i #
-        tic('Building FADF dataset for RFS %s' % j)
+        # ITERATIVE FEATURE SELECTION i #
+        tic('Building FADF dataset for FS %s' % j)
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
-        rfs_x, rfs_a, rfs_xx, rfs_y = split_dataset_for_rfs(fadf, features='F', next_features='FF', target='D')
+        ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         toc()
 
-        tic('Running RFS %s with target D' % j)
-        features_names = np.array(map(str, range(rfs_x.shape[1])) + ['A'])
-        rfs_params['features_names'] = features_names
-        rfs = RFS(**rfs_params)
-        rfs.fit(rfs_x, rfs_a, rfs_xx, rfs_y)
-        support = rfs.get_support()
+        tic('Running FS %s with target D' % j)
+        ifs = IFS(**ifs_params)
+        preload_features = range(nn_stack.get_support_dim())
+        ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
+        support = ifs.get_support()
         got_action = support[-1]
-        support = support[:-1]  # Remove action from support
+        support = support[len(preload_features):-1]  # Remove already selected features and action from support
         nb_new_features = np.array(support).sum()
-        log('RFS - New features: %s' % nb_new_features)
+        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
+        log('IFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
+        log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
 
-        log('Cleaning memory (fadf, rfs_x, rfs_a, rfs_xx, rfs_y)')
-        del fadf, rfs_x, rfs_a, rfs_xx, rfs_y
+        log('Cleaning memory (fadf, ifs_x, ifs_y)')
+        del fadf, ifs_x, ifs_y
         toc()
+        # END ITERATIVE FEATURE SELECTION i #
 
         nn_stack.add(nn, support)
+
+        if nb_new_features == 0 or r2_change < r2_change_threshold:
+            log('Done.\n')
+            break
 
     # FITTED Q-ITERATION #
     tic('Building global FARF dataset for FQI')
@@ -394,7 +400,7 @@ for i in range(alg_iterations):
                                             save_path=logger.path,
                                             initial_actions=initial_actions)
             log('Evaluation: %s' % str(es_evaluation))
-            if es_evaluation[0] > es_best[0] and es_evaluation[2] >= es_best[2]:
+            if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
                 es_best = es_evaluation
                 es_current_patience = es_patience
@@ -426,6 +432,7 @@ for i in range(alg_iterations):
                                          initial_actions=initial_actions)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
+    # END FITTED Q-ITERATION #
 
     log('######## DONE %s ########' % i + '\n')
 

@@ -7,12 +7,16 @@ import pandas as pd
 from sklearn.preprocessing import PolynomialFeatures
 
 
-def episode(env, policy, video=False):
+def episode(mdp, policy, video=False, initial_actions=None):
     frame_counter = 0
-    patience = env.action_space.n
+    patience = mdp.action_space.n
 
     # Get current state
-    state = env.reset()
+    state = mdp.reset()
+
+    # Force start
+    if initial_actions is not None:
+        state, _, _, _ = mdp.step(np.random.choice(initial_actions))
 
     reward = 0
     done = False
@@ -24,20 +28,20 @@ def episode(env, policy, video=False):
 
         # Select and execute the action, get next state and reward
         action = policy.draw_action(np.expand_dims(state, 0), done)
-        next_state, reward, done, info = env.step(action)
+        next_state, reward, done, info = mdp.step(action)
 
         if is_stuck(next_state):
             patience -= 1
         if patience == 0:
-            patience = env.action_space.n
-            next_state, reward, done, info = env.step(1)  # Force start
+            patience = mdp.action_space.n
+            next_state, reward, done, info = mdp.step(1)  # Force start
 
         # build SARS' tuple
         ep_output.append([state, action, reward, next_state, done])
 
         # Render environment
         if video:
-            env.render()
+            mdp.render()
 
         # Update state
         state = next_state
@@ -45,21 +49,23 @@ def episode(env, policy, video=False):
     return ep_output
 
 
-def collect_sars(env, policy, episodes=100, n_jobs=1, random_greedy_split=0.9, debug=False):
+def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
+                 debug=False, initial_actions=None):
     assert episodes > 0
     random_episodes = int(episodes * random_greedy_split)
     greedy_episodes = episodes - random_episodes
 
     policy.set_epsilon(1)
     dataset_random = Parallel(n_jobs=n_jobs)(
-        delayed(episode)(env, policy) for _ in tqdm(xrange(random_episodes))
+        delayed(episode)(mdp, policy) for _ in tqdm(xrange(random_episodes))
     )
     # Each episode is in a list, so the dataset needs to be flattened
     dataset_random = np.asarray(flat2list(dataset_random))
 
     policy.set_epsilon(0)
     dataset_greedy = Parallel(n_jobs=n_jobs)(
-        delayed(episode)(env, policy) for _ in tqdm(xrange(greedy_episodes))
+        delayed(episode)(mdp, policy, initial_actions=initial_actions)
+        for _ in tqdm(xrange(greedy_episodes))
     )
     # Each episode is in a list, so the dataset needs to be flattened
     dataset_greedy = np.asarray(flat2list(dataset_greedy))

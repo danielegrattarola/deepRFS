@@ -6,7 +6,8 @@ from deep_ifs.utils.helpers import is_stuck
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     max_ep_len=np.inf, video=False, save_video=False,
-                    save_path='', append_filename='', n_jobs=1):
+                    save_path='', append_filename='', n_jobs=1,
+                    initial_actions=None):
     """
         This function evaluates a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
@@ -29,6 +30,9 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
             n_jobs (int, 1): the number of processes to use for evaluation
                 (leave default value if the feature extraction model runs
                 on GPU).
+            initial_actions (list, None): actions to use to force start the
+                episode (useful in environments that require a specific action
+                to start the episode, like some Atari environments)
         Return:
             metric (float): the average of the selected evaluation metric.
             metric_confidence (float): 95% confidence level for the
@@ -44,7 +48,8 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
         delayed(_eval)(
             mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
             save_video=save_video, save_path=save_path,
-            append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid
+            append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
+            initial_actions=initial_actions
         )
         for eid in range(n_episodes)
     )
@@ -55,7 +60,8 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
 
 def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
-          save_video=False, save_path='', append_filename=''):
+          save_video=False, save_path='', append_filename='',
+          initial_actions=None):
     frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
@@ -65,6 +71,10 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
 
     # Get current state
     state = mdp.reset()
+
+    # Force start
+    if initial_actions is not None:
+        state, _, _, _ = mdp.step(np.random.choice(initial_actions))
 
     if save_video:
         frames.append(state[-1])
