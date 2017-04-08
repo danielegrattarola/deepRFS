@@ -169,5 +169,5 @@ def get_dataset_size(dataset, unit='B'):
                'MB': 1048576.,
                'GB': 1073741824.,
                'TB': 1099511627776.}
-    return dataset.memory_usage(index=True) / factors[unit]
+    return dataset.memory_usage(index=True, deep=True).sum() / factors[unit]
 
