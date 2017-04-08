@@ -179,11 +179,14 @@ for i in range(alg_iterations):
                         debug=args.debug,
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
+    log('Memory usage: %s MB' % get_dataset_size(sars, 'MB'))
     sars_sample_weight = get_sample_weight(sars)
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
-    toc('Got %s SARS\' samples' % len(sars))
+    log('Got %s SARS\' samples' % len(sars))
+    log('Memory usage: %s MB' % get_dataset_size(sars, 'MB'))
+    toc()
 
     tic('Resetting NN stack')
     nn_stack.reset()  # Clear the stack after collecting sars' with last policy
@@ -214,6 +217,7 @@ for i in range(alg_iterations):
     # Print the number of nonzero features
     nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
+    log('Memory usage: %s MB' % get_dataset_size(farf, 'MB'))
     toc()
 
     tic('Running IFS with target R')
@@ -268,6 +272,7 @@ for i in range(alg_iterations):
         log('Mean dynamic values %s' % np.mean(D, axis=0))
         log('Dynamic values variance %s' % np.std(D, axis=0))
         log('Max dynamic values %s' % np.max(D, axis=0))
+        log('Memory usage: %s MB' % get_dataset_size(sfadf, 'MB'))
         toc()
 
         tic('Fitting residuals model')
@@ -294,6 +299,7 @@ for i in range(alg_iterations):
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
         log('Max residual values %s' % np.max(RES, axis=0))
+        log('Memory usage: %s MB' % get_dataset_size(sares, 'MB'))
         toc()
 
         tic('Fitting NN%s' % j)
@@ -319,6 +325,7 @@ for i in range(alg_iterations):
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
+        log('Memory usage: %s MB' % get_dataset_size(fadf, 'MB'))
         toc()
 
         tic('Running IFS %s with target D' % j)
@@ -349,16 +356,18 @@ for i in range(alg_iterations):
     tic('Building global FARF dataset for FQI')
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
+    sast, r = split_dataset_for_fqi(global_farf)
+    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
+    action_values = np.unique(pds_to_npa(global_farf.A))
+    log('Memory usage: %s MB' % get_dataset_size(global_farf, 'MB'))
+    toc()
 
     # Save dataset
+    tic('Saving global FARF and NNStack')
     global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % i)
     # Save nn_stack
     os.mkdir(logger.path + 'nn_stack_%s/' % i)
     nn_stack.save(logger.path + 'nn_stack_%s/' % i)
-
-    sast, r = split_dataset_for_fqi(global_farf)
-    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
-    action_values = np.unique(pds_to_npa(global_farf.A))
     toc()
 
     tic('Updating policy %s' % i)

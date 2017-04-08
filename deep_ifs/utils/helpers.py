@@ -160,3 +160,14 @@ def is_stuck(state):
         equals = equals and (np.sum(state[i] - state[i+1]) == 0)
     return equals
 
+def get_dataset_size(dataset, unit='B'):
+    """
+    Returns the approximated size of a pandas dataframe in the given unit
+    """
+    factors = {'B': 1.,
+               'KB': 1024.,
+               'MB': 1048576.,
+               'GB': 1073741824.,
+               'TB': 1099511627776.}
+    return dataset.memory_usage(index=True) / factors[unit]
+
