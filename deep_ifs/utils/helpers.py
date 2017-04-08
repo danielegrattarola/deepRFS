@@ -171,3 +171,23 @@ def get_dataset_size(dataset, unit='B'):
                'TB': 1099511627776.}
     return dataset.memory_usage(index=True, deep=True).sum() / factors[unit]
 
+
+def get_size(structures, unit='B'):
+    """
+    Returns the approximated size of all pandas dataframes or np.arrays in the
+    given list
+    """
+    factors = {'B': 1.,
+               'KB': 1024.,
+               'MB': 1048576.,
+               'GB': 1073741824.,
+               'TB': 1099511627776.}
+    size = 0.
+    for s in structures:
+        if isinstance(s, np.ndarray):
+            size += s.nbytes
+        elif isinstance(s, pd.DataFrame) or isinstance(s, pd.Series):
+            size += s.memory_usage(index=True, deep=True).sum()
+
+    return size / factors[unit]
+

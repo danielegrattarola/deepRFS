@@ -179,13 +179,12 @@ for i in range(alg_iterations):
                         debug=args.debug,
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
-    log('Memory usage: %s MB' % get_dataset_size(sars, 'MB'))
     sars_sample_weight = get_sample_weight(sars)
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
     log('Got %s SARS\' samples' % len(sars))
-    log('Memory usage: %s MB' % (2 * get_dataset_size(sars, 'MB')))
+    log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
     toc()
 
     tic('Resetting NN stack')
@@ -213,11 +212,12 @@ for i in range(alg_iterations):
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+    del farf  # Not used anymore
     ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     # Print the number of nonzero features
     nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
-    log('Memory usage: %s MB' % (2 * get_dataset_size(farf, 'MB')))
+    log('Memory usage: %s MB' % get_size([ifs_x, ifs_y], 'MB'))
     toc()
 
     tic('Running IFS with target R')
@@ -256,10 +256,8 @@ for i in range(alg_iterations):
             plt.scatter(ifs_y.reshape(-1), ifs_x[:, f].reshape(-1))
             plt.savefig(logger.path + 'farf_scatter_%s_v_reward.png' % f)
             plt.close()
-    else:
-        log('Cleaning memory (farf, ifs_x, ifs_y)')
-        del farf, ifs_x, ifs_y
 
+    del ifs_x, ifs_y
     nn_stack.add(nn, support)
 
     for j in range(1, rec_steps + 1):
@@ -272,7 +270,7 @@ for i in range(alg_iterations):
         log('Mean dynamic values %s' % np.mean(D, axis=0))
         log('Dynamic values variance %s' % np.std(D, axis=0))
         log('Max dynamic values %s' % np.max(D, axis=0))
-        log('Memory usage: %s MB' % (2 * get_dataset_size(sfadf, 'MB')))
+        log('Memory usage: %s MB' % get_size([sfadf, F, D], 'MB'))
         toc()
 
         tic('Fitting residuals model')
@@ -284,8 +282,6 @@ for i in range(alg_iterations):
         elif args.residual_model == 'linear':
             model = LinearRegression(n_jobs=-1)
         model.fit(F, D, sample_weight=sars_sample_weight)
-
-        log('Cleaning memory (F, D)')
         del F, D
         toc()
 
@@ -296,10 +292,11 @@ for i in range(alg_iterations):
         S = pds_to_npa(sares.S)  # 4 frames
         A = pds_to_npa(sares.A)  # Discrete action
         RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
+        del sares
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
         log('Max residual values %s' % np.max(RES, axis=0))
-        log('Memory usage: %s MB' % (2 * get_dataset_size(sares, 'MB')))
+        log('Memory usage: %s MB' % get_size([S, A, RES], 'MB'))
         toc()
 
         tic('Fitting NN%s' % j)
@@ -314,24 +311,25 @@ for i in range(alg_iterations):
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize)
         nn.fit(S, A, RES)
+        del S, A, RES
         nn.load('NN.h5')  # Load best network (saved by callback)
-
-        log('Cleaning memory (sares, S, A, RES)')
-        del S, A, RES, sares
         toc()
 
         # ITERATIVE FEATURE SELECTION i #
         tic('Building FADF dataset for IFS %s' % j)
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
+        del sfadf
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
-        log('Memory usage: %s MB' % (2 * get_dataset_size(fadf, 'MB')))
+        del fadf
+        log('Memory usage: %s MB' % get_size([ifs_x, ifs_y], 'MB'))
         toc()
 
         tic('Running IFS %s with target D' % j)
         ifs = IFS(**ifs_params)
         preload_features = range(nn_stack.get_support_dim())
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
+        del ifs_x, ifs_y
         support = ifs.get_support()
         got_action = support[-1]
         support = support[len(preload_features):-1]  # Remove already selected features and action from support
@@ -340,9 +338,6 @@ for i in range(alg_iterations):
         log('IFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
         log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
-
-        log('Cleaning memory (fadf, ifs_x, ifs_y)')
-        del fadf, ifs_x, ifs_y
         toc()
         # END ITERATIVE FEATURE SELECTION i #
 
@@ -359,12 +354,13 @@ for i in range(alg_iterations):
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
     action_values = np.unique(pds_to_npa(global_farf.A))
-    log('Memory usage: %s MB' % (2 * get_dataset_size(global_farf, 'MB')))
+    log('Memory usage: %s MB' % get_size([sast, r], 'MB'))
     toc()
 
     # Save dataset
     tic('Saving global FARF and NNStack')
     global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % i)
+    del global_farf
     # Save nn_stack
     os.mkdir(logger.path + 'nn_stack_%s/' % i)
     nn_stack.save(logger.path + 'nn_stack_%s/' % i)
@@ -426,7 +422,7 @@ for i in range(alg_iterations):
     # Set random/greedy split to 0.9 after the 0-th step
     random_greedy_split = final_random_greedy_split
     log('Cleaning memory (global_farf, sast, r, sars)')
-    del global_farf, sast, r, sars
+    del sast, r, sars
     gc.collect()
     toc()
 
