@@ -232,7 +232,6 @@ for i in range(alg_iterations):
     if args.debug:
         support[2] = True
 
-    del F
     nn_stack.add(nn, support)
 
     for j in range(1, rec_steps + 1):
