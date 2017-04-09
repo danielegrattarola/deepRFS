@@ -101,7 +101,7 @@ sars_episodes = 10 if args.debug else 200  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of epochs for the networks
 alg_iterations = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
-variance_pctg = 0.8
+variance_pctg = 0.8  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
@@ -221,8 +221,8 @@ for i in range(alg_iterations):
     variance_thresh = np.sort(v)[int(round(len(v) * variance_pctg)):].min()
     fs = VarianceThreshold(threshold=variance_thresh)
     fs.fit(F)
+    del F
     support = fs.get_support()
-
     nb_new_features = support.sum()
     log('Features:\n%s' % support.nonzero())
     log('PCA - New features: %s' % nb_new_features)
@@ -291,9 +291,9 @@ for i in range(alg_iterations):
         toc()
 
         # ITERATIVE FEATURE SELECTION i #
-        tic('Building FADF dataset for IFS %s' % j)
-        # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
-        fadf = build_fadf(nn_stack, nn, sars, sfadf)
+        tic('Building FADF dataset for PCA %s' % j)
+        # Features (last nn), action, dynamics (previous nn), features (last nn)
+        fadf = build_fadf_no_preload(nn, sars, sfadf)
         F = pds_to_npa(fadf.F)
         del fadf, sfadf  # Not used anymore
         # Print the number of nonzero features
@@ -302,11 +302,13 @@ for i in range(alg_iterations):
         log('Memory usage: %s MB' % get_size([F], 'MB'))
         toc()
 
-        tic('Applying PCA')
+        tic('Applying PCA %s' % j)
         v = np.unique(np.var(F, axis=0))
+        # Sort the variances, remove v_pctg percent of uniques, take the min
         variance_thresh = np.sort(v)[int(round(len(v) * variance_pctg)):].min()
         fs = VarianceThreshold(threshold=variance_thresh)
         fs.fit(F)
+        del F
         support = fs.get_support()
 
         nb_new_features = support.sum()

@@ -236,6 +236,27 @@ def build_fadf(nn_stack, nn, sars, sfadf):
     fadf = fadf[['F', 'A', 'D', 'FF']]
     return fadf
 
+def build_fadf_no_preload(nn, sars, sfadf):
+    """
+    Builds new FADF' dataset from SARS' and SFADF':
+        F = NN_stack.s_features(S) + NN[i].features(S)
+        A = A
+        D = SFADF'.D
+        F' = NN_stack.s_features(S') + NN[i].features(S')
+    """
+    faf = []
+    for datapoint in sars.itertuples():
+        f = nn.all_features(np.expand_dims(datapoint.S, 0))
+        a = datapoint.A
+        ff = nn.all_features(np.expand_dims(datapoint.SS, 0))
+        faf.append([f, a, ff])
+    faf = np.array(faf)
+    header = ['F', 'A', 'FF']
+    fadf = pd.DataFrame(faf, columns=header)
+    fadf['D'] = sfadf.D
+    fadf = fadf[['F', 'A', 'D', 'FF']]
+    return fadf
+
 
 def build_global_farf(nn_stack, sars):
     """

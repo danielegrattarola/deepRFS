@@ -190,14 +190,3 @@ def get_size(structures, unit='B'):
             size += s.memory_usage(index=True, deep=True).sum()
 
     return size / factors[unit]
-
-def reject_outliers(data, m = 2.):
-    """
-    Removes outliers from a list
-    """
-    data = np.array(data)
-    d = np.abs(data - np.median(data))
-    mdev = np.median(d)
-    s = d/mdev if mdev else 0.
-    return data[s < m]
-
