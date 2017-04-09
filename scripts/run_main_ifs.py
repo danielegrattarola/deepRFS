@@ -202,10 +202,8 @@ for i in range(alg_iterations):
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize)
     nn.fit(S, A, R)
-    nn.load('NN.h5')  # Load best network (saved by callback)
-
-    log('Cleaning memory (S, A, R)')
     del S, A, R
+    nn.load('NN.h5')  # Load best network (saved by callback)
     toc()
 
     # ITERATIVE FEATURE SELECTION 0 #
@@ -351,6 +349,7 @@ for i in range(alg_iterations):
     tic('Building global FARF dataset for FQI')
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
+    del sars
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
     action_values = np.unique(pds_to_npa(global_farf.A))
@@ -421,8 +420,7 @@ for i in range(alg_iterations):
 
     # Set random/greedy split to 0.9 after the 0-th step
     random_greedy_split = final_random_greedy_split
-    log('Cleaning memory (global_farf, sast, r, sars)')
-    del sast, r, sars
+    del sast, r
     gc.collect()
     toc()
 
