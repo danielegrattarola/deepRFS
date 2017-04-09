@@ -219,7 +219,7 @@ for i in range(algorithm_steps):
     v = np.unique(np.var(F, axis=0))
     start = int(round(len(v) * variance_pctg))
     if start == len(v):
-        variance_thresh = 0.0
+        variance_thresh = -np.inf
     else:
         variance_thresh = np.sort(v)[start:].min()
     fs = VarianceThreshold(threshold=variance_thresh)
@@ -308,17 +308,18 @@ for i in range(algorithm_steps):
         v = np.unique(np.var(F, axis=0))
         start = int(round(len(v) * variance_pctg))
         if start == len(v):
-            variance_thresh = 0.0
+            del F
+            toc()
+            break
         else:
             variance_thresh = np.sort(v)[start:].min()
-        fs = VarianceThreshold(threshold=variance_thresh)
-        fs.fit(F)
-        del F
-        support = fs.get_support()
-
-        nb_new_features = support.sum()
-        log('Features:\n%s' % support.nonzero())
-        log('PCA - New features: %s' % nb_new_features)
+            fs = VarianceThreshold(threshold=variance_thresh)
+            fs.fit(F)
+            del F
+            support = fs.get_support()
+            nb_new_features = support.sum()
+            log('Features:\n%s' % support.nonzero())
+            log('PCA - New features: %s' % nb_new_features)
         toc()
         # END FEATURE SELECTION i #
 
