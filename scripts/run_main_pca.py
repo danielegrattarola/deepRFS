@@ -219,6 +219,7 @@ for i in range(algorithm_steps):
     v = np.unique(np.var(F, axis=0))
     start = int(round(len(v) * variance_pctg))
     if start == len(v):
+        log('Got bad features. Variance array: %s' % v)
         variance_thresh = -np.inf
     else:
         variance_thresh = np.sort(v)[start:].min()
@@ -308,8 +309,10 @@ for i in range(algorithm_steps):
         v = np.unique(np.var(F, axis=0))
         start = int(round(len(v) * variance_pctg))
         if start == len(v):
+            log('Got bad features. Variance array: %s' % v)
             del F
             toc()
+            log('Done.\n')
             break
         else:
             variance_thresh = np.sort(v)[start:].min()
