@@ -98,25 +98,25 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set bo
 
 # HYPERPARAMETERS
 sars_episodes = 10 if args.debug else 200  # Number of SARS episodes to collect
-nn_nb_epochs = 2 if args.debug else 300  # Number of epochs for the networks
-alg_iterations = 100  # Number of steps to make in the main loop
+nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
+algorithm_steps = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
-r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
+r2_change_threshold = 0.10  # % of IFS R2 improvement below which to stop loop
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 final_random_greedy_split = 0.9
 random_greedy_split = initial_random_greedy_split
-es_patience = 15
-es_iter = 150
-es_eval_freq = 5
+es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
+es_iter = 150  # Number of FQI iterations
+es_eval_freq = 5  # Number of FQI iterations
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
-logger = Logger(output_folder='../output/')
+logger = Logger(output_folder='../output/', custom_run_name='run_ifs%Y%m%d-%H%M%S')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 mdp = Atari(args.env)
@@ -167,7 +167,7 @@ else:
 
 
 log('######## START ########')
-for i in range(alg_iterations):
+for i in range(algorithm_steps):
     # NEURAL NETWORK 0 #
     log('######## STEP %s ########' % i)
 

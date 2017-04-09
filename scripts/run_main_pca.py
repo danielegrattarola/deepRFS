@@ -98,26 +98,25 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set bo
 
 # HYPERPARAMETERS
 sars_episodes = 10 if args.debug else 200  # Number of SARS episodes to collect
-nn_nb_epochs = 2 if args.debug else 300  # Number of epochs for the networks
-alg_iterations = 100  # Number of steps to make in the main loop
-rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
+nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
+algorithm_steps = 100  # Number of steps to make in the main loop
+rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
 variance_pctg = 0.8  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
-r2_change_threshold = 0.10  # % of IFS improvement below which to stop loop
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 final_random_greedy_split = 0.9
 random_greedy_split = initial_random_greedy_split
-es_patience = 15
-es_iter = 150
-es_eval_freq = 5
+es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
+es_iter = 150  # Number of FQI iterations
+es_eval_freq = 5  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
 logger = Logger(output_folder='../output/', custom_run_name='run_pca%Y%m%d-%H%M%S')
 evaluation_results = []
-nn_stack = NNStack()  # To store all neural networks and IFS supports
+nn_stack = NNStack()  # To store all neural networks and FS supports
 mdp = Atari(args.env)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
@@ -166,7 +165,7 @@ else:
 
 
 log('######## START ########')
-for i in range(alg_iterations):
+for i in range(algorithm_steps):
     # NEURAL NETWORK 0 #
     log('######## STEP %s ########' % i)
 
@@ -205,7 +204,7 @@ for i in range(alg_iterations):
     nn.load('NN.h5')  # Load best network (saved by callback)
     toc()
 
-    # ITERATIVE FEATURE SELECTION 0 #
+    # FEATURE SELECTION 0 #
     tic('Building FARF dataset for PCA')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     F = pds_to_npa(farf.F)
@@ -218,7 +217,11 @@ for i in range(alg_iterations):
 
     tic('Applying PCA')
     v = np.unique(np.var(F, axis=0))
-    variance_thresh = np.sort(v)[int(round(len(v) * variance_pctg)):].min()
+    start = int(round(len(v) * variance_pctg))
+    if start == len(v):
+        variance_thresh = 0.0
+    else:
+        variance_thresh = np.sort(v)[start:].min()
     fs = VarianceThreshold(threshold=variance_thresh)
     fs.fit(F)
     del F
@@ -289,7 +292,7 @@ for i in range(alg_iterations):
         nn.load('NN.h5')  # Load best network (saved by callback)
         toc()
 
-        # ITERATIVE FEATURE SELECTION i #
+        # FEATURE SELECTION i #
         tic('Building FADF dataset for PCA %s' % j)
         # Features (last nn), action, dynamics (previous nn), features (last nn)
         fadf = build_fadf_no_preload(nn, sars, sfadf)
@@ -303,8 +306,11 @@ for i in range(alg_iterations):
 
         tic('Applying PCA %s' % j)
         v = np.unique(np.var(F, axis=0))
-        # Sort the variances, remove v_pctg percent of uniques, take the min
-        variance_thresh = np.sort(v)[int(round(len(v) * variance_pctg)):].min()
+        start = int(round(len(v) * variance_pctg))
+        if start == len(v):
+            variance_thresh = 0.0
+        else:
+            variance_thresh = np.sort(v)[start:].min()
         fs = VarianceThreshold(threshold=variance_thresh)
         fs.fit(F)
         del F
@@ -314,7 +320,7 @@ for i in range(alg_iterations):
         log('Features:\n%s' % support.nonzero())
         log('PCA - New features: %s' % nb_new_features)
         toc()
-        # END ITERATIVE FEATURE SELECTION i #
+        # END FEATURE SELECTION i #
 
         nn_stack.add(nn, support)
 
