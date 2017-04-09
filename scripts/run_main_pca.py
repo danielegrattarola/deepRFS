@@ -115,7 +115,7 @@ es_eval_freq = 5
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
-logger = Logger(output_folder='../output/')
+logger = Logger(output_folder='../output/', custom_run_name='run_pca%Y%m%d-%H%M%S')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 mdp = Atari(args.env)
