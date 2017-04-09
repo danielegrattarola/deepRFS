@@ -219,7 +219,7 @@ for i in range(algorithm_steps):
     v = np.unique(np.var(F, axis=0))
     start = int(round(len(v) * variance_pctg))
     if start == len(v):
-        variance_thresh = None
+        variance_thresh = 0.0
     else:
         variance_thresh = np.sort(v)[start:].min()
     fs = VarianceThreshold(threshold=variance_thresh)
@@ -308,7 +308,7 @@ for i in range(algorithm_steps):
         v = np.unique(np.var(F, axis=0))
         start = int(round(len(v) * variance_pctg))
         if start == len(v):
-            variance_thresh = None
+            variance_thresh = 0.0
         else:
             variance_thresh = np.sort(v)[start:].min()
         fs = VarianceThreshold(threshold=variance_thresh)
