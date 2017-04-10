@@ -108,8 +108,8 @@ max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 final_random_greedy_split = 0.9
 random_greedy_split = initial_random_greedy_split
-es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
-es_iter = 150  # Number of FQI iterations
+es_patience = 20  # Number of FQI iterations w/o improvement after which to stop
+es_iter = 5 if args.debug else 300  # Number of FQI iterations
 es_eval_freq = 5  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
@@ -222,7 +222,10 @@ for i in range(algorithm_steps):
         log('Got bad features. Variance array: %s' % v)
         variance_thresh = -np.inf
     else:
-        variance_thresh = np.sort(v)[start:].min()
+        sorted_v = np.sort(v)
+        variance_thresh = sorted_v[start:].min()
+        log('Variance array: %s' % sorted_v)
+        log('Variance threshold: %s' % variance_thresh)
     fs = VarianceThreshold(threshold=variance_thresh)
     fs.fit(F)
     del F
