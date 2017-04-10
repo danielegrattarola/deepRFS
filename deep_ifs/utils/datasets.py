@@ -82,7 +82,7 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
 
     # TODO debug
     if debug:
-        dataset = dataset[:10]
+        dataset = dataset[:6]
 
     header = ['S', 'A', 'R', 'SS', 'DONE']
     return pd.DataFrame(dataset, columns=header)

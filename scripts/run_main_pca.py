@@ -78,7 +78,7 @@ from ifqi.models import Regressor, ActionRegressor
 from matplotlib import pyplot as plt
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.feature_selection import VarianceThreshold
+
 
 # ARGS
 parser = argparse.ArgumentParser()
@@ -216,23 +216,22 @@ for i in range(algorithm_steps):
     toc()
 
     tic('Applying PCA')
-    v = np.unique(np.var(F, axis=0))
-    start = int(round(len(v) * variance_pctg))
-    if start == len(v):
-        log('Got bad features. Variance array: %s' % v)
-        variance_thresh = -np.inf
-    else:
-        sorted_v = np.sort(v)
-        variance_thresh = sorted_v[start:].min()
-        log('Variance array: %s' % sorted_v)
-        log('Variance threshold: %s' % variance_thresh)
-    fs = VarianceThreshold(threshold=variance_thresh)
-    fs.fit(F)
+    v = np.var(F, axis=0, dtype=np.float64)
     del F
-    support = fs.get_support()
-    nb_new_features = support.sum()
-    log('Features:\n%s' % support.nonzero())
-    log('PCA - New features: %s' % nb_new_features)
+    v_uniq = np.unique(v)  # Sort and keep unique
+    start = int(round(len(v_uniq) * variance_pctg))
+    if start == len(v_uniq):
+        log('Got bad features (by default all are kept, but there is probably'
+            'something wrong with NN0).\nUnique variances array: %s' % v)
+        support = np.repeat([True], len(v))
+    else:
+        variance_thresh = v_uniq[start:].min()
+        log('Unique variances array: %s' % v_uniq)
+        log('Variance threshold: %s' % variance_thresh)
+        support = v > variance_thresh
+        nb_new_features = support.sum()
+        log('Features:\n%s' % support.nonzero())
+        log('PCA - New features: %s' % nb_new_features)
     toc()
 
     # TODO Debug
@@ -305,29 +304,24 @@ for i in range(algorithm_steps):
         # Print the number of nonzero features
         nonzero_mfv_counts = np.count_nonzero(np.mean(F, axis=0))
         log('Number of non-zero feature: %s' % nonzero_mfv_counts)
-        # TODO log mean, variance, max of non-zero F
         log('Memory usage: %s MB' % get_size([F], 'MB'))
         toc()
 
         tic('Applying PCA %s' % j)
-        v = np.unique(np.var(F, axis=0))
-        start = int(round(len(v) * variance_pctg))
-        if start == len(v):
-            log('Got bad features. Variance array: %s' % v)
-            del F
+        v = np.var(F, axis=0, dtype=np.float64)
+        del F
+        v_uniq = np.unique(v)  # Sort and keep unique
+        start = int(round(len(v_uniq) * variance_pctg))
+        if start == len(v_uniq):
+            log('Got bad features. Unique variances array: %s' % v)
             toc()
             log('Done.\n')
             break
         else:
-            sorted_v = np.sort(v)
-            variance_thresh = sorted_v[start:].min()
-            log('Variance array: %s' % sorted_v)
+            variance_thresh = v_uniq[start:].min()
+            log('Unique variances array: %s' % v_uniq)
             log('Variance threshold: %s' % variance_thresh)
-            fs = VarianceThreshold(threshold=variance_thresh)
-            log('Variance threshold in FS: %s' % fs.threshold)
-            fs.fit(F)
-            del F
-            support = fs.get_support()
+            support = v > variance_thresh
             nb_new_features = support.sum()
             log('Features:\n%s' % support.nonzero())
             log('PCA - New features: %s' % nb_new_features)
