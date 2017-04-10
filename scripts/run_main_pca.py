@@ -302,6 +302,7 @@ for i in range(algorithm_steps):
         # Print the number of nonzero features
         nonzero_mfv_counts = np.count_nonzero(np.mean(F, axis=0))
         log('Number of non-zero feature: %s' % nonzero_mfv_counts)
+        # TODO log mean, variance, max of non-zero F
         log('Memory usage: %s MB' % get_size([F], 'MB'))
         toc()
 
@@ -315,7 +316,10 @@ for i in range(algorithm_steps):
             log('Done.\n')
             break
         else:
-            variance_thresh = np.sort(v)[start:].min()
+            sorted_v = np.sort(v)
+            variance_thresh = sorted_v[start:].min()
+            log('Variance array: %s' % sorted_v)
+            log('Variance threshold: %s' % variance_thresh)
             fs = VarianceThreshold(threshold=variance_thresh)
             fs.fit(F)
             del F

@@ -29,7 +29,7 @@ def episode(mdp, policy, video=False, initial_actions=None):
         # Select and execute the action, get next state and reward
         action = policy.draw_action(np.expand_dims(state, 0), done)
         # TODO why the f**k does this happen?
-        if not isinstance(action, int):
+        while not isinstance(action, int):
             action = action[0]
         next_state, reward, done, info = mdp.step(action)
 
