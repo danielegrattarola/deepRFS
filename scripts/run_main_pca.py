@@ -324,6 +324,7 @@ for i in range(algorithm_steps):
             log('Variance array: %s' % sorted_v)
             log('Variance threshold: %s' % variance_thresh)
             fs = VarianceThreshold(threshold=variance_thresh)
+            log('Variance threshold in FS: %s' % fs.threshold)
             fs.fit(F)
             del F
             support = fs.get_support()
