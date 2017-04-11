@@ -97,16 +97,17 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set bo
 # END ARGS
 
 # HYPERPARAMETERS
-sars_episodes = 10 if args.debug else 200  # Number of SARS episodes to collect
+sars_episodes = 10 if args.debug else 300  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
-rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
-variance_pctg = 0.8  # Remove this many % of non-zero feature during FS (kinda)
+rec_steps = 1 if args.debug else 3  # Number of recursive steps to make
+variance_pctg = 0.5  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
-final_random_greedy_split = 0.9
+random_greedy_step = 0.2  # Decrease R/G split by this much at each step
+final_random_greedy_split = 0.1
 random_greedy_split = initial_random_greedy_split
 es_patience = 20  # Number of FQI iterations w/o improvement after which to stop
 es_iter = 5 if args.debug else 300  # Number of FQI iterations
@@ -407,8 +408,12 @@ for i in range(algorithm_steps):
     # Restore best policy
     policy.load_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
 
-    # Set random/greedy split to 0.9 after the 0-th step
-    random_greedy_split = final_random_greedy_split
+    # Decrease R/G split
+    if random_greedy_split - random_greedy_step >= final_random_greedy_split:
+        random_greedy_split -= random_greedy_step
+    else:
+        random_greedy_split = final_random_greedy_split
+
     del sast, r
     gc.collect()
     toc()

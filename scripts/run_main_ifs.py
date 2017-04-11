@@ -108,7 +108,8 @@ r2_change_threshold = 0.10  # % of IFS R2 improvement below which to stop loop
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
-final_random_greedy_split = 0.9
+random_greedy_step = 0.2  # Decrease R/G split by this much at eacch step
+final_random_greedy_split = 0.1
 random_greedy_split = initial_random_greedy_split
 es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
 es_iter = 150  # Number of FQI iterations
@@ -418,8 +419,12 @@ for i in range(algorithm_steps):
     # Restore best policy
     policy.load_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
 
-    # Set random/greedy split to 0.9 after the 0-th step
-    random_greedy_split = final_random_greedy_split
+    # Decrease R/G split
+    if random_greedy_split - random_greedy_step >= final_random_greedy_split:
+        random_greedy_split -= random_greedy_step
+    else:
+        random_greedy_split = final_random_greedy_split
+
     del sast, r
     gc.collect()
     toc()
