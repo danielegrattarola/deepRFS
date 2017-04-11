@@ -31,7 +31,7 @@ class ConvNet:
 
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
-                                    dim_ordering='th')(self.hidden)
+                                    dim_ordering='th')(self.input)
 
         self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
                                     activation='relu', subsample=(2, 2),
