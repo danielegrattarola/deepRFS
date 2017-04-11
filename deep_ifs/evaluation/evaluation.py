@@ -83,7 +83,7 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
     done = False
 
     # Start episode
-    while not done and frame_counter <= max_ep_len:
+    while not done:
         frame_counter += 1
 
         # Select and execute the action, get next state and reward
@@ -110,6 +110,10 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         state = next_state
         if save_video:
             frames.append(state[-1])
+
+        if frame_counter >= max_ep_len:
+            ep_performance += df * mdp.final_reward
+            break
 
     if metric == 'average':
         ep_performance /= frame_counter

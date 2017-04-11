@@ -206,10 +206,8 @@ for i in range(algorithm_steps):
     toc()
 
     # FEATURE SELECTION 0 #
-    tic('Building FARF dataset for PCA')
-    farf = build_farf(nn, sars)  # Features, action, reward, next_features
-    F = pds_to_npa(farf.F)
-    del farf  # Not used anymore
+    tic('Building F dataset for PCA')
+    F = build_features(nn, sars)  # Features
     # Print the number of nonzero features
     nonzero_mfv_counts = np.count_nonzero(np.mean(F, axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
@@ -243,15 +241,15 @@ for i in range(algorithm_steps):
 
     for j in range(1, rec_steps + 1):
         # RESIDUALS MODEL #
-        tic('Building SFADF dataset for residuals model')
+        tic('Building SFAD dataset for residuals model')
         # State, features (stack), action, dynamics (nn), features (stack)
-        sfadf = build_sfadf(nn_stack, nn, support, sars)
-        F = pds_to_npa(sfadf.F)  # All features from NN stack
-        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
+        sfad = build_sfad(nn_stack, nn, support, sars)
+        F = pds_to_npa(sfad.F)  # All features from NN stack
+        D = pds_to_npa(sfad.D)  # Feature dynamics of last NN
         log('Mean dynamic values %s' % np.mean(D, axis=0))
         log('Dynamic values variance %s' % np.std(D, axis=0))
         log('Max dynamic values %s' % np.max(D, axis=0))
-        log('Memory usage: %s MB' % get_size([sfadf, F, D], 'MB'))
+        log('Memory usage: %s MB' % get_size([sfad, F, D], 'MB'))
         toc()
 
         tic('Fitting residuals model')
@@ -262,6 +260,8 @@ for i in range(algorithm_steps):
                                         n_jobs=-1)
         elif args.residual_model == 'linear':
             model = LinearRegression(n_jobs=-1)
+
+        # Train residuals model
         model.fit(F, D, sample_weight=sars_sample_weight)
         del F, D
         toc()
@@ -269,7 +269,8 @@ for i in range(algorithm_steps):
         # NEURAL NETWORK i #
         tic('Building SARes dataset')
         # Frames, action, residual dynamics of last NN (Res = D - model(F))
-        sares = build_sares(model, sfadf)
+        sares = build_sares(model, sfad)
+        del sfad  # Not used anymore
         S = pds_to_npa(sares.S)  # 4 frames
         A = pds_to_npa(sares.A)  # Discrete action
         RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
@@ -297,11 +298,9 @@ for i in range(algorithm_steps):
         toc()
 
         # FEATURE SELECTION i #
-        tic('Building FADF dataset for PCA %s' % j)
-        # Features (last nn), action, dynamics (previous nn), features (last nn)
-        fadf = build_fadf_no_preload(nn, sars, sfadf)
-        F = pds_to_npa(fadf.F)
-        del fadf, sfadf  # Not used anymore
+        tic('Building F dataset for PCA %s' % j)
+        # Features (last nn)
+        F = build_features(nn, sars)
         # Print the number of nonzero features
         nonzero_mfv_counts = np.count_nonzero(np.mean(F, axis=0))
         log('Number of non-zero feature: %s' % nonzero_mfv_counts)
@@ -391,8 +390,11 @@ for i in range(algorithm_steps):
                                             policy,
                                             max_ep_len=max_eval_steps,
                                             n_episodes=3,
+                                            initial_actions=initial_actions,
+                                            save_video=args.save_video,
                                             save_path=logger.path,
-                                            initial_actions=initial_actions)
+                                            append_filename='fqi_step_%s_iter_%s' % (i, partial_iter))
+            policy.save_fqi(logger.path + 'fqi_step_%s_iter_%s_score_%s.pkl' % (i, round(es_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
             if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
@@ -418,14 +420,14 @@ for i in range(algorithm_steps):
     gc.collect()
     toc()
 
-    tic('Evaluating policy after update')
+    tic('Evaluating best policy after update')
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
                                          max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,
-                                         append_filename='step_%s' % i,
+                                         append_filename='best_step_%s' % i,
                                          initial_actions=initial_actions)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)

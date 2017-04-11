@@ -1,6 +1,6 @@
 import numpy as np
 from keras.models import Model
-from keras.layers import Input, Convolution2D, Flatten, Dense
+from keras.layers import Input, Convolution2D, Flatten, Dense, BatchNormalization
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.regularizers import l1
@@ -28,13 +28,18 @@ class ConvNet:
         # Build network
         self.input = Input(shape=self.input_shape)
         self.u = Input(shape=(1,), dtype='int32')
+        self.hidden = BatchNormalization(mode=1, axis=1)(self.input)
 
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
-                                    dim_ordering='th')(self.input)
+                                    dim_ordering='th')(self.hidden)
+        self.hidden = BatchNormalization(mode=1, axis=1)(self.hidden)
+
         self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
                                     activation='relu', subsample=(2, 2),
                                     dim_ordering='th')(self.hidden)
+        self.hidden = BatchNormalization(mode=1, axis=1)(self.hidden)
+
         self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
                                     activation='relu', subsample=(1, 1),
                                     dim_ordering='th')(self.hidden)

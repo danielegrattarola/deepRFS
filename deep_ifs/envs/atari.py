@@ -24,6 +24,8 @@ class Atari(gym.Env):
         self.action_space.values = range(self.action_space.n)
         self.observation_space = self.env.observation_space
 
+        self.final_reward = -1.0 / (1.0 - self.gamma)
+
         # initialize state
         self.seed()
         self.reset()
@@ -38,7 +40,7 @@ class Atari(gym.Env):
         obs, reward, done, info = self.env.step(int(action))
         # Negative reward at end of episode
         if done:
-            reward = -1.0 / (1.0 - self.gamma)
+            reward = self.final_reward
         obs = self._preprocess_observation(obs)
         self.env.state = self._get_next_state(current_state, obs)
 

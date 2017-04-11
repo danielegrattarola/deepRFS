@@ -187,6 +187,27 @@ def build_sfadf(nn_stack, nn, support, sars):
     return pd.DataFrame(sfadf, columns=header)
 
 
+def build_sfad(nn_stack, nn, support, sars):
+    """
+    # Builds SFAD dataset using SARS' dataset:
+        S = S
+        F = NN_stack.s_features(S)
+        A = A
+        D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
+    """
+    sfad = []
+    for datapoint in sars.itertuples():
+        s = datapoint.S
+        f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))
+        a = datapoint.A
+        d = nn.s_features(np.expand_dims(datapoint.S, 0), support) - \
+            nn.s_features(np.expand_dims(datapoint.SS, 0), support)
+        sfad.append([s, f, a, d])
+    sfad = np.array(sfad)
+    header = ['S', 'F', 'A', 'D']
+    return pd.DataFrame(sfad, columns=header)
+
+
 def build_sares(model, sfadf):
     """
     Builds SARes dataset from SFADF':
@@ -198,11 +219,7 @@ def build_sares(model, sfadf):
     for datapoint in sfadf.itertuples():
         s = datapoint.S
         a = datapoint.A
-
         features = np.expand_dims(datapoint.F, 0)
-        # if model_type == 'linear':
-        #     features = PolynomialFeatures(degree=5).fit_transform(features)
-
         prediction = model.predict(features)
         res = datapoint.D - prediction
         sares.append([s, a, res])
@@ -275,3 +292,13 @@ def build_global_farf(nn_stack, sars):
     farf = np.array(farf)
     header = ['F', 'A', 'R', 'FF', 'DONE']
     return pd.DataFrame(farf, columns=header)
+
+
+def build_features(nn, sars):
+    """
+    Builds F dataset using SARS' dataset:
+        F = NN[0].features(S)
+    """
+    f = np.array([nn.all_features(np.expand_dims(datapoint.S, 0))
+                  for datapoint in sars.itertuples()])
+    return f
