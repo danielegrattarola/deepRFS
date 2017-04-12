@@ -79,7 +79,8 @@ class ConvNetClassifier:
         y_train = np.asarray(y)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
-        mc = ModelCheckpoint('NN.h5', monitor='val_loss', save_best_only=True,
+        chkpt = 'NN.h5' if self.logger is None else self.logger.path + 'NN.h5'
+        mc = ModelCheckpoint(chkpt, monitor='val_loss', save_best_only=True,
                              save_weights_only=True)
 
         if self.binarize:
