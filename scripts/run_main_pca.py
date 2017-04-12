@@ -70,6 +70,7 @@ from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
+from deep_ifs.extraction.ConvNetClassifier import ConvNetClassifier
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
@@ -91,6 +92,7 @@ parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of
 parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved FQI pickle file to load as policy in the first iteration')
 parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
+parser.add_argument('--classify', action='store_true', help='Use a classifier for NN0')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
@@ -118,7 +120,7 @@ initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 logger = Logger(output_folder='../output/', custom_run_name='run_pca%Y%m%d-%H%M%S')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
-mdp = Atari(args.env)
+mdp = Atari(args.env, clip_reward=args.classify)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
@@ -182,6 +184,12 @@ for i in range(algorithm_steps):
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
+    if args.classify:
+        from sklearn.preprocessing import LabelBinarizer
+        label_binarizer = LabelBinarizer()
+        label_binarizer.fit(np.unique(R))
+        R = label_binarizer.transform(R)
+
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
     toc()
@@ -191,15 +199,25 @@ for i in range(algorithm_steps):
     toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
 
     tic('Fitting NN0')
-    target_size = 1  # Initial target is the scalar reward
     # NN maps frames to reward
-    nn = ConvNet(mdp.state_shape,
-                 target_size,
-                 nb_actions=nb_actions,
-                 l1_alpha=0.01,
-                 sample_weight=sars_sample_weight,
-                 nb_epochs=nn_nb_epochs,
-                 binarize=args.binarize)
+    if not args.classify:
+        target_size = 1  # Initial target is the scalar reward
+        nn = ConvNet(mdp.state_shape,
+                     target_size,
+                     nb_actions=nb_actions,
+                     l1_alpha=0.01,
+                     sample_weight=sars_sample_weight,
+                     nb_epochs=nn_nb_epochs,
+                     binarize=args.binarize)
+    else:
+        nb_classes = R.shape[1]  # Target is the one-hot encoded reward
+        nn = ConvNetClassifier(mdp.state_shape,
+                               nb_classes,
+                               nb_actions=nb_actions,
+                               l1_alpha=0.01,
+                               sample_weight=sars_sample_weight,
+                               nb_epochs=nn_nb_epochs,
+                               binarize=args.binarize)
     nn.fit(S, A, R)
     del S, A, R
     nn.load('NN.h5')  # Load best network (saved by callback)
@@ -221,7 +239,7 @@ for i in range(algorithm_steps):
     start = int(round(len(v_uniq) * variance_pctg))
     if start == len(v_uniq):
         log('Got bad features (by default all are kept, but there is probably'
-            'something wrong with NN0).\nUnique variances array: %s' % v)
+            'something wrong with NN0).\nUnique variances array: %s' % v_uniq)
         support = np.repeat([True], len(v))
     else:
         variance_thresh = v_uniq[start:].min()
