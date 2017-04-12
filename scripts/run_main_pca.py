@@ -102,7 +102,7 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set bo
 sars_episodes = 10 if args.debug else 300  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
-rec_steps = 1 if args.debug else 3  # Number of recursive steps to make
+rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
 variance_pctg = 0.5  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
@@ -118,6 +118,10 @@ initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
 logger = Logger(output_folder='../output/', custom_run_name='run_pca%Y%m%d-%H%M%S')
+setup_logging(logger.path + 'log.txt')
+log('\n\n\nLOCALS')
+log(repr(locals()))
+log('\n\n\n')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
 mdp = Atari(args.env, clip_reward=args.classify)
@@ -134,7 +138,7 @@ if args.fqi_model_type == 'extra':
                                 discrete_actions=action_values,
                                 tol=0.5)
 elif args.fqi_model_type == 'linear':
-    fqi_regressor_params = {'n_jobs': -1}
+    fqi_regressor_params = {}
     regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
                                           **fqi_regressor_params),
                                 discrete_actions=action_values,
@@ -180,14 +184,11 @@ for i in range(algorithm_steps):
                         debug=args.debug,
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
+    sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
     sars_sample_weight = get_sample_weight(sars)
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
-    if args.classify:
-        from sklearn.preprocessing import OneHotEncoder
-        ohe = OneHotEncoder(sparse=False)
-        R = ohe.fit_transform(R.reshape(-1, 1))
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
@@ -199,7 +200,20 @@ for i in range(algorithm_steps):
 
     tic('Fitting NN0')
     # NN maps frames to reward
-    if not args.classify:
+    if args.classify:
+        from sklearn.preprocessing import OneHotEncoder
+        ohe = OneHotEncoder(sparse=False)
+        R = ohe.fit_transform(R.reshape(-1, 1) - R.min())
+        nb_classes = R.shape[1]  # Target is the one-hot encoded reward
+        nn = ConvNetClassifier(mdp.state_shape,
+                               nb_classes,
+                               nb_actions=nb_actions,
+                               l1_alpha=0.0,
+                               sample_weight=sars_sample_weight,
+                               nb_epochs=nn_nb_epochs,
+                               binarize=args.binarize,
+                               logger=logger)
+    else:
         target_size = 1  # Initial target is the scalar reward
         nn = ConvNet(mdp.state_shape,
                      target_size,
@@ -207,16 +221,9 @@ for i in range(algorithm_steps):
                      l1_alpha=0.01,
                      sample_weight=sars_sample_weight,
                      nb_epochs=nn_nb_epochs,
-                     binarize=args.binarize)
-    else:
-        nb_classes = R.shape[1]  # Target is the one-hot encoded reward
-        nn = ConvNetClassifier(mdp.state_shape,
-                               nb_classes,
-                               nb_actions=nb_actions,
-                               l1_alpha=0.01,
-                               sample_weight=sars_sample_weight,
-                               nb_epochs=nn_nb_epochs,
-                               binarize=args.binarize)
+                     binarize=args.binarize,
+                     logger=logger)
+
     nn.fit(S, A, R)
     del S, A, R
     nn.load('NN.h5')  # Load best network (saved by callback)
@@ -308,7 +315,8 @@ for i in range(algorithm_steps):
                      l1_alpha=0.0,
                      sample_weight=sars_sample_weight,
                      nb_epochs=nn_nb_epochs,
-                     binarize=args.binarize)
+                     binarize=args.binarize,
+                     logger=logger)
         nn.fit(S, A, RES)
         del S, A, RES
         nn.load('NN.h5')  # Load best network (saved by callback)
@@ -330,7 +338,7 @@ for i in range(algorithm_steps):
         v_uniq = np.unique(v)  # Sort and keep unique
         start = int(round(len(v_uniq) * variance_pctg))
         if start == len(v_uniq):
-            log('Got bad features. Unique variances array: %s' % v)
+            log('Got bad features. Unique variances array: %s' % v_uniq)
             toc()
             log('Done.\n')
             break
@@ -379,17 +387,18 @@ for i in range(algorithm_steps):
 
     # Update ActionRegressor to only use the actions actually in the dataset
     if args.fqi_model_type == 'extra':
-        fqi_regressor_params = {'n_estimators': 50}
         regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
                                               **fqi_regressor_params),
                                     discrete_actions=action_values,
                                     tol=0.5)
     elif args.fqi_model_type == 'linear':
-        regressor = ActionRegressor(Regressor(regressor_class=LinearRegression),
+        regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
+                                              **fqi_regressor_params),
                                     discrete_actions=action_values,
                                     tol=0.5)
     elif args.fqi_model_type == 'ridge':
-        regressor = ActionRegressor(Regressor(regressor_class=Ridge),
+        regressor = ActionRegressor(Regressor(regressor_class=Ridge,
+                                              **fqi_regressor_params),
                                     discrete_actions=action_values,
                                     tol=0.5)
     policy.fqi_params['estimator'] = regressor
@@ -410,22 +419,22 @@ for i in range(algorithm_steps):
                                             initial_actions=initial_actions,
                                             save_video=args.save_video,
                                             save_path=logger.path,
-                                            append_filename='fqi_step_%s_iter_%s' % (i, partial_iter))
-            policy.save_fqi(logger.path + 'fqi_step_%s_iter_%s_score_%s.pkl' % (i, partial_iter, round(es_best[0])))
+                                            append_filename='fqi_step_%03d_iter_%03d' % (i, partial_iter))
+            policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl' % (i, partial_iter, round(es_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
             if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
-                policy.save_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
+                policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
             else:
                 es_current_patience -= 1
                 if es_current_patience == 0:
                     break
 
     # Restore best policy
-    policy.load_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
+    policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
 
     # Decrease R/G split
     if random_greedy_split - random_greedy_step >= final_random_greedy_split:
@@ -444,7 +453,7 @@ for i in range(algorithm_steps):
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,
-                                         append_filename='best_step_%s' % i,
+                                         append_filename='best_step_%03d' % i,
                                          initial_actions=initial_actions)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
@@ -462,6 +471,5 @@ evaluation_results.to_csv('evaluation.csv', index=False)
 fig = evaluation_results[['score', 'steps']].plot().get_figure()
 fig.savefig(logger.path + 'evaluation.png')
 
-# TODO Log run configuration
 toc('Done. Exit...')
 # END #

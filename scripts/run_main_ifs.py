@@ -180,6 +180,7 @@ for i in range(algorithm_steps):
                         debug=args.debug,
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
+    sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
     sars_sample_weight = get_sample_weight(sars)
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
