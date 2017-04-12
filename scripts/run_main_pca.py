@@ -394,7 +394,7 @@ for i in range(algorithm_steps):
                                             save_video=args.save_video,
                                             save_path=logger.path,
                                             append_filename='fqi_step_%s_iter_%s' % (i, partial_iter))
-            policy.save_fqi(logger.path + 'fqi_step_%s_iter_%s_score_%s.pkl' % (i, round(es_best[0])))
+            policy.save_fqi(logger.path + 'fqi_step_%s_iter_%s_score_%s.pkl' % (i, partial_iter, round(es_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
             if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
