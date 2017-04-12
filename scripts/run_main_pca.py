@@ -226,7 +226,7 @@ for i in range(algorithm_steps):
 
     nn.fit(S, A, R)
     del S, A, R
-    nn.load('NN.h5')  # Load best network (saved by callback)
+    nn.load(logger.path + 'NN.h5')  # Load best network (saved by callback)
     toc()
 
     # FEATURE SELECTION 0 #
@@ -319,7 +319,7 @@ for i in range(algorithm_steps):
                      logger=logger)
         nn.fit(S, A, RES)
         del S, A, RES
-        nn.load('NN.h5')  # Load best network (saved by callback)
+        nn.load(logger.path + 'NN.h5')  # Load best network (saved by callback)
         toc()
 
         # FEATURE SELECTION i #
