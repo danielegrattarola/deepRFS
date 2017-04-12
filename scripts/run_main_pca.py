@@ -185,10 +185,9 @@ for i in range(algorithm_steps):
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
     if args.classify:
-        from sklearn.preprocessing import LabelBinarizer
-        label_binarizer = LabelBinarizer()
-        label_binarizer.fit(np.unique(R))
-        R = label_binarizer.transform(R)
+        from sklearn.preprocessing import OneHotEncoder
+        ohe = OneHotEncoder(sparse=False)
+        R = ohe.fit_transform(R.reshape(-1, 1))
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
