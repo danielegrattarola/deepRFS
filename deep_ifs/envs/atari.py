@@ -27,7 +27,7 @@ class Atari(gym.Env):
         self.clip_reward = clip_reward
         self.final_reward = -1.0 / (1.0 - self.gamma)
         if self.clip_reward:
-            self.final_reward = np.clip(self.final_reward)
+            self.final_reward = np.clip(self.final_reward, -1, 1)
 
         # initialize state
         self.seed()
