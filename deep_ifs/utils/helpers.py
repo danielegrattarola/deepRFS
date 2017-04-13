@@ -4,60 +4,6 @@ from PIL import Image
 import pandas as pd
 
 
-def batch_iterator(dataset_folder, batch_size, nb_epochs, labels=None,
-                   shuffle=True):
-    """
-    Yields batches of length batch_size, randomly created iterating over the
-    dataset nb_epochs times.
-    :param labels: use the column with this name as labels and return a x,y
-        dataset
-    :param dataset_folder: path to folder containing .png or .jpg images.
-    :param batch_size: number of images to yiela at a time. Set to 'all' if
-        you want to use the whole dataset as batch.
-    :param nb_epochs: number of times to iterate the dataset.
-    :param shuffle: whether to shuffle the data before each epoch.
-    :return: an iterator for the batches.
-    """
-
-    data = pd.read_csv(dataset_folder + 'images_dataset.csv')
-    x = data['S'].as_matrix()
-    if labels is not None:
-        y = data[labels].as_matrix()
-    else:
-        y = x
-
-    data_size = len(x)
-    batch_size = batch_size if batch_size != 'all' else data_size
-    nb_batches_in_epoch = int(data_size / batch_size) + \
-                          (1 if data_size % batch_size else 0)
-
-    print('Total number of iterations: %d' % (nb_batches_in_epoch * nb_epochs))
-
-    images = []
-    labels = []
-    for epoch in range(nb_epochs):
-        if shuffle:
-            # Shuffle data at each epoch
-            perm = np.random.permutation(data_size)
-            x = x[perm]
-            y = y[perm]
-        for batch_idx in range(nb_batches_in_epoch):
-            images[:] = []  # Empty the list to free up memory
-            labels[:] = []
-            batch_data = x[batch_idx * batch_size: min(
-                (batch_idx + 1) * batch_size, data_size)]
-            batch_labels = y[batch_idx * batch_size: min(
-                (batch_idx + 1) * batch_size, data_size)]
-            for _x, _y in zip(batch_data, batch_labels):
-                image = np.load(dataset_folder + _x + '.npy')
-                images.append(np.asarray(image))
-                labels.append(_y)
-            if labels is None:
-                yield images
-            else:
-                yield images, labels
-
-
 def resize_state(to_resize, new_size=(72, 72)):
     """Resizes every image in to_resize to new_size.
     :param to_resize: a numpy array containing a sequence of greyscale images
@@ -129,8 +75,12 @@ def onehot_encode(value, nb_categories):
 
 def p_load(filename):
     """Loads the numpy object stored as the given filename.
-    :param filename: relative path to numpy file.
-    :return: the loaded object.
+
+    Args
+        filename (str): relative path to numpy file.
+
+    Return
+        The loaded object.
     """
     out = np.load(filename)
     return out
@@ -138,15 +88,17 @@ def p_load(filename):
 
 def p_dump(obj, filename):
     """Dumps an object to numpy file.
-    :param obj: the object to dump.
-    :param filename: the filename to which save the object.
+
+    Args
+        obj (Object): the object to dump.
+        filename (str): the filename to which save the object.
     """
     np.save(filename, obj)
 
 
 def pds_to_npa(pandas_series):
     """
-    Converts a pandas series to a numpy array
+    Converts a pandas series of dtype 'object' to a numpy array
     """
     return np.array([_ for _ in pandas_series])
 
@@ -159,6 +111,7 @@ def is_stuck(state):
     for i in range(len(state) - 1):
         equals = equals and (np.sum(state[i] - state[i+1]) == 0)
     return equals
+
 
 def get_dataset_size(dataset, unit='B'):
     """
@@ -175,7 +128,7 @@ def get_dataset_size(dataset, unit='B'):
 def get_size(structures, unit='B'):
     """
     Returns the approximated size of all pandas dataframes or np.arrays in the
-    given list
+    given list.
     """
     factors = {'B': 1.,
                'KB': 1024.,

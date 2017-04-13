@@ -1,13 +1,26 @@
-from deep_ifs.utils.helpers import *
+import numpy as np
+import pandas as pd
+from deep_ifs.utils.helpers import flat2list, pds_to_npa, is_stuck
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from sklearn.utils.class_weight import compute_class_weight
-import numpy as np
-import pandas as pd
-from sklearn.preprocessing import PolynomialFeatures
 
 
 def episode(mdp, policy, video=False, initial_actions=None):
+    """
+    Collects an episode of the given MDP using the given policy.
+
+    Args
+        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
+        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
+            Methods draw_action and set_epsilon are expected.
+        video (bool, False): render the video of the episode.
+        initial_actions (list, None): list of action indices that start an
+            episode of the MDP.
+
+    Return
+        A sequence of SARS' transitions as np.array
+    """
     frame_counter = 0
     patience = mdp.action_space.n
 
@@ -51,8 +64,31 @@ def episode(mdp, policy, video=False, initial_actions=None):
 
 
 def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
-                 debug=False, initial_actions=None):
-    assert episodes > 0
+                 debug=False, initial_actions=None, shuffle=True):
+    """
+    Collects a dataset of SARS' transitions of the given MDP.
+    A percentage of the samples (random_greedy_split) is collected with a fully
+    random policy, whereas the remaining part is collected with a greedy policy.
+
+    Args
+        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
+        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
+            Methods draw_action and set_epsilon are expected.
+        episodes (int, 100): number of episodes to collect.
+        n_jobs (int, 1): number of processes to use (-1 for all available cores).
+            Leave 1 if running stuff on GPU.
+        random_greedy_split (float, 0.9): percentage of random episodes to
+            collect.
+        debug (bool, False): collect the episodes in debug mode (only a very
+            small fraction of transitions will be returned).
+        initial_actions (list, None): list of action indices that start an
+            episode of the MDP.
+        shuffle (bool, True): whether to shuffle the dataset before returning
+            it.
+
+    Return
+        A SARS' dataset as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
+    """
     random_episodes = int(episodes * random_greedy_split)
     greedy_episodes = episodes - random_episodes
 
@@ -78,7 +114,8 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
     else:
         dataset = dataset_random
 
-    np.random.shuffle(dataset)
+    if shuffle:
+        np.random.shuffle(dataset)
 
     # TODO debug
     if debug:
@@ -119,6 +156,14 @@ def get_sample_weight(sars):
 
 
 def split_dataset_for_ifs(dataset, features='F', target='R'):
+    """
+    Splits the dataset into x = features + actions, y = target
+
+    Args
+        dataset (pd.DataFrame): a dataset in pandas format.
+        features (str, 'F'): key to index the dataset
+        target (str, 'R'): key to index the dataset
+    """
     f = pds_to_npa(dataset[features])
     a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
     x = np.concatenate((f, a), axis=1)
@@ -127,6 +172,16 @@ def split_dataset_for_ifs(dataset, features='F', target='R'):
 
 
 def split_dataset_for_rfs(dataset, features='F', next_features='FF', target='R'):
+    """
+    Splits the dataset into f = features, a = actions, ff = features of next
+    states, y = target.
+
+    Args
+        dataset (pd.DataFrame): a dataset in pandas format.
+        features (str, 'F'): key to index the dataset
+        next_features (str, 'FF'): key to index the dataset
+        target (str, 'R'): key to index the dataset
+    """
     f = pds_to_npa(dataset[features])
     a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
     ff = pds_to_npa(dataset[next_features])
@@ -135,6 +190,13 @@ def split_dataset_for_rfs(dataset, features='F', next_features='FF', target='R')
 
 
 def split_dataset_for_fqi(global_farf):
+    """
+    Splits the dataset into faft = features + actions + features of next state,
+    r = reward
+
+    Args
+        global_farf (pd.DataFrame): a dataset in pandas format.
+    """
     f = pds_to_npa(global_farf.F)
     a = global_farf.A.as_matrix()
     ff = pds_to_npa(global_farf.FF)
@@ -147,10 +209,10 @@ def split_dataset_for_fqi(global_farf):
 def build_farf(nn, sars):
     """
     Builds FARF' dataset using SARS' dataset:
-        F = NN[0].features(S)
+        F = NN[i].features(S)
         A = A
         R = R
-        F' = NN[0].features(S')
+        F' = NN[i].features(S')
     """
     farf = []
     for datapoint in sars.itertuples():
@@ -251,13 +313,14 @@ def build_fadf(nn_stack, nn, sars, sfadf):
     fadf = fadf[['F', 'A', 'D', 'FF']]
     return fadf
 
+
 def build_fadf_no_preload(nn, sars, sfadf):
     """
     Builds new FADF' dataset from SARS' and SFADF':
-        F = NN_stack.s_features(S) + NN[i].features(S)
+        F = NN[i].features(S)
         A = A
         D = SFADF'.D
-        F' = NN_stack.s_features(S') + NN[i].features(S')
+        F' = NN[i].features(S')
     """
     faf = []
     for datapoint in sars.itertuples():
@@ -297,7 +360,7 @@ def build_global_farf(nn_stack, sars):
 def build_features(nn, sars):
     """
     Builds F dataset using SARS' dataset:
-        F = NN[0].features(S)
+        F = NN[i].features(S)
     """
     f = np.array([nn.all_features(np.expand_dims(datapoint.S, 0))
                   for datapoint in sars.itertuples()])

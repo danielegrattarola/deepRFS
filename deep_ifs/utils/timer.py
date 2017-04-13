@@ -2,6 +2,7 @@ from time import time
 time_stack = []
 logfile = None
 
+
 def tic(message=None):
     time_stack.append(time())
     if message:
@@ -35,6 +36,7 @@ def toc(message=None):
         print ''
     except IndexError:
         print "You have to invoke toc() before calling tic()\n"
+
 
 def setup_logging(logpath):
     global logfile
