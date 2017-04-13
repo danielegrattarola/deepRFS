@@ -75,6 +75,7 @@ from deep_ifs.selection.ifs import IFS
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import *
+from deep_ifs.utils.helpers import get_size
 from ifqi.models import Regressor, ActionRegressor
 from matplotlib import pyplot as plt
 from sklearn.ensemble import ExtraTreesRegressor
