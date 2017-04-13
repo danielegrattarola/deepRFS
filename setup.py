@@ -31,7 +31,7 @@ setup(
     url='https://github.com/danielegrattarola/nips2017-deepIFS',
 
     # Author details
-    author='Politecnico di Milano (Daniele Grattarola, Carlo D\'Eramo, Matteo Pirotta',
+    author='Politecnico di Milano (Daniele Grattarola, Carlo D\'Eramo, Matteo Pirotta)',
     author_email='daniele.grattarola@gmail.com',
 
     # Choose your license
@@ -73,7 +73,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['pandas', 'sklearn', 'ifqi', 'numpy', 'joblib', 'tqdm',
-                      'keras', 'scipy', 'imageio'],
+                      'keras', 'scipy', 'imageio', 'matplotlib'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

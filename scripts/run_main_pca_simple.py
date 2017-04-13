@@ -1,63 +1,3 @@
-"""
-Algorithm pseudo-code
-
-Definitions:
-    NN[i]: is the i-th neural network and provides the features(S) method that
-        returns all 512 features produced when state S is given as input to the
-        network and the the s_features(S) method that returns all **selected**
-        features
-        produced when state S is given as input to each network.
-
-    NN_stack: contains all trained neural networks so far, provides the
-    s_features(S) method that returns all **selected** features produced when
-    state S is given as input to each network.
-
-
-Policy = fully random
-
-Main loop:
-    Collect SARS' samples with policy
-    Fix dataset to account for imbalance (proportional to the number of
-    transitions for each reward class)
-
-    Fit neural network NN[0]: S -> R, using SARS' dataset
-
-    Build FARF' dataset using SARS' dataset:
-        F = NN[0].features(S)
-        A = A
-        R = R
-        F' = NN[0].features(S')
-    Select support features of NN[0] with IFS using FARF' dataset (target = R)
-
-    For i in range(1, N):
-        Build SFADF' dataset using SARS' dataset:
-            S = S
-            F = NN_stack.s_features(S)
-            A = A
-            D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
-            F' = NN_stack.s_features(S')
-
-        Fit model M: F -> D, using SFADF' dataset
-
-        Build SARes dataset from SFADF':
-            S = S
-            A = A
-            Res = D - M(F)
-        Fit neural network NNi: S -> Res, using SARes dataset
-
-        Build new FADF' dataset from SARS' and SFADF':
-            F = NN_stack.s_features(S) + NN[i].features(S)
-            A = A
-            D = SFADF'.D
-            F' = NN_stack.s_features(S') + NN[i].features(S')
-        Select support features of NNi with IFS using new FADF' dataset
-
-        If (no new feature is selected) or (R2 of added features is below a threshold):
-            Break
-
-    Update policy with FQI (using support features of all steps), decrease randomicity
-"""
-
 # TODO Documentation
 import matplotlib
 
@@ -83,21 +23,38 @@ from sklearn.linear_model import LinearRegression, Ridge
 
 # ARGS
 parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
-parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
-parser.add_argument('--farf-analysis', action='store_true', help='Plot and save info about each FARF dataset generated during the run')
-parser.add_argument('--residual-model', type=str, default='linear', help='Type of model to use for building residuals (\'linear\', \'extra\')')
-parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\')')
-parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved FQI pickle file to load as policy in the first iteration')
-parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
-parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
-parser.add_argument('--classify', action='store_true', help='Use a classifier for NN0')
+parser.add_argument('-d', '--debug', action='store_true',
+                    help='Run in debug mode')
+parser.add_argument('--save-video', action='store_true',
+                    help='Save the gifs of the evaluation episodes')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
+                    help='Atari environment on which to run the algorithm')
+parser.add_argument('--farf-analysis', action='store_true',
+                    help='Plot and save info about each FARF dataset generated '
+                         'during the run')
+parser.add_argument('--residual-model', type=str, default='linear',
+                    help='Type of model to use for building residuals (\'linear'
+                         '\', \'extra\')')
+parser.add_argument('--fqi-model-type', type=str, default='extra',
+                    help='Type of model to use for fqi (\'linear\', \'ridge\', '
+                         '\'extra\')')
+parser.add_argument('--fqi-model', type=str, default=None,
+                    help='Path to a saved FQI pickle file to load as policy in '
+                         'the first iteration')
+parser.add_argument('--nn-stack', type=str, default=None,
+                    help='Path to a saved NNStack folder to load as feature '
+                         'extractor in the first iteration')
+parser.add_argument('--binarize', action='store_true',
+                    help='Binarize input to the neural networks')
+parser.add_argument('--classify', action='store_true',
+                    help='Use a classifier for NN0')
 parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
-parser.add_argument('--sars-episodes', type=int, default=300, help='Number of SARS episodes to collect')
+parser.add_argument('--sars-episodes', type=int, default=300,
+                    help='Number of SARS episodes to collect')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
-assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
+assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
+    'Set both or neither --fqi-model and --nn-stack.'
 # END ARGS
 
 # HYPERPARAMETERS
@@ -119,7 +76,8 @@ es_eval_freq = 5  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
-logger = Logger(output_folder='../output/', custom_run_name='run_pca%Y%m%d-%H%M%S')
+logger = Logger(output_folder='../output/',
+                custom_run_name='run_pca_simple%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 log('\n\n\nLOCALS')
 log(repr(locals()))

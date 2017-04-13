@@ -7,12 +7,19 @@ from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import tic, toc, log
 
 parser = argparse.ArgumentParser()
-parser.add_argument('fqi_model', type=str, default=None, help='Path to a saved FQI pickle to load as policy')
-parser.add_argument('nn_stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor')
-parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
-parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
-parser.add_argument('--episodes', type=int, default=10, help='Number of episodes to run in evaluation')
+parser.add_argument('fqi_model', type=str, default=None,
+                    help='Path to a saved FQI pickle to load as policy')
+parser.add_argument('nn_stack', type=str, default=None,
+                    help='Path to a saved NNStack folder to load as feature '
+                         'extractor')
+parser.add_argument('-d', '--debug', action='store_true',
+                    help='Run in debug mode')
+parser.add_argument('--save-video', action='store_true',
+                    help='Save the gifs of the evaluation episodes')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
+                    help='Atari environment on which to run the algorithm')
+parser.add_argument('--episodes', type=int, default=10,
+                    help='Number of episodes to run in evaluation')
 args = parser.parse_args()
 
 max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
@@ -20,7 +27,7 @@ max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
 logger = Logger(output_folder='../output/', custom_run_name='test%Y%m%d-%H%M%S')
 mdp = Atari(args.env)
 
-tic('Reading data...')
+tic('Reading data')
 nn_stack = NNStack()
 nn_stack.load(args.nn_stack)
 policy = EpsilonFQI(None, nn_stack, fqi=args.fqi_model)

@@ -19,38 +19,60 @@ from tqdm import tqdm
 
 
 def exit_callback():
-    log('\n\nIf you want to test a policy use the following:\n'
-        '\tfqi-model: %s\n'
-        '\tnn-stack: %s' % (logger.path + 'fqi_step_X_eval_Y.pkl',
-                          args.base_folder + 'nn_stack_%s/' % args.iteration_id))
+    log('\n\nIf you want to test a policy use the following:')
+    log('\tFQI model: %s' % logger.path + 'fqi_step_X_eval_Y.pkl')
+    log('\tNNStack: %s' % args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 atexit.register(exit_callback)
 
 # ARGS
 parser = argparse.ArgumentParser()
-parser.add_argument('base_folder', type=str, help='Path to run folder with global_farf dataset and nn_stack_X/ folder')
-parser.add_argument('iteration_id', type=int, help='Index of run_main step saved in the base folder that you want to use')
-parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
-parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
-parser.add_argument('--iter', type=int, default=100, help='Number of fqi iterations to run')
-parser.add_argument('--episodes', type=int, default=10, help='Number of episodes to run at each evaluation step')
-parser.add_argument('--eval-freq', type=int, default=5, help='Period (number of steps) with which to run evaluation steps')
-parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\')')
-parser.add_argument('--sample-weights', action='store_true', help='Use sample weights to train FQI')
+parser.add_argument('base_folder', type=str,
+                    help='Path to run folder with global_farf dataset and '
+                         'nn_stack_X/ folder')
+parser.add_argument('iteration_id', type=int,
+                    help='Index of run_main step saved in the base folder that '
+                         'you want to use')
+parser.add_argument('-d', '--debug', action='store_true',
+                    help='Run in debug mode')
+parser.add_argument('--save-video', action='store_true',
+                    help='Save the gifs of the evaluation episodes')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
+                    help='Atari environment on which to run the algorithm')
+parser.add_argument('--iter', type=int, default=100,
+                    help='Number of fqi iterations to run')
+parser.add_argument('--episodes', type=int, default=10,
+                    help='Number of episodes to run at each evaluation step')
+parser.add_argument('--eval-freq', type=int, default=5,
+                    help='Period (number of steps) with which to run evaluation'
+                         ' steps')
+parser.add_argument('--fqi-model-type', type=str, default='extra',
+                    help='Type of model to use for fqi (\'linear\', \'ridge\', '
+                         '\'extra\')')
+parser.add_argument('--sample-weights', action='store_true',
+                    help='Use sample weights to train FQI')
 args = parser.parse_args()
 
 max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
-tic('Reading data...')
+tic('Reading data')
+# Load NNStack
 nn_stack = NNStack()  # To store all neural networks and IFS support
 nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
-global_farf = pd.read_pickle(args.base_folder + 'global_farf_%s.pickle' % args.iteration_id)
-farf_sample_weight = get_sample_weight(global_farf) if args.sample_weights else None
+
+# Load global FARF'
+data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
+global_farf = pd.read_pickle(data_path)
+
+# Compute sample weights
+if args.sample_weights:
+    farf_sample_weight = get_sample_weight(global_farf)
+else:
+    farf_sample_weight = None
 toc()
 
-tic('Setup...')
+tic('Setup')
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 evaluation_results = []
 mdp = Atari(args.env)
@@ -72,7 +94,7 @@ if args.fqi_model_type == 'extra':
                                 discrete_actions=action_values,
                                 tol=0.5)
 elif args.fqi_model_type == 'linear':
-    fqi_regressor_params = {'n_jobs': -1}
+    fqi_regressor_params = {}
     regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
                                           **fqi_regressor_params),
                                 discrete_actions=action_values,
@@ -93,12 +115,12 @@ fqi_params = {'estimator': regressor,
               'horizon': args.iter,
               'verbose': False}
 policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
-toc()
-toc()
+toc()  # Creating policy
+toc()  # Setup
 
-nb_reward_features = nn_stack.get_support_dim(index=0)
-log('\n%s reward features' % nb_reward_features)
-log('%s dynamics features\n' % (nn_stack.get_support_dim() - nb_reward_features))
+n_reward_features = nn_stack.get_support_dim(index=0)
+log('\n%s reward features' % n_reward_features)
+log('%s dynamics features\n' % (nn_stack.get_support_dim() - n_reward_features))
 
 # Initial fit
 policy.partial_fit(sast, r, sample_weight=farf_sample_weight)

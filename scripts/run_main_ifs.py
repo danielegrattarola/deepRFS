@@ -82,19 +82,36 @@ from sklearn.linear_model import LinearRegression, Ridge
 
 # ARGS
 parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
-parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
-parser.add_argument('--farf-analysis', action='store_true', help='Plot and save info about each FARF dataset generated during the run')
-parser.add_argument('--residual-model', type=str, default='linear', help='Type of model to use for building residuals (\'linear\', \'extra\')')
-parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\')')
-parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved FQI pickle file to load as policy in the first iteration')
-parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
-parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
-parser.add_argument('--sars-episodes', type=int, default=300, help='Number of SARS episodes to collect')
+parser.add_argument('-d', '--debug', action='store_true',
+                    help='Run in debug mode')
+parser.add_argument('--save-video', action='store_true',
+                    help='Save the gifs of the evaluation episodes')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
+                    help='Atari environment on which to run the algorithm')
+parser.add_argument('--farf-analysis', action='store_true',
+                    help='Plot and save info about each FARF dataset generated '
+                         'during the run')
+parser.add_argument('--residual-model', type=str, default='linear',
+                    help='Type of model to use for building residuals (\'linear'
+                         '\', \'extra\')')
+parser.add_argument('--fqi-model-type', type=str, default='extra',
+                    help='Type of model to use for fqi (\'linear\', \'ridge\', '
+                         '\'extra\')')
+parser.add_argument('--fqi-model', type=str, default=None,
+                    help='Path to a saved FQI pickle file to load as policy in '
+                         'the first iteration')
+parser.add_argument('--nn-stack', type=str, default=None,
+                    help='Path to a saved NNStack folder to load as feature '
+                         'extractor in the first iteration')
+parser.add_argument('--binarize', action='store_true',
+                    help='Binarize input to the neural networks')
+parser.add_argument('--sars-episodes', type=int, default=300,
+                    help='Number of SARS episodes to collect')
+
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
-assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
+assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
+    'Set both or neither --fqi-model and --nn-stack.'
 # END ARGS
 
 # HYPERPARAMETERS
@@ -118,7 +135,8 @@ es_eval_freq = 5  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
-logger = Logger(output_folder='../output/', custom_run_name='run_ifs%Y%m%d-%H%M%S')
+logger = Logger(output_folder='../output/',
+                custom_run_name='run_ifs%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 log('\n\n\nLOCALS')
 log(repr(locals()))
