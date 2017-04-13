@@ -98,7 +98,7 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set bo
 # END ARGS
 
 # HYPERPARAMETERS
-sars_episodes = 10 if args.debug else 300  # Number of SARS episodes to collect
+sars_episodes = 10 if args.debug else 150  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 2  # Number of recursive steps to make

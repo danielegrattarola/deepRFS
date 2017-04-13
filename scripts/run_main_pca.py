@@ -93,6 +93,7 @@ parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved
 parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 parser.add_argument('--classify', action='store_true', help='Use a classifier for NN0')
+parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
@@ -124,7 +125,7 @@ log(repr(locals()))
 log('\n\n\n')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
-mdp = Atari(args.env, clip_reward=args.classify)
+mdp = Atari(args.env, clip_reward=args.classify or args.clip)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
