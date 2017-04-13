@@ -70,6 +70,7 @@ from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNetSimple import ConvNetSimple
+from deep_ifs.extraction.ConvNetSimpleClassifier import ConvNetSimpleClassifier
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
@@ -91,6 +92,7 @@ parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of
 parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved FQI pickle file to load as policy in the first iteration')
 parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
+parser.add_argument('--classify', action='store_true', help='Use a classifier for NN0')
 parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
@@ -123,7 +125,7 @@ log(repr(locals()))
 log('\n\n\n')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
-mdp = Atari(args.env, clip_reward=args.clip)
+mdp = Atari(args.env, clip_reward=args.classify or args.clip)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
@@ -199,15 +201,29 @@ for i in range(algorithm_steps):
 
     tic('Fitting NN0')
     # NN maps frames to reward
-    target_size = 1  # Initial target is the scalar reward
-    nn = ConvNetSimple(mdp.state_shape,
-                       target_size,
-                       nb_actions=nb_actions,
-                       l1_alpha=0.01,
-                       sample_weight=sars_sample_weight,
-                       nb_epochs=nn_nb_epochs,
-                       binarize=args.binarize,
-                       logger=logger)
+    if args.classify:
+        from sklearn.preprocessing import OneHotEncoder
+        ohe = OneHotEncoder(sparse=False)
+        R = ohe.fit_transform(R.reshape(-1, 1) - R.min())
+        nb_classes = R.shape[1]  # Target is the one-hot encoded reward
+        nn = ConvNetSimpleClassifier(mdp.state_shape,
+                                     nb_classes,
+                                     nb_actions=nb_actions,
+                                     l1_alpha=0.0,
+                                     sample_weight=sars_sample_weight,
+                                     nb_epochs=nn_nb_epochs,
+                                     binarize=args.binarize,
+                                     logger=logger)
+    else:
+        target_size = 1  # Initial target is the scalar reward
+        nn = ConvNetSimple(mdp.state_shape,
+                           target_size,
+                           nb_actions=nb_actions,
+                           l1_alpha=0.01,
+                           sample_weight=sars_sample_weight,
+                           nb_epochs=nn_nb_epochs,
+                           binarize=args.binarize,
+                           logger=logger)
 
     nn.fit(S, R)
     del S, A, R

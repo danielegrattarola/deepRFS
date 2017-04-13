@@ -120,6 +120,9 @@ class ConvNetSimple:
         """
         # Feed input to the model, return encoded and re-decoded images
         x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
+        if self.binarize:
+            x_test[x_test < 0.1] = 0
+            x_test[x_test >= 0.1] = 1
         return self.model.predict_on_batch(x_test)
 
     def test(self, x, y):

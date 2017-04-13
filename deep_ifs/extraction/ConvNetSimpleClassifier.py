@@ -7,14 +7,14 @@ from keras.regularizers import l1
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
 
-class ConvNet:
-    def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
+class ConvNetSimpleClassifier:
+    def __init__(self, input_shape, nb_classes, nb_actions=1, encoding_dim=512,
                  nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
                  logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
-        self.target_size = target_size
+        self.nb_classes = nb_classes
         self.nb_actions = nb_actions
         self.encoding_dim = encoding_dim
         self.nb_epochs = nb_epochs
@@ -27,7 +27,6 @@ class ConvNet:
 
         # Build network
         self.input = Input(shape=self.input_shape)
-        self.u = Input(shape=(1,), dtype='int32')
 
         self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
                                     activation='relu', subsample=(4, 4),
@@ -43,13 +42,12 @@ class ConvNet:
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
-        self.output = Dense(self.target_size * self.nb_actions,
-                            activation='linear',
+        self.output = Dense(self.nb_classes,
+                            activation='softmax',
                             activity_regularizer=l1(self.l1_alpha))(self.features)
-        self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
         # Models
-        self.model = Model(input=[self.input, self.u], output=self.output_u)
+        self.model = Model(input=self.input, output=self.output)
         self.encoder = Model(input=self.input, output=self.features)
 
         # Optimization algorithm
@@ -62,20 +60,18 @@ class ConvNet:
         self.model.compile(optimizer=self.optimizer, loss='mse',
                            metrics=['accuracy'])
 
-    def fit(self, x, u, y):
+    def fit(self, x, y):
         """
         Trains the model on a set of batches.
 
         Args
             x: samples on which to train.
-            u: actions associated to the samples.
             y: targets on which to train.
         Returns
             The metrics of interest as defined in the model (loss, accuracy,
                 etc.)
         """
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
-        u_train = np.asarray(u)
         y_train = np.asarray(y)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
@@ -87,41 +83,38 @@ class ConvNet:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
 
-        return self.model.fit([x_train, u_train], y_train,
+        return self.model.fit(x_train, y_train,
                               class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
                               nb_epoch=self.nb_epochs, validation_split=0.1,
                               callbacks=[es, mc])
 
-    def train_on_batch(self, x, u, y):
+    def train_on_batch(self, x, y):
         """
         Trains the model on a batch.
 
         Args
             x: batch of samples on which to train.
-            u: actions associated to the samples.
             y: targets for the batch.
         Returns
             The metrics of interest as defined in the model (loss, accuracy,
                 etc.)
         """
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
-        u_train = np.asarray(u)
         y_train = np.asarray(y)
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
-        return self.model.train_on_batch([x_train, u_train], y_train,
+        return self.model.train_on_batch(x_train, y_train,
                                          class_weight=self.class_weight,
                                          sample_weight=self.sample_weight)
 
-    def predict(self, x, u):
+    def predict(self, x):
         """
         Runs the given images through the model and returns the predictions.
 
         Args
             x: a batch of samples on which to predict.
-            u: actions associated to the samples.
         Returns
             The predictions of the batch.
         """
@@ -130,8 +123,7 @@ class ConvNet:
         if self.binarize:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
-        u_test = np.asarray(u)
-        return self.model.predict_on_batch([x_test, u_test])
+        return self.model.predict_on_batch(x_test)
 
     def test(self, x, y):
         """
