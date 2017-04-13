@@ -94,13 +94,14 @@ parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved 
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 parser.add_argument('--classify', action='store_true', help='Use a classifier for NN0')
 parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
+parser.add_argument('--sars-episodes', type=int, default=300, help='Number of SARS episodes to collect')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
 # END ARGS
 
 # HYPERPARAMETERS
-sars_episodes = 10 if args.debug else 150  # Number of SARS episodes to collect
+sars_episodes = 10 if args.debug else args.sars_episodes  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
@@ -352,7 +353,6 @@ for i in range(algorithm_steps):
             log('Features:\n%s' % support.nonzero())
             log('PCA - New features: %s' % nb_new_features)
         toc()
-        # END FEATURE SELECTION i #
 
         nn_stack.add(nn, support)
 
@@ -458,7 +458,6 @@ for i in range(algorithm_steps):
                                          initial_actions=initial_actions)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
-    # END FITTED Q-ITERATION #
 
     log('######## DONE %s ########' % i + '\n')
 

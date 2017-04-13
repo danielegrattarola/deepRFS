@@ -91,13 +91,14 @@ parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of
 parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved FQI pickle file to load as policy in the first iteration')
 parser.add_argument('--nn-stack', type=str, default=None, help='Path to a saved NNStack folder to load as feature extractor in the first iteration')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
+parser.add_argument('--sars-episodes', type=int, default=300, help='Number of SARS episodes to collect')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), 'Set both or neither --fqi-model and --nn-stack.'
 # END ARGS
 
 # HYPERPARAMETERS
-sars_episodes = 10 if args.debug else 200  # Number of SARS episodes to collect
+sars_episodes = 10 if args.debug else args.sars_episodes  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
@@ -108,16 +109,20 @@ r2_change_threshold = 0.10  # % of IFS R2 improvement below which to stop loop
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
-random_greedy_step = 0.2  # Decrease R/G split by this much at eacch step
+random_greedy_step = 0.2  # Decrease R/G split by this much at each step
 final_random_greedy_split = 0.1
 random_greedy_split = initial_random_greedy_split
-es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
-es_iter = 150  # Number of FQI iterations
-es_eval_freq = 5  # Number of FQI iterations
+es_patience = 20  # Number of FQI iterations w/o improvement after which to stop
+es_iter = 5 if args.debug else 300  # Number of FQI iterations
+es_eval_freq = 5  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
 logger = Logger(output_folder='../output/', custom_run_name='run_ifs%Y%m%d-%H%M%S')
+setup_logging(logger.path + 'log.txt')
+log('\n\n\nLOCALS')
+log(repr(locals()))
+log('\n\n\n')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 mdp = Atari(args.env)
@@ -134,7 +139,7 @@ if args.fqi_model_type == 'extra':
                                 discrete_actions=action_values,
                                 tol=0.5)
 elif args.fqi_model_type == 'linear':
-    fqi_regressor_params = {'n_jobs': -1}
+    fqi_regressor_params = {}
     regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
                                           **fqi_regressor_params),
                                 discrete_actions=action_values,
@@ -185,6 +190,7 @@ for i in range(algorithm_steps):
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
+
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
     toc()
@@ -202,10 +208,11 @@ for i in range(algorithm_steps):
                  l1_alpha=0.01,
                  sample_weight=sars_sample_weight,
                  nb_epochs=nn_nb_epochs,
-                 binarize=args.binarize)
+                 binarize=args.binarize,
+                 logger=logger)
     nn.fit(S, A, R)
     del S, A, R
-    nn.load('NN.h5')  # Load best network (saved by callback)
+    nn.load(logger.path + 'NN.h5')  # Load best network (saved by callback)
     toc()
 
     # ITERATIVE FEATURE SELECTION 0 #
@@ -281,6 +288,8 @@ for i in range(algorithm_steps):
                                         n_jobs=-1)
         elif args.residual_model == 'linear':
             model = LinearRegression(n_jobs=-1)
+
+        # Train residuals model
         model.fit(F, D, sample_weight=sars_sample_weight)
         del F, D
         toc()
@@ -309,10 +318,11 @@ for i in range(algorithm_steps):
                      l1_alpha=0.0,
                      sample_weight=sars_sample_weight,
                      nb_epochs=nn_nb_epochs,
-                     binarize=args.binarize)
+                     binarize=args.binarize,
+                     logger=logger)
         nn.fit(S, A, RES)
         del S, A, RES
-        nn.load('NN.h5')  # Load best network (saved by callback)
+        nn.load(logger.path + 'NN.h5')  # Load best network (saved by callback)
         toc()
 
         # ITERATIVE FEATURE SELECTION i #
@@ -339,7 +349,6 @@ for i in range(algorithm_steps):
         log('Action was%s selected' % ('' if got_action else ' NOT'))
         log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
         toc()
-        # END ITERATIVE FEATURE SELECTION i #
 
         nn_stack.add(nn, support)
 
@@ -375,17 +384,18 @@ for i in range(algorithm_steps):
 
     # Update ActionRegressor to only use the actions actually in the dataset
     if args.fqi_model_type == 'extra':
-        fqi_regressor_params = {'n_estimators': 50}
         regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
                                               **fqi_regressor_params),
                                     discrete_actions=action_values,
                                     tol=0.5)
     elif args.fqi_model_type == 'linear':
-        regressor = ActionRegressor(Regressor(regressor_class=LinearRegression),
+        regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
+                                              **fqi_regressor_params),
                                     discrete_actions=action_values,
                                     tol=0.5)
     elif args.fqi_model_type == 'ridge':
-        regressor = ActionRegressor(Regressor(regressor_class=Ridge),
+        regressor = ActionRegressor(Regressor(regressor_class=Ridge,
+                                              **fqi_regressor_params),
                                     discrete_actions=action_values,
                                     tol=0.5)
     policy.fqi_params['estimator'] = regressor
@@ -403,22 +413,25 @@ for i in range(algorithm_steps):
                                             policy,
                                             max_ep_len=max_eval_steps,
                                             n_episodes=3,
+                                            initial_actions=initial_actions,
+                                            save_video=args.save_video,
                                             save_path=logger.path,
-                                            initial_actions=initial_actions)
+                                            append_filename='fqi_step_%03d_iter_%03d' % (i, partial_iter))
+            policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl' % (i, partial_iter, round(es_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
             if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
-                policy.save_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
+                policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
             else:
                 es_current_patience -= 1
                 if es_current_patience == 0:
                     break
 
     # Restore best policy
-    policy.load_fqi(logger.path + 'best_fqi_%s_score_%s.pkl' % (i, round(es_best[0])))
+    policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
 
     # Decrease R/G split
     if random_greedy_split - random_greedy_step >= final_random_greedy_split:
@@ -430,18 +443,17 @@ for i in range(algorithm_steps):
     gc.collect()
     toc()
 
-    tic('Evaluating policy after update')
+    tic('Evaluating best policy after update')
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
                                          max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,
-                                         append_filename='step_%s' % i,
+                                         append_filename='best_step_%03d' % i,
                                          initial_actions=initial_actions)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
-    # END FITTED Q-ITERATION #
 
     log('######## DONE %s ########' % i + '\n')
 
@@ -455,6 +467,5 @@ evaluation_results.to_csv('evaluation.csv', index=False)
 fig = evaluation_results[['score', 'steps']].plot().get_figure()
 fig.savefig(logger.path + 'evaluation.png')
 
-# TODO Log run configuration
 toc('Done. Exit...')
 # END #
