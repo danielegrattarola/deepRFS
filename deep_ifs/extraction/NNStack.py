@@ -2,6 +2,7 @@ import numpy as np
 import gc
 import glob
 from deep_ifs.extraction.GenericEncoder import GenericEncoder
+from keras import backend as K
 
 
 class NNStack:
@@ -22,7 +23,7 @@ class NNStack:
         self.stack.append(d)
         self.support_dim += d['support'].sum()
 
-    def s_features(self, state):
+    def s_features(self, x):
         """
         Runs all neural networks on the given state, returns the selected
         features of each NN as a single array.
@@ -30,10 +31,17 @@ class NNStack:
         Args
             state (np.array): the current state of the MDP.
         """
-        output = []
+        if x.shape[0] == 1:
+            output = []
+        else:
+            output = np.empty((x.shape[0], 0))
+
         for d in self.stack:
-            prediction = d['model'].s_features(state, d['support'])
-            output.extend(prediction)
+            prediction = d['model'].s_features(x, d['support'])
+            if prediction.ndim == 1:
+                output = np.concatenate([output, prediction])
+            else:
+                output = np.column_stack((output, prediction))
         return np.array(output)
 
     def get_support_dim(self, index=None):
@@ -52,6 +60,7 @@ class NNStack:
         """
         self.stack = []
         self.support_dim = 0
+        K.clear_session()
         gc.collect()
 
     def save(self, folder):

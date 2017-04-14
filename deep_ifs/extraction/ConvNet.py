@@ -151,36 +151,45 @@ class ConvNet:
             x_test[x_test >= 0.1] = 1
         return self.model.test_on_batch(x_test, y_test)
 
-    def all_features(self, sample):
+    def all_features(self, x):
         """
-        Runs the given sample on the model and returns the features of the last
-        dense layer in a 1d array.
+        Runs the given samples on the model and returns the features of the last
+        dense layer in an array.
 
         Args
-            sample: a single sample to encode.
+            x: samples to encode.
         Returns
             The encoded sample.
         """
         # Feed input to the model, return encoded images flattened
-        sample = np.asarray(sample).astype('float32') / 255  # To 0-1 range
+        x = np.asarray(x).astype('float32') / 255  # To 0-1 range
         if self.binarize:
-            sample[sample < 0.1] = 0
-            sample[sample >= 0.1] = 1
-        return np.asarray(self.encoder.predict_on_batch(sample)).flatten()
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
 
-    def s_features(self, sample, support):
+        if x.shape[0] == 1:
+            # x is a singe sample
+            return np.asarray(self.encoder.predict_on_batch(x)).flatten()
+        else:
+            return np.asarray(self.encoder.predict(x))
+
+    def s_features(self, x, support):
         """
-        Runs the given sample on the model and returns the features of the last
+        Runs the given samples on the model and returns the features of the last
         dense layer filtered by the support mask.
 
         Args
-            sample: a single sample to encode.
+            x: samples to encode.
             support: a boolean mask with which to filter the output.
         Returns
             The encoded sample.
         """
-        prediction = self.all_features(sample)
-        prediction = prediction[support]  # Keep only support features
+        prediction = self.all_features(x)
+        if x.shape[0] == 1:
+            # x is a singe sample
+            prediction = prediction[support]  # Keep only support features
+        else:
+            prediction = prediction[:, support]  # Keep only support features
         return prediction
 
     def save(self, filename=None, append=''):

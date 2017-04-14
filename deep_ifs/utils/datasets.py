@@ -202,7 +202,7 @@ def split_dataset_for_fqi(global_farf):
     ff = pds_to_npa(global_farf.FF)
     done = global_farf.DONE.as_matrix()
     r = pds_to_npa(global_farf.R)
-    faft = np.column_stack((f,a,ff,done))
+    faft = np.column_stack((f, a, ff, done))
     return faft, r
 
 
@@ -214,16 +214,13 @@ def build_farf(nn, sars):
         R = R
         F' = NN[i].features(S')
     """
-    farf = []
-    for datapoint in sars.itertuples():
-        f = nn.all_features(np.expand_dims(datapoint.S, 0))
-        a = datapoint.A
-        r = datapoint.R
-        ff = nn.all_features(np.expand_dims(datapoint.SS, 0))
-        farf.append([f, a, r, ff])
-    farf = np.array(farf)
     header = ['F', 'A', 'R', 'FF']
-    return pd.DataFrame(farf, columns=header)
+    df = pd.DataFrame(columns=header)
+    df['F'] = nn.all_features(pds_to_npa(sars.S)).tolist()
+    df['A'] = sars.A
+    df['R'] = sars.R
+    df['FF'] = nn.all_features(pds_to_npa(sars.SS)).tolist()
+    return df
 
 
 def build_sfadf(nn_stack, nn, support, sars):
@@ -235,18 +232,16 @@ def build_sfadf(nn_stack, nn, support, sars):
         D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
         F' = NN_stack.s_features(S')
     """
-    sfadf = []
-    for datapoint in sars.itertuples():
-        s = datapoint.S
-        f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))
-        a = datapoint.A
-        d = nn.s_features(np.expand_dims(datapoint.S, 0), support) - \
-            nn.s_features(np.expand_dims(datapoint.SS, 0), support)
-        ff = nn_stack.s_features(np.expand_dims(datapoint.SS, 0))
-        sfadf.append([s, f, a, d, ff])
-    sfadf = np.array(sfadf)
     header = ['S', 'F', 'A', 'D', 'FF']
-    return pd.DataFrame(sfadf, columns=header)
+    df = pd.DataFrame(columns=header)
+    df['S'] = sars.S
+    df['F'] = nn_stack.s_features(pds_to_npa(sars.S)).tolist()
+    df['A'] = sars.A
+    dynamics = nn.s_features(pds_to_npa(sars.S), support) - \
+               nn.s_features(pds_to_npa(sars.SS), support)
+    df['D'] = dynamics.tolist()
+    df['FF'] = nn_stack.s_features(pds_to_npa(sars.SS)).tolist()
+    return df
 
 
 def build_sfad(nn_stack, nn, support, sars):
@@ -257,17 +252,15 @@ def build_sfad(nn_stack, nn, support, sars):
         A = A
         D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
     """
-    sfad = []
-    for datapoint in sars.itertuples():
-        s = datapoint.S
-        f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))
-        a = datapoint.A
-        d = nn.s_features(np.expand_dims(datapoint.S, 0), support) - \
-            nn.s_features(np.expand_dims(datapoint.SS, 0), support)
-        sfad.append([s, f, a, d])
-    sfad = np.array(sfad)
     header = ['S', 'F', 'A', 'D']
-    return pd.DataFrame(sfad, columns=header)
+    df = pd.DataFrame(columns=header)
+    df['S'] = sars.S
+    df['F'] = nn_stack.s_features(pds_to_npa(sars.S)).tolist()
+    df['A'] = sars.A
+    dynamics = nn.s_features(pds_to_npa(sars.S), support) - \
+               nn.s_features(pds_to_npa(sars.SS), support)
+    df['D'] = dynamics.tolist()
+    return df
 
 
 def build_sares(model, sfadf):
@@ -277,17 +270,16 @@ def build_sares(model, sfadf):
         A = A
         Res = D - M(F)
     """
-    sares = []
-    for datapoint in sfadf.itertuples():
-        s = datapoint.S
-        a = datapoint.A
-        features = np.expand_dims(datapoint.F, 0)
-        prediction = model.predict(features)
-        res = datapoint.D - prediction
-        sares.append([s, a, res])
-    sares = np.array(sares)
     header = ['S', 'A', 'RES']
-    return pd.DataFrame(sares, columns=header)
+    df = pd.DataFrame(columns=header)
+    df['S'] = sfadf.S
+    df['A'] = sfadf.A
+    dynamics = pds_to_npa(sfadf.D)
+    features = pds_to_npa(sfadf.F)
+    predictions = model.predict(features)
+    residuals = dynamics - predictions
+    df['RES'] = residuals.tolist()
+    return df
 
 
 def build_fadf(nn_stack, nn, sars, sfadf):
@@ -298,20 +290,17 @@ def build_fadf(nn_stack, nn, sars, sfadf):
         D = SFADF'.D
         F' = NN_stack.s_features(S') + NN[i].features(S')
     """
-    faf = []
-    for datapoint in sars.itertuples():
-        f = np.append(nn_stack.s_features(np.expand_dims(datapoint.S, 0)),
-                      nn.all_features(np.expand_dims(datapoint.S, 0)))
-        a = datapoint.A
-        ff = np.append(nn_stack.s_features(np.expand_dims(datapoint.SS, 0)),
-                       nn.all_features(np.expand_dims(datapoint.SS, 0)))
-        faf.append([f, a, ff])
-    faf = np.array(faf)
-    header = ['F', 'A', 'FF']
-    fadf = pd.DataFrame(faf, columns=header)
-    fadf['D'] = sfadf.D
-    fadf = fadf[['F', 'A', 'D', 'FF']]
-    return fadf
+    header = ['F', 'A', 'D', 'FF']
+    df = pd.DataFrame(columns=header)
+    features = np.column_stack((nn_stack.s_features(pds_to_npa(sars.S)),
+                                nn.all_features(pds_to_npa(sars.S))))
+    df['F'] = features.tolist()
+    df['A'] = sars.A
+    df['D'] = sfadf.D
+    features = np.column_stack((nn_stack.s_features(pds_to_npa(sars.SS)),
+                                nn.all_features(pds_to_npa(sars.SS))))
+    df['FF'] = features.tolist()
+    return df
 
 
 def build_fadf_no_preload(nn, sars, sfadf):
@@ -322,18 +311,13 @@ def build_fadf_no_preload(nn, sars, sfadf):
         D = SFADF'.D
         F' = NN[i].features(S')
     """
-    faf = []
-    for datapoint in sars.itertuples():
-        f = nn.all_features(np.expand_dims(datapoint.S, 0))
-        a = datapoint.A
-        ff = nn.all_features(np.expand_dims(datapoint.SS, 0))
-        faf.append([f, a, ff])
-    faf = np.array(faf)
-    header = ['F', 'A', 'FF']
-    fadf = pd.DataFrame(faf, columns=header)
-    fadf['D'] = sfadf.D
-    fadf = fadf[['F', 'A', 'D', 'FF']]
-    return fadf
+    header = ['F', 'A', 'D', 'FF']
+    df = pd.DataFrame(columns=header)
+    df['F'] = nn.all_features(pds_to_npa(sars.S)).tolist()
+    df['A'] = sars.A
+    df['D'] = sfadf.D
+    df['FF'] = nn.all_features(pds_to_npa(sars.SS)).tolist()
+    return df
 
 
 def build_global_farf(nn_stack, sars):
@@ -344,17 +328,14 @@ def build_global_farf(nn_stack, sars):
         R = R
         F' = NN_stack.s_features(S')
     """
-    farf = []
-    for datapoint in sars.itertuples():
-        f = nn_stack.s_features(np.expand_dims(datapoint.S, 0))
-        a = datapoint.A
-        r = datapoint.R
-        ff = nn_stack.s_features(np.expand_dims(datapoint.SS, 0))
-        done = datapoint.DONE
-        farf.append([f, a, r, ff, done])
-    farf = np.array(farf)
     header = ['F', 'A', 'R', 'FF', 'DONE']
-    return pd.DataFrame(farf, columns=header)
+    df = pd.DataFrame(columns=header)
+    df['F'] = nn_stack.s_features(pds_to_npa(sars.S)).tolist()
+    df['A'] = sars.A
+    df['R'] = sars.R
+    df['FF'] = nn_stack.s_features(pds_to_npa(sars.SS)).tolist()
+    df['DONE'] = sars.DONE
+    return df
 
 
 def build_features(nn, sars):
@@ -362,6 +343,5 @@ def build_features(nn, sars):
     Builds F dataset using SARS' dataset:
         F = NN[i].features(S)
     """
-    f = np.array([nn.all_features(np.expand_dims(datapoint.S, 0))
-                  for datapoint in sars.itertuples()])
-    return f
+    features = nn.all_features(pds_to_npa(sars.S))
+    return features
