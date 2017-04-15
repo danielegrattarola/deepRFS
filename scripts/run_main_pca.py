@@ -52,6 +52,8 @@ parser.add_argument('--classify', action='store_true',
 parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
+parser.add_argument('--initial-rg', type=float, default=1.,
+                    help='Initial random/greedy split for collecting SARS\'')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -66,11 +68,10 @@ rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
 variance_pctg = 0.5  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
-max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
-initial_random_greedy_split = 1  # Initial R/G split for SARS collection
+max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes  # Initial R/G split for SARS collection
 random_greedy_step = 0.2  # Decrease R/G split by this much at each step
 final_random_greedy_split = 0.1
-random_greedy_split = initial_random_greedy_split
+random_greedy_split = args.initial_rg
 es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
 es_iter = 5 if args.debug else 300  # Number of FQI iterations
 es_eval_freq = 5  # Number of FQI iterations after which to evaluate
@@ -120,7 +121,6 @@ if args.fqi_model is not None and args.nn_stack is not None:
     nn_stack.load(args.nn_stack)
     log('Loading policy from %s' % args.fqi_model)
     policy = EpsilonFQI(None, nn_stack, fqi=args.fqi_model)
-    random_greedy_split = final_random_greedy_split
 else:
     fqi_params = {'estimator': regressor,
                   'state_dim': nn_stack.get_support_dim(),
