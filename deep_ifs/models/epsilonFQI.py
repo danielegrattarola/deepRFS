@@ -11,14 +11,23 @@ class EpsilonFQI:
         self.epsilon = epsilon
         self.min_epsilon = min_epsilon
         self.epsilon_rate = epsilon_rate
+
+        self.nn_stack = None
+        self.load_nn_stack(nn_stack)
+
         if fqi is None:
             self.initial_actions = self.fqi_params['discrete_actions']
             self.fqi = FQI(**self.fqi_params)
         else:
+            self.fqi_params = {'estimator': None,
+                               'state_dim': nn_stack.get_support_dim(),
+                               'action_dim': 1,
+                               'discrete_actions': None,
+                               'gamma': None,
+                               'horizon': None,
+                               'verbose': True}
             self.fqi = None
             self.load_fqi(fqi)
-        self.nn_stack = None
-        self.load_nn_stack(nn_stack)
 
     def fit(self, sast, r, state_dim, **kwargs):
         """

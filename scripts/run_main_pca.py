@@ -121,6 +121,12 @@ if args.fqi_model is not None and args.nn_stack is not None:
     nn_stack.load(args.nn_stack)
     log('Loading policy from %s' % args.fqi_model)
     policy = EpsilonFQI(None, nn_stack, fqi=args.fqi_model)
+    evaluation_metrics = evaluate_policy(mdp,
+                                         policy,
+                                         max_ep_len=max_eval_steps,
+                                         n_episodes=3,
+                                         initial_actions=initial_actions)
+    log('Loaded policy evaluation: %s' % evaluation_metrics)
 else:
     fqi_params = {'estimator': regressor,
                   'state_dim': nn_stack.get_support_dim(),

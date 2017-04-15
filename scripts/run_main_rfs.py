@@ -49,6 +49,8 @@ parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
+parser.add_argument('--initial-rg', type=float, default=1.,
+                    help='Initial random/greedy split for collecting SARS\'')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -69,7 +71,7 @@ max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 random_greedy_step = 0.2  # Decrease R/G split by this much at each step
 final_random_greedy_split = 0.1
-random_greedy_split = initial_random_greedy_split
+random_greedy_split = args.initial_rg
 es_patience = 20  # Number of FQI iterations w/o improvement after which to stop
 es_iter = 5 if args.debug else 300  # Number of FQI iterations
 es_eval_freq = 5  # Number of FQI iterations after which to evaluate
