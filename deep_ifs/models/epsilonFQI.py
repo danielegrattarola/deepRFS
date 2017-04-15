@@ -19,13 +19,6 @@ class EpsilonFQI:
             self.initial_actions = self.fqi_params['discrete_actions']
             self.fqi = FQI(**self.fqi_params)
         else:
-            self.fqi_params = {'estimator': None,
-                               'state_dim': nn_stack.get_support_dim(),
-                               'action_dim': 1,
-                               'discrete_actions': None,
-                               'gamma': None,
-                               'horizon': None,
-                               'verbose': True}
             self.fqi = None
             self.load_fqi(fqi)
 
@@ -40,7 +33,7 @@ class EpsilonFQI:
             state_dim (int): the dimensionality of the state space
             **kwargs: parameters to pass to the fit function of FQI
         """
-        self.set_state_dim(state_dim)
+        self.reset(state_dim)
         self.fqi.fit(sast, r, **kwargs)
 
     def partial_fit(self, sast=None, r=None, **kwargs):
@@ -89,7 +82,7 @@ class EpsilonFQI:
             else:
                 self.epsilon *= epsilon_rate
 
-    def set_state_dim(self, state_dim):
+    def reset(self, state_dim):
         """
         Sets the dimension of the states to the given parameter and resets the
         policy.
