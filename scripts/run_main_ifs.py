@@ -158,13 +158,13 @@ if args.fqi_model_type == 'extra':
                                 discrete_actions=action_values,
                                 tol=0.5)
 elif args.fqi_model_type == 'linear':
-    fqi_regressor_params = {}
+    fqi_regressor_params = {'n_jobs': -1}
     regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
                                           **fqi_regressor_params),
                                 discrete_actions=action_values,
                                 tol=0.5)
 elif args.fqi_model_type == 'ridge':
-    fqi_regressor_params = {'n_jobs': -1}
+    fqi_regressor_params = {}
     regressor = ActionRegressor(Regressor(regressor_class=Ridge,
                                           **fqi_regressor_params),
                                 discrete_actions=action_values,
