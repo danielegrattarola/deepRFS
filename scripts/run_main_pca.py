@@ -126,7 +126,7 @@ if args.fqi_model is not None and args.nn_stack is not None:
                                          max_ep_len=max_eval_steps,
                                          n_episodes=3,
                                          initial_actions=initial_actions)
-    log('Loaded policy evaluation: %s' % evaluation_metrics)
+    log('Loaded policy evaluation: %s' % str(evaluation_metrics))
 else:
     fqi_params = {'estimator': regressor,
                   'state_dim': nn_stack.get_support_dim(),
