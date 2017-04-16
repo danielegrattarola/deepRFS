@@ -50,6 +50,8 @@ parser.add_argument('--binarize', action='store_true',
 parser.add_argument('--classify', action='store_true',
                     help='Use a classifier for NN0')
 parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
+parser.add_argument('--no-residuals', action='store_true',
+                    help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
 parser.add_argument('--initial-rg', type=float, default=1.,
@@ -268,10 +270,14 @@ for i in range(algorithm_steps):
         tic('Building SARes dataset')
         # Frames, action, residual dynamics of last NN (Res = D - model(F))
         sares = build_sares(model, sfad)
+        if args.no_residuals:
+            log('Ignoring residuals, using only dynamics.')
+            RES = pds_to_npa(sfad.D)  # Residuals are actually the dynamics
+        else:
+            RES = pds_to_npa(sares.RES).squeeze()  # Residuals of last NN
         del sfad  # Not used anymore
         S = pds_to_npa(sares.S)  # 4 frames
         A = pds_to_npa(sares.A)  # Discrete action
-        RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
         del sares
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
@@ -407,6 +413,11 @@ for i in range(algorithm_steps):
                     break
 
     # Restore best policy
+    if i == 0:
+        global_best_fqi_score = es_best[0]
+        nn_stack.save(logger.path + 'nn_stack_global_best/')
+        policy.save_fqi(logger.path + 'fqi_global_best.pkl')
+
     policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
 
     # Decrease R/G split

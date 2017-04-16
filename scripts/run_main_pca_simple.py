@@ -69,7 +69,6 @@ variance_pctg = 0.5  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
-initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 random_greedy_step = 0.2  # Decrease R/G split by this much at each step
 final_random_greedy_split = 0.1
 random_greedy_split = args.initial_rg
@@ -117,16 +116,16 @@ else:
                               '\'ridge\'.')
 
 # Create EpsilonFQI
-fqi_params = {'estimator': regressor,
-              'state_dim': nn_stack.get_support_dim(),
-              'action_dim': 1,  # Action is discrete monodimensional
-              'discrete_actions': action_values,
-              'gamma': mdp.gamma,
-              'horizon': fqi_iterations,
-              'verbose': True}
 if args.fqi_model is not None and args.nn_stack is not None:
     log('Loading NN stack from %s' % args.nn_stack)
     nn_stack.load(args.nn_stack)
+    fqi_params = {'estimator': regressor,
+                  'state_dim': nn_stack.get_support_dim(),
+                  'action_dim': 1,  # Action is discrete monodimensional
+                  'discrete_actions': action_values,
+                  'gamma': mdp.gamma,
+                  'horizon': fqi_iterations,
+                  'verbose': True}
     log('Loading policy from %s' % args.fqi_model)
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
     evaluation_metrics = evaluate_policy(mdp,
@@ -136,6 +135,13 @@ if args.fqi_model is not None and args.nn_stack is not None:
                                          initial_actions=initial_actions)
     log('Loaded policy evaluation: %s' % str(evaluation_metrics))
 else:
+    fqi_params = {'estimator': regressor,
+                  'state_dim': nn_stack.get_support_dim(),
+                  'action_dim': 1,  # Action is discrete monodimensional
+                  'discrete_actions': action_values,
+                  'gamma': mdp.gamma,
+                  'horizon': fqi_iterations,
+                  'verbose': True}
     policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 
 

@@ -106,6 +106,7 @@ parser.add_argument('--nn-stack', type=str, default=None,
                          'extractor in the first iteration')
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
+parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
 parser.add_argument('--initial-rg', type=float, default=1.,
@@ -145,7 +146,7 @@ log(repr(locals()))
 log('\n\n\n')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and IFS supports
-mdp = Atari(args.env)
+mdp = Atari(args.env, clip_reward=args.clip)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
@@ -175,16 +176,16 @@ else:
                               '\'ridge\'.')
 
 # Create EpsilonFQI
-fqi_params = {'estimator': regressor,
-              'state_dim': nn_stack.get_support_dim(),
-              'action_dim': 1,  # Action is discrete monodimensional
-              'discrete_actions': action_values,
-              'gamma': mdp.gamma,
-              'horizon': fqi_iterations,
-              'verbose': True}
 if args.fqi_model is not None and args.nn_stack is not None:
     log('Loading NN stack from %s' % args.nn_stack)
     nn_stack.load(args.nn_stack)
+    fqi_params = {'estimator': regressor,
+                  'state_dim': nn_stack.get_support_dim(),
+                  'action_dim': 1,  # Action is discrete monodimensional
+                  'discrete_actions': action_values,
+                  'gamma': mdp.gamma,
+                  'horizon': fqi_iterations,
+                  'verbose': True}
     log('Loading policy from %s' % args.fqi_model)
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
     evaluation_metrics = evaluate_policy(mdp,
@@ -194,6 +195,13 @@ if args.fqi_model is not None and args.nn_stack is not None:
                                          initial_actions=initial_actions)
     log('Loaded policy evaluation: %s' % str(evaluation_metrics))
 else:
+    fqi_params = {'estimator': regressor,
+                  'state_dim': nn_stack.get_support_dim(),
+                  'action_dim': 1,  # Action is discrete monodimensional
+                  'discrete_actions': action_values,
+                  'gamma': mdp.gamma,
+                  'horizon': fqi_iterations,
+                  'verbose': True}
     policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 
 
