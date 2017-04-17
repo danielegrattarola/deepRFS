@@ -412,12 +412,6 @@ for i in range(algorithm_steps):
                 if es_current_patience == 0:
                     break
 
-    # Restore best policy
-    if i == 0:
-        global_best_fqi_score = es_best[0]
-        nn_stack.save(logger.path + 'nn_stack_global_best/')
-        policy.save_fqi(logger.path + 'fqi_global_best.pkl')
-
     policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
 
     # Decrease R/G split
