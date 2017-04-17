@@ -20,6 +20,7 @@ from ifqi.models import Regressor, ActionRegressor
 from matplotlib import pyplot as plt
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
+from xgboost import XGBRegressor
 
 
 # ARGS
@@ -95,25 +96,24 @@ nb_actions = mdp.action_space.n
 if args.fqi_model_type == 'extra':
     fqi_regressor_params = {'n_estimators': 50,
                             'n_jobs': -1}
-    regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
-                                          **fqi_regressor_params),
-                                discrete_actions=action_values,
-                                tol=0.5)
+    fqi_regressor_class = ExtraTreesRegressor
+elif args.fqi_model_type == 'xgb':
+    fqi_regressor_params = {}
+    fqi_regressor_class = XGBRegressor
 elif args.fqi_model_type == 'linear':
     fqi_regressor_params = {'n_jobs': -1}
-    regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
-                                          **fqi_regressor_params),
-                                discrete_actions=action_values,
-                                tol=0.5)
+    fqi_regressor_class = LinearRegression
 elif args.fqi_model_type == 'ridge':
     fqi_regressor_params = {}
-    regressor = ActionRegressor(Regressor(regressor_class=Ridge,
-                                          **fqi_regressor_params),
-                                discrete_actions=action_values,
-                                tol=0.5)
+    fqi_regressor_class = Ridge
 else:
     raise NotImplementedError('Allowed models: \'extra\', \'linear\', '
-                              '\'ridge\'.')
+                              '\'ridge\', \'xgb\'.')
+
+regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
+                                      **fqi_regressor_params),
+                            discrete_actions=action_values,
+                            tol=0.5)
 
 # Create EpsilonFQI
 if args.fqi_model is not None and args.nn_stack is not None:
@@ -359,21 +359,10 @@ for i in range(algorithm_steps):
     log('%s dynamics features' % nb_dynamics_features)
 
     # Update ActionRegressor to only use the actions actually in the dataset
-    if args.fqi_model_type == 'extra':
-        regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
-                                              **fqi_regressor_params),
-                                    discrete_actions=action_values,
-                                    tol=0.5)
-    elif args.fqi_model_type == 'linear':
-        regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
-                                              **fqi_regressor_params),
-                                    discrete_actions=action_values,
-                                    tol=0.5)
-    elif args.fqi_model_type == 'ridge':
-        regressor = ActionRegressor(Regressor(regressor_class=Ridge,
-                                              **fqi_regressor_params),
-                                    discrete_actions=action_values,
-                                    tol=0.5)
+    regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
+                                          **fqi_regressor_params),
+                                discrete_actions=action_values,
+                                tol=0.5)
     policy.fqi_params['estimator'] = regressor
 
     # Update policy using early stopping
