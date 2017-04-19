@@ -167,19 +167,21 @@ for i in range(algorithm_steps):
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
+
+    S = pds_to_npa(sars.S)  # 4 frames
+    A = pds_to_npa(sars.A)  # Discrete action
+    R = pds_to_npa(sars.R)  # Scalar reward
+    if args.clip_nn0:
+        R = np.clip(R, -1, 1)
+
     class_weight = {-100: 50,
                     -1: 50,
                     0: 5,
                     1: 10,
                     4: 10,
                     7: 10}
-    sars_sample_weight = get_sample_weight(sars, class_weight=class_weight,
+    sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
                                            round=True)
-    S = pds_to_npa(sars.S)  # 4 frames
-    A = pds_to_npa(sars.A)  # Discrete action
-    R = pds_to_npa(sars.R)  # Scalar reward
-    if args.clip_nn0:
-        R = np.clip(R, -1, 1)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))

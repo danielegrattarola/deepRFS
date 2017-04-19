@@ -135,8 +135,13 @@ def get_class_weight(sars):
     Args
         sars (pd.DataFrame): a SARS' dataset in pandas format.
     """
-    classes = sars.R.unique()
-    y = sars.R.as_matrix()
+    if isinstance(sars, pd.DataFrame):
+        R = sars.R
+    else:
+        R = sars
+
+    classes = R.unique()
+    y = pds_to_npa(R)
     weights = compute_class_weight('balanced', classes, y)
     return dict(zip(classes, weights))
 
@@ -148,13 +153,20 @@ def get_sample_weight(sars, class_weight=None, round=False):
     in model.fit
 
     Args
-        sars (pd.DataFrame): a SARS' dataset in pandas format.
+        sars (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
+            pd.Series with rewards.
     """
-    if class_weight is None:
-        class_weight = get_class_weight(sars)
-    R = pds_to_npa(sars.R)
+    if isinstance(sars, pd.DataFrame):
+        R = pds_to_npa(sars.R)
+    else:
+        R = sars
+
     if round:
         R = np.round(R)
+
+    if class_weight is None:
+        class_weight = get_class_weight(R)
+
     sample_weight = [class_weight[r] for r in R]
     return np.array(sample_weight)
 
