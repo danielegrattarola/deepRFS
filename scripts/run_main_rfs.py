@@ -85,7 +85,9 @@ logger = Logger(output_folder='../output/',
                 custom_run_name='run_rfs%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 log('\n\n\nLOCALS')
-log(repr(locals()))
+loc = locals().copy()
+log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
+               if not str(v).startswith('<')]))
 log('\n\n\n')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports

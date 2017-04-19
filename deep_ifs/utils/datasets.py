@@ -141,7 +141,7 @@ def get_class_weight(sars):
     return dict(zip(classes, weights))
 
 
-def get_sample_weight(sars):
+def get_sample_weight(sars, class_weight=None, round=False):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -150,8 +150,12 @@ def get_sample_weight(sars):
     Args
         sars (pd.DataFrame): a SARS' dataset in pandas format.
     """
-    class_weight = get_class_weight(sars)
-    sample_weight = [class_weight[r] for r in sars.R]
+    if class_weight is None:
+        class_weight = get_class_weight(sars)
+    R = pds_to_npa(sars.R)
+    if round:
+        R = np.round(R)
+    sample_weight = [class_weight[r] for r in R]
     return np.array(sample_weight)
 
 

@@ -39,7 +39,7 @@ parser.add_argument('--residual-model', type=str, default='linear',
                          '\', \'extra\')')
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
-                         '\'extra\')')
+                         '\'extra\', \'xgb\')')
 parser.add_argument('--fqi-model', type=str, default=None,
                     help='Path to a saved FQI pickle file to load as policy in '
                          'the first iteration')
@@ -50,13 +50,17 @@ parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
 parser.add_argument('--classify', action='store_true',
                     help='Use a classifier for NN0')
-parser.add_argument('--clip', action='store_true', help='Clip reward for NN0')
+parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
+parser.add_argument('--clip-nn0', action='store_true',
+                    help='Clip reward for NN0 only')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
+parser.add_argument('--nn0l1', type=float, default=0.01,
+                    help='l1 normalization for NN0')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -85,7 +89,9 @@ logger = Logger(output_folder='../output/',
                 custom_run_name='run_pca%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 log('\n\n\nLOCALS')
-log(repr(locals()))
+loc = locals().copy()
+log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
+               if not str(v).startswith('<')]))
 log('\n\n\n')
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
@@ -161,10 +167,19 @@ for i in range(algorithm_steps):
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
-    sars_sample_weight = get_sample_weight(sars)
+    class_weight = {-100: 50,
+                    -1: 50,
+                    0: 5,
+                    1: 10,
+                    4: 10,
+                    7: 10}
+    sars_sample_weight = get_sample_weight(sars, class_weight=class_weight,
+                                           round=True)
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
+    if args.clip_nn0:
+        R = np.clip(R, -1, 1)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
@@ -194,7 +209,7 @@ for i in range(algorithm_steps):
         nn = ConvNet(mdp.state_shape,
                      target_size,
                      nb_actions=nb_actions,
-                     l1_alpha=0.01,
+                     l1_alpha=args.nn0l1,
                      sample_weight=sars_sample_weight,
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
@@ -401,6 +416,7 @@ for i in range(algorithm_steps):
                 if es_current_patience == 0:
                     break
 
+    # Restore best policy
     policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
 
     # Decrease R/G split
