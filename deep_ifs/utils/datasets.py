@@ -142,7 +142,7 @@ def get_class_weight(sars):
     else:
         R = sars
 
-    classes = R.unique()
+    classes = np.unique(R)
     y = pds_to_npa(R)
     weights = compute_class_weight('balanced', classes, y)
     return dict(zip(classes, weights))
