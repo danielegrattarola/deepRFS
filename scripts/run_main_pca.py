@@ -88,11 +88,12 @@ initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 logger = Logger(output_folder='../output/',
                 custom_run_name='run_pca%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
-log('\n\n\nLOCALS')
+log('LOCALS')
 loc = locals().copy()
 log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
                if not str(v).startswith('<')]))
-log('\n\n\n')
+log('\n')
+
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
 mdp = Atari(args.env, clip_reward=args.classify or args.clip)
@@ -172,7 +173,7 @@ for i in range(algorithm_steps):
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
     if args.clip_nn0:
-        R = np.clip(R, -1, 1)
+        R = np.clip(R, -1, 1)  # Clipped scalar reward
 
     class_weight = {-100: 50,
                     -1: 50,
@@ -188,7 +189,7 @@ for i in range(algorithm_steps):
     toc()
 
     tic('Resetting NN stack')
-    nn_stack.reset()  # Clear the stack after collecting sars' with last policy
+    nn_stack.reset()  # Clear the stack after collecting SARS' with last policy
     toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
 
     tic('Fitting NN0')
@@ -225,7 +226,6 @@ for i in range(algorithm_steps):
     # FEATURE SELECTION 0 #
     tic('Building F dataset for PCA')
     F = build_features(nn, sars)  # Features
-    # Print the number of nonzero features
     nonzero_mfv_counts = np.count_nonzero(np.mean(F, axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
     log('Memory usage: %s MB' % get_size([F], 'MB'))
@@ -361,7 +361,7 @@ for i in range(algorithm_steps):
     global_farf = build_global_farf(nn_stack, sars)
     del sars
     sast, r = split_dataset_for_fqi(global_farf)
-    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
+    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new ActionRegressor
     action_values = np.unique(pds_to_npa(global_farf.A))
     log('Memory usage: %s MB' % get_size([sast, r], 'MB'))
     toc()
@@ -370,6 +370,7 @@ for i in range(algorithm_steps):
     tic('Saving global FARF and NNStack')
     global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % i)
     del global_farf
+
     # Save nn_stack
     os.mkdir(logger.path + 'nn_stack_%s/' % i)
     nn_stack.save(logger.path + 'nn_stack_%s/' % i)
@@ -405,21 +406,24 @@ for i in range(algorithm_steps):
                                             save_video=args.save_video,
                                             save_path=logger.path,
                                             append_filename='fqi_step_%03d_iter_%03d' % (i, partial_iter))
-            policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl' % (i, partial_iter, round(es_best[0])))
+            policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl'
+                            % (i, partial_iter, round(es_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
             if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
-                policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
+                policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
+                                % (i, round(es_best[0])))
             else:
                 es_current_patience -= 1
                 if es_current_patience == 0:
                     break
 
     # Restore best policy
-    policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
+    policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
+                    % (i, round(es_best[0])))
 
     # Decrease R/G split
     if random_greedy_split - random_greedy_step >= final_random_greedy_split:

@@ -99,7 +99,7 @@ parser.add_argument('--residual-model', type=str, default='linear',
                          '\', \'extra\')')
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
-                         '\'extra\')')
+                         '\'extra\', \'xgb\')')
 parser.add_argument('--fqi-model', type=str, default=None,
                     help='Path to a saved FQI pickle file to load as policy in '
                          'the first iteration')
@@ -117,6 +117,8 @@ parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
+parser.add_argument('--nn0l1', type=float, default=0.01,
+                    help='l1 normalization for NN0')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -134,11 +136,10 @@ fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 r2_change_threshold = 0.10  # % of IFS R2 improvement below which to stop loop
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
-initial_random_greedy_split = 1  # Initial R/G split for SARS collection
 random_greedy_step = 0.2  # Decrease R/G split by this much at each step
 final_random_greedy_split = 0.1
 random_greedy_split = args.initial_rg
-es_patience = 20  # Number of FQI iterations w/o improvement after which to stop
+es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
 es_iter = 5 if args.debug else 300  # Number of FQI iterations
 es_eval_freq = 5  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
@@ -147,11 +148,12 @@ initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 logger = Logger(output_folder='../output/',
                 custom_run_name='run_ifs%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
-log('\n\n\nLOCALS')
+log('LOCALS')
 loc = locals().copy()
 log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
                if not str(v).startswith('<')]))
-log('\n\n\n')
+log('\n')
+
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and IFS supports
 mdp = Atari(args.env, clip_reward=args.clip)
@@ -226,26 +228,28 @@ for i in range(algorithm_steps):
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
+
+    S = pds_to_npa(sars.S)  # 4 frames
+    A = pds_to_npa(sars.A)  # Discrete action
+    R = pds_to_npa(sars.R)  # Scalar reward
+    if args.clip_nn0:
+        R = np.clip(R, -1, 1)  # Clipped scalar reward
+
     class_weight = {-100: 50,
                     -1: 50,
                     0: 5,
                     1: 10,
                     4: 10,
                     7: 10}
-    sars_sample_weight = get_sample_weight(sars, class_weight=class_weight,
+    sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
                                            round=True)
-    S = pds_to_npa(sars.S)  # 4 frames
-    A = pds_to_npa(sars.A)  # Discrete action
-    R = pds_to_npa(sars.R)  # Scalar reward
-    if args.clip_nn0:
-        R = np.clip(R, -1, 1)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
     toc()
 
     tic('Resetting NN stack')
-    nn_stack.reset()  # Clear the stack after collecting sars' with last policy
+    nn_stack.reset()  # Clear the stack after collecting SARS' with last policy
     toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
 
     tic('Fitting NN0')
@@ -254,7 +258,7 @@ for i in range(algorithm_steps):
     nn = ConvNet(mdp.state_shape,
                  target_size,
                  nb_actions=nb_actions,
-                 l1_alpha=0.01,
+                 l1_alpha=args.nn0l1,
                  sample_weight=sars_sample_weight,
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize,
@@ -415,7 +419,7 @@ for i in range(algorithm_steps):
     global_farf = build_global_farf(nn_stack, sars)
     del sars
     sast, r = split_dataset_for_fqi(global_farf)
-    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
+    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new ActionRegressor
     action_values = np.unique(pds_to_npa(global_farf.A))
     log('Memory usage: %s MB' % get_size([sast, r], 'MB'))
     toc()
@@ -424,6 +428,7 @@ for i in range(algorithm_steps):
     tic('Saving global FARF and NNStack')
     global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % i)
     del global_farf
+
     # Save nn_stack
     os.mkdir(logger.path + 'nn_stack_%s/' % i)
     nn_stack.save(logger.path + 'nn_stack_%s/' % i)
@@ -459,21 +464,24 @@ for i in range(algorithm_steps):
                                             save_video=args.save_video,
                                             save_path=logger.path,
                                             append_filename='fqi_step_%03d_iter_%03d' % (i, partial_iter))
-            policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl' % (i, partial_iter, round(es_best[0])))
+            policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl'
+                            % (i, partial_iter, round(es_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
             if es_evaluation[0] > es_best[0]:
                 log('Saving best policy')
                 es_best = es_evaluation
                 es_current_patience = es_patience
                 # Save best policy to restore it later
-                policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
+                policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
+                                % (i, round(es_best[0])))
             else:
                 es_current_patience -= 1
                 if es_current_patience == 0:
                     break
 
     # Restore best policy
-    policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl' % (i, round(es_best[0])))
+    policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
+                    % (i, round(es_best[0])))
 
     # Decrease R/G split
     if random_greedy_split - random_greedy_step >= final_random_greedy_split:
