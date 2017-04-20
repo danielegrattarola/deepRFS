@@ -136,7 +136,9 @@ def get_class_weight(sars):
         sars (pd.DataFrame): a SARS' dataset in pandas format.
     """
     if isinstance(sars, pd.DataFrame):
-        R = sars.R
+        R = pds_to_npa(sars.R)
+    elif isinstance(sars, pd.Series):
+        R = pds_to_npa(sars)
     else:
         R = sars
 
