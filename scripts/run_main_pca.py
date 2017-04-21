@@ -177,7 +177,7 @@ for i in range(algorithm_steps):
     if args.clip_nn0:
         R = np.clip(R, -1, 1)  # Clipped scalar reward
 
-    if args.balanced_weigths:
+    if args.balanced_weights:
         sars_sample_weight = get_sample_weight(R)
     else:
         class_weight = {-100: 100,
