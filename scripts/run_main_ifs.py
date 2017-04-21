@@ -80,6 +80,7 @@ from ifqi.models import Regressor, ActionRegressor
 from matplotlib import pyplot as plt
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 
@@ -376,6 +377,7 @@ for i in range(algorithm_steps):
                      sample_weight=sars_sample_weight,
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
+                     scaler=StandardScaler(),
                      logger=logger)
         nn.fit(S, A, RES)
         del S, A, RES
