@@ -4,6 +4,8 @@ from keras.layers import Input, Convolution2D, Flatten, Dense, BatchNormalizatio
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.regularizers import l1
+from sklearn.exceptions import NotFittedError
+
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
 
@@ -11,7 +13,7 @@ class ConvNet:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
                  nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
-                 logger=None):
+                 scaler = None, logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
@@ -23,6 +25,7 @@ class ConvNet:
         self.binarize = binarize
         self.class_weight = class_weight
         self.sample_weight = sample_weight
+        self.scaler = scaler
         self.logger = logger
 
         # Build network
@@ -77,6 +80,8 @@ class ConvNet:
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
         y_train = np.asarray(y)
+        if self.scaler is not None:
+            y_train = self.scaler.fit_transform(y_train)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
         chkpt = 'NN.h5' if self.logger is None else self.logger.path + 'NN.h5'
@@ -108,6 +113,13 @@ class ConvNet:
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
         y_train = np.asarray(y)
+
+        if self.scaler is not None:
+            try:
+                y_train = self.scaler.transform(y_train)
+            except NotFittedError:
+                y_train = self.scaler.fit_transform(y_train)
+
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
@@ -131,7 +143,12 @@ class ConvNet:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
         u_test = np.asarray(u)
-        return self.model.predict_on_batch([x_test, u_test])
+        pred = self.model.predict_on_batch([x_test, u_test])
+
+        if self.scaler is not None:
+            pred = self.scaler.inverse_transform(pred)
+
+        return pred
 
     def test(self, x, y):
         """
@@ -146,6 +163,13 @@ class ConvNet:
         """
         x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         y_test = np.asarray(y)
+
+        if self.scaler is not None:
+            try:
+                y_test = self.scaler.transform(y_test)
+            except NotFittedError:
+                y_test = self.scaler.fit_transform(y_test)
+
         if self.binarize:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
