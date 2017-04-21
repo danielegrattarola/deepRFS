@@ -236,12 +236,12 @@ for i in range(algorithm_steps):
     if args.clip_nn0:
         R = np.clip(R, -1, 1)  # Clipped scalar reward
 
-    class_weight = {-100: 50,
-                    -1: 50,
-                    0: 5,
-                    1: 10,
-                    4: 10,
-                    7: 10}
+    class_weight = {-100: 100,
+                    -1: 100,
+                    0: 1,
+                    1: 100,
+                    4: 100,
+                    7: 100}
     sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
                                            round=True)
 
