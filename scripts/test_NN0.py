@@ -1,8 +1,5 @@
 # TODO Documentation
 import matplotlib
-
-# Force matplotlib to not use any Xwindows backend.
-matplotlib.use('Agg')
 import argparse
 from deep_ifs.envs.atari import Atari
 import joblib
@@ -21,7 +18,7 @@ from sklearn.ensemble import ExtraTreesRegressor
 # ARGS
 parser = argparse.ArgumentParser()
 parser.add_argument('path', type=str, help='Path to the NN h5 file')
-parser.add_argument('sars', type=str, help='Path to the sars dataset pickle')
+parser.add_argument('--sars', type=str, default=None, help='Path to the sars dataset pickle')
 parser.add_argument('-d', '--debug', action='store_true',
                     help='Run in debug mode')
 parser.add_argument('--save-video', action='store_true',
@@ -58,13 +55,18 @@ fqi_params = {'estimator': regressor,
               'state_dim': nn_stack.get_support_dim(),
               'action_dim': 1,  # Action is discrete monodimensional
               'discrete_actions': action_values,
+              'gamma': mdp.gamma,
+              'horizon': 10,
               'verbose': True}
 policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 toc()
 
 tic('Loading data')
 # 4 frames, action, reward, 4 frames
-sars = joblib.load(args.sars)
+if args.sars is not None:
+    sars = joblib.load(args.sars)
+else:
+    sars = collect_sars(mdp, policy, episodes=50, random_greedy_split=1)
 sars_sample_weight = get_sample_weight(sars)
 
 S = pds_to_npa(sars.S)  # 4 frames
@@ -74,28 +76,14 @@ toc()
 
 tic('Building model')
 # NN maps frames to reward
-if args.classify:
-    from sklearn.preprocessing import OneHotEncoder
-
-    ohe = OneHotEncoder(sparse=False)
-    R = ohe.fit_transform(R.reshape(-1, 1) - R.min())
-    nb_classes = R.shape[1]  # Target is the one-hot encoded reward
-    nn = ConvNetClassifier(mdp.state_shape,
-                           nb_classes,
-                           nb_actions=nb_actions,
-                           l1_alpha=0.0,
-                           sample_weight=sars_sample_weight,
-                           nb_epochs=nn_nb_epochs,
-                           binarize=args.binarize)
-else:
-    target_size = 1  # Initial target is the scalar reward
-    nn = ConvNet(mdp.state_shape,
-                 target_size,
-                 nb_actions=nb_actions,
-                 l1_alpha=0.01,
-                 sample_weight=sars_sample_weight,
-                 nb_epochs=nn_nb_epochs,
-                 binarize=args.binarize)
+target_size = 1  # Initial target is the scalar reward
+nn = ConvNet(mdp.state_shape,
+             target_size,
+             nb_actions=nb_actions,
+             l1_alpha=0.01,
+             sample_weight=sars_sample_weight,
+             nb_epochs=nn_nb_epochs,
+             binarize=args.binarize)
 
 nn.load(args.path)
 toc()
@@ -108,11 +96,8 @@ pred = nn.predict(S, A)
 toc()
 
 tic('Plotting')
-for i in range(R.shape[1]):
-    plt.figure()
-    plt.scatter(R[:, i].reshape(-1), pred[:, i].reshape(-1))
-    plt.savefig(logger.path + 'NN0_test_%s_v_reward.png' % i)
-    plt.close()
+plt.scatter(R, pred, alpha=0.3)
+plt.show()
 toc()
 
 log('Done')

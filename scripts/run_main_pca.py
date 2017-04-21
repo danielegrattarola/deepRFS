@@ -61,6 +61,8 @@ parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
 parser.add_argument('--nn0l1', type=float, default=0.01,
                     help='l1 normalization for NN0')
+parser.add_argument('--balanced-weights', action='store_true',
+                    help='Use balanced weights instead of the custom ones')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -71,7 +73,7 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
 sars_episodes = 10 if args.debug else args.sars_episodes  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
-rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
+rec_steps = 1 if args.debug else 1  # Number of recursive steps to make
 variance_pctg = 0.5  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
@@ -175,15 +177,17 @@ for i in range(algorithm_steps):
     if args.clip_nn0:
         R = np.clip(R, -1, 1)  # Clipped scalar reward
 
-    class_weight = {-100: 100,
-                    -1: 100,
-                    0: 5,
-                    1: 100,
-                    4: 100,
-                    7: 100}
-    sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
-                                           round=True)
-    # sars_sample_weight = get_sample_weight(R)
+    if args.balanced_weigths:
+        sars_sample_weight = get_sample_weight(R)
+    else:
+        class_weight = {-100: 100,
+                        -1: 100,
+                        0: 1,
+                        1: 100,
+                        4: 100,
+                        7: 100}
+        sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
+                                               round=True)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
