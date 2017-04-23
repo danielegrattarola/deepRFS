@@ -4,6 +4,8 @@ from deep_ifs.utils.helpers import flat2list, pds_to_npa, is_stuck
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from sklearn.utils.class_weight import compute_class_weight
+import glob
+import joblib
 
 
 def episode(mdp, policy, video=False, initial_actions=None):
@@ -94,7 +96,8 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
 
     policy.set_epsilon(1)
     dataset_random = Parallel(n_jobs=n_jobs)(
-        delayed(episode)(mdp, policy) for _ in tqdm(xrange(random_episodes))
+        delayed(episode)(mdp, policy, initial_actions=initial_actions)
+        for _ in tqdm(xrange(random_episodes))
     )
     # Each episode is in a list, so the dataset needs to be flattened
     dataset_random = np.asarray(flat2list(dataset_random))
@@ -354,6 +357,41 @@ def build_global_farf(nn_stack, sars):
     df['FF'] = nn_stack.s_features(pds_to_npa(sars.SS)).tolist()
     df['DONE'] = sars.DONE
     return df
+
+
+def collect_sars_to_disk(mdp, policy, path, episodes=100, batch_size=10,
+                         n_jobs=1, random_greedy_split=0.9, debug=False,
+                         initial_actions=None, shuffle=True):
+    if not path.endswith('/'):
+        path += '/'
+    nb_batches = episodes / batch_size
+    last_batch = episodes % batch_size
+
+    for i in tqdm(range(nb_batches)):
+        sars = collect_sars(mdp, policy, episodes=batch_size, n_jobs=n_jobs,
+                            random_greedy_split=random_greedy_split,
+                            debug=debug, initial_actions=initial_actions,
+                            shuffle=shuffle)
+        sars.to_pickle(path + 'sars_%s' % i)
+
+    # Last batch
+    sars = collect_sars(mdp, policy, episodes=last_batch, n_jobs=n_jobs,
+                        random_greedy_split=random_greedy_split,
+                        debug=debug, initial_actions=initial_actions,
+                        shuffle=shuffle)
+    sars.to_pickle(path + 'sars_%s.pkl' % nb_batches)
+
+
+def build_global_farf_from_disk(nn_stack, path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.pkl')
+    farf = pd.DataFrame()
+    for f in tqdm(files):
+        sars = joblib.load(f)
+        farf = farf.append(build_global_farf(nn_stack, sars), ignore_index=True)
+
+    return farf
 
 
 def build_features(nn, sars):

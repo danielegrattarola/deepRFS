@@ -4,6 +4,8 @@ from keras.layers import Input, Convolution2D, Flatten, Dense, BatchNormalizatio
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.regularizers import l1
+from sklearn.exceptions import NotFittedError
+
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
 
@@ -11,7 +13,7 @@ class ConvNetSimple:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
                  nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
-                 logger=None):
+                 scaler = None, logger=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
@@ -23,6 +25,7 @@ class ConvNetSimple:
         self.binarize = binarize
         self.class_weight = class_weight
         self.sample_weight = sample_weight
+        self.scaler = scaler
         self.logger = logger
 
         # Build network
@@ -73,6 +76,8 @@ class ConvNetSimple:
         """
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         y_train = np.asarray(y)
+        if self.scaler is not None:
+            y_train = self.scaler.fit_transform(y_train)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
         chkpt = 'NN.h5' if self.logger is None else self.logger.path + 'NN.h5'
@@ -102,6 +107,13 @@ class ConvNetSimple:
         """
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         y_train = np.asarray(y)
+
+        if self.scaler is not None:
+            try:
+                y_train = self.scaler.transform(y_train)
+            except NotFittedError:
+                y_train = self.scaler.fit_transform(y_train)
+
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
@@ -123,7 +135,13 @@ class ConvNetSimple:
         if self.binarize:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
-        return self.model.predict_on_batch(x_test)
+
+        pred = self.model.predict_on_batch([x_test, u_test])
+
+        if self.scaler is not None:
+            pred = self.scaler.inverse_transform(pred)
+
+        return pred
 
     def test(self, x, y):
         """
@@ -138,41 +156,57 @@ class ConvNetSimple:
         """
         x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         y_test = np.asarray(y)
+
+        if self.scaler is not None:
+            try:
+                y_test = self.scaler.transform(y_test)
+            except NotFittedError:
+                y_test = self.scaler.fit_transform(y_test)
+
         if self.binarize:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
         return self.model.test_on_batch(x_test, y_test)
 
-    def all_features(self, sample):
+    def all_features(self, x):
         """
-        Runs the given sample on the model and returns the features of the last
-        dense layer in a 1d array.
+        Runs the given samples on the model and returns the features of the last
+        dense layer in an array.
 
         Args
-            sample: a single sample to encode.
+            x: samples to encode.
         Returns
             The encoded sample.
         """
         # Feed input to the model, return encoded images flattened
-        sample = np.asarray(sample).astype('float32') / 255  # To 0-1 range
+        x = np.asarray(x).astype('float32') / 255  # To 0-1 range
         if self.binarize:
-            sample[sample < 0.1] = 0
-            sample[sample >= 0.1] = 1
-        return np.asarray(self.encoder.predict_on_batch(sample)).flatten()
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
 
-    def s_features(self, sample, support):
+        if x.shape[0] == 1:
+            # x is a singe sample
+            return np.asarray(self.encoder.predict_on_batch(x)).flatten()
+        else:
+            return np.asarray(self.encoder.predict(x))
+
+    def s_features(self, x, support):
         """
-        Runs the given sample on the model and returns the features of the last
+        Runs the given samples on the model and returns the features of the last
         dense layer filtered by the support mask.
 
         Args
-            sample: a single sample to encode.
+            x: samples to encode.
             support: a boolean mask with which to filter the output.
         Returns
             The encoded sample.
         """
-        prediction = self.all_features(sample)
-        prediction = prediction[support]  # Keep only support features
+        prediction = self.all_features(x)
+        if x.shape[0] == 1:
+            # x is a singe sample
+            prediction = prediction[support]  # Keep only support features
+        else:
+            prediction = prediction[:, support]  # Keep only support features
         return prediction
 
     def save(self, filename=None, append=''):

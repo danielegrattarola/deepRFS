@@ -58,6 +58,10 @@ parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
+parser.add_argument('--collect-gfarf', action='store_true',
+                    help='Collect GFARF instead of generating it from SARS')
+parser.add_argument('--gfarf-episodes', type=int, default=1000,
+                    help='Number of global FARF episodes to collect')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
 parser.add_argument('--nn0l1', type=float, default=0.01,
@@ -171,6 +175,19 @@ for i in range(algorithm_steps):
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions)
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
+
+    if args.collect_gfarf:
+        tic('Collecting SARS to train FQI')
+        sars_path = logger.path + 'sars_%s/' % i
+        os.mkdir(sars_path)
+        collect_sars_to_disk(mdp,
+                             policy,
+                             sars_path,
+                             episodes=args.gfarf_episodes,
+                             random_greedy_split=random_greedy_split,
+                             debug=args.debug,
+                             initial_actions=initial_actions)
+        toc()
 
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
@@ -367,6 +384,11 @@ for i in range(algorithm_steps):
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
     del sars
+
+    if args.collect_gfarf:
+        global_farf_2 = build_global_farf_from_disk(nn_stack, sars_path)
+        global_farf = global_farf.append(global_farf_2, ignore_index=True)
+
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new ActionRegressor
     action_values = np.unique(pds_to_npa(global_farf.A))

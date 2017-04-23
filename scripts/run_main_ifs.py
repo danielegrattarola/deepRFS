@@ -70,6 +70,7 @@ from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
+from deep_ifs.extraction.ConvNetClassifier import ConvNetClassifier
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.selection.ifs import IFS
 from deep_ifs.utils.datasets import *
@@ -109,6 +110,8 @@ parser.add_argument('--nn-stack', type=str, default=None,
                          'extractor in the first iteration')
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
+parser.add_argument('--classify', action='store_true',
+                    help='Use a classifier for NN0')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
 parser.add_argument('--clip-nn0', action='store_true',
                     help='Clip reward for NN0 only')
@@ -116,10 +119,16 @@ parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
+parser.add_argument('--collect-gfarf', action='store_true',
+                    help='Collect GFARF instead of generating it from SARS')
+parser.add_argument('--gfarf-episodes', type=int, default=1000,
+                    help='Number of global FARF episodes to collect')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
 parser.add_argument('--nn0l1', type=float, default=0.01,
                     help='l1 normalization for NN0')
+parser.add_argument('--balanced-weights', action='store_true',
+                    help='Use balanced weights instead of the custom ones')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -156,8 +165,8 @@ log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
 log('\n')
 
 evaluation_results = []
-nn_stack = NNStack()  # To store all neural networks and IFS supports
-mdp = Atari(args.env, clip_reward=args.clip)
+nn_stack = NNStack()  # To store all neural networks and FS supports
+mdp = Atari(args.env, clip_reward=args.classify or args.clip)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
@@ -230,20 +239,36 @@ for i in range(algorithm_steps):
                         initial_actions=initial_actions)
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
 
+    if args.collect_gfarf:
+        tic('Collecting SARS to train FQI')
+        sars_path = logger.path + 'sars_%s/' % i
+        os.mkdir(sars_path)
+        collect_sars_to_disk(mdp,
+                             policy,
+                             sars_path,
+                             episodes=args.gfarf_episodes,
+                             random_greedy_split=random_greedy_split,
+                             debug=args.debug,
+                             initial_actions=initial_actions)
+        toc()
+
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
     if args.clip_nn0:
         R = np.clip(R, -1, 1)  # Clipped scalar reward
 
-    class_weight = {-100: 100,
-                    -1: 100,
-                    0: 1,
-                    1: 100,
-                    4: 100,
-                    7: 100}
-    sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
-                                           round=True)
+    if args.balanced_weights:
+        sars_sample_weight = get_sample_weight(R)
+    else:
+        class_weight = {-100: 100,
+                        -1: 100,
+                        0: 1,
+                        1: 100,
+                        4: 100,
+                        7: 100}
+        sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
+                                               round=True)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
@@ -254,16 +279,31 @@ for i in range(algorithm_steps):
     toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
 
     tic('Fitting NN0')
-    target_size = 1  # Initial target is the scalar reward
     # NN maps frames to reward
-    nn = ConvNet(mdp.state_shape,
-                 target_size,
-                 nb_actions=nb_actions,
-                 l1_alpha=args.nn0l1,
-                 sample_weight=sars_sample_weight,
-                 nb_epochs=nn_nb_epochs,
-                 binarize=args.binarize,
-                 logger=logger)
+    if args.classify:
+        from sklearn.preprocessing import OneHotEncoder
+        ohe = OneHotEncoder(sparse=False)
+        R = ohe.fit_transform(R.reshape(-1, 1) - R.min())
+        nb_classes = R.shape[1]  # Target is the one-hot encoded reward
+        nn = ConvNetClassifier(mdp.state_shape,
+                               nb_classes,
+                               nb_actions=nb_actions,
+                               l1_alpha=0.0,
+                               sample_weight=sars_sample_weight,
+                               nb_epochs=nn_nb_epochs,
+                               binarize=args.binarize,
+                               logger=logger)
+    else:
+        target_size = 1  # Initial target is the scalar reward
+        nn = ConvNet(mdp.state_shape,
+                     target_size,
+                     nb_actions=nb_actions,
+                     l1_alpha=args.nn0l1,
+                     sample_weight=sars_sample_weight,
+                     nb_epochs=nn_nb_epochs,
+                     binarize=args.binarize,
+                     logger=logger)
+
     nn.fit(S, A, R)
     del S, A, R
     nn.load(logger.path + 'NN.h5')  # Load best network (saved by callback)
@@ -420,6 +460,11 @@ for i in range(algorithm_steps):
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
     del sars
+
+    if args.collect_gfarf:
+        global_farf_2 = build_global_farf_from_disk(nn_stack, sars_path)
+        global_farf = global_farf.append(global_farf_2, ignore_index=True)
+
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new ActionRegressor
     action_values = np.unique(pds_to_npa(global_farf.A))
