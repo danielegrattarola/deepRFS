@@ -410,11 +410,12 @@ def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
         sars.to_pickle(path + 'sars_%s' % i)
 
     # Last batch
-    sars = collect_sars(mdp, policy, episodes=last_block, n_jobs=n_jobs,
-                        random_greedy_split=random_greedy_split,
-                        debug=debug, initial_actions=initial_actions,
-                        shuffle=shuffle)
-    sars.to_pickle(path + 'sars_%s.pkl' % nb_blocks)
+    if last_block > 0:
+        sars = collect_sars(mdp, policy, episodes=last_block, n_jobs=n_jobs,
+                            random_greedy_split=random_greedy_split,
+                            debug=debug, initial_actions=initial_actions,
+                            shuffle=shuffle)
+        sars.to_pickle(path + 'sars_%s.pkl' % nb_blocks)
 
 
 def build_global_farf_from_disk(nn_stack, path):
