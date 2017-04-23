@@ -6,6 +6,7 @@ from tqdm import tqdm
 from sklearn.utils.class_weight import compute_class_weight
 import glob
 import joblib
+import os
 
 
 def episode(mdp, policy, video=False, initial_actions=None):
@@ -160,6 +161,11 @@ def get_sample_weight(sars, class_weight=None, round=False):
     Args
         sars (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
             pd.Series with rewards.
+        class_weight (dict, None): dictionary with classes as key and weights as
+            values. If None, the dictionary will be computed using sklearn's
+            method.
+        round (bool, False): round the rewards to the nearest integer before
+            applying the class weights.
     """
     if isinstance(sars, pd.DataFrame):
         R = pds_to_npa(sars.R)
@@ -246,7 +252,7 @@ def build_farf(nn, sars):
 
 def build_sfadf(nn_stack, nn, support, sars):
     """
-    # Builds SFADF' dataset using SARS' dataset:
+    Builds SFADF' dataset using SARS' dataset:
         S = S
         F = NN_stack.s_features(S)
         A = A
@@ -267,7 +273,7 @@ def build_sfadf(nn_stack, nn, support, sars):
 
 def build_sfad(nn_stack, nn, support, sars):
     """
-    # Builds SFAD dataset using SARS' dataset:
+    Builds SFAD dataset using SARS' dataset:
         S = S
         F = NN_stack.s_features(S)
         A = A
@@ -359,30 +365,66 @@ def build_global_farf(nn_stack, sars):
     return df
 
 
-def collect_sars_to_disk(mdp, policy, path, episodes=100, batch_size=10,
+def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
                          n_jobs=1, random_greedy_split=0.9, debug=False,
                          initial_actions=None, shuffle=True):
+    """
+    Collects a dataset of SARS' transitions of the given MDP and saves it to
+    disk in blocks of block_size episodes.
+    A percentage of the samples (random_greedy_split) is collected with a fully
+    random policy, whereas the remaining part is collected with a greedy policy.
+
+    Args
+        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
+        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
+            Methods draw_action and set_epsilon are expected.
+        path (str): folder in which to save the dataset.
+        episodes (int, 100): number of episodes to collect.
+        block_size (int, 10): number of episodes in a block.
+        n_jobs (int, 1): number of processes to use (-1 for all available cores).
+            Leave 1 if running stuff on GPU.
+        random_greedy_split (float, 0.9): percentage of random episodes to
+            collect.
+        debug (bool, False): collect the episodes in debug mode (only a very
+            small fraction of transitions will be returned).
+        initial_actions (list, None): list of action indices that start an
+            episode of the MDP.
+        shuffle (bool, True): whether to shuffle the dataset before returning
+            it.
+
+    Return
+        A SARS' dataset as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
+    """
     if not path.endswith('/'):
         path += '/'
-    nb_batches = episodes / batch_size
-    last_batch = episodes % batch_size
+    if not os.path.exists(path):
+        os.mkdir(path)
+    nb_blocks = episodes / block_size
+    last_block = episodes % block_size
 
-    for i in tqdm(range(nb_batches)):
-        sars = collect_sars(mdp, policy, episodes=batch_size, n_jobs=n_jobs,
+    for i in tqdm(range(nb_blocks)):
+        sars = collect_sars(mdp, policy, episodes=block_size, n_jobs=n_jobs,
                             random_greedy_split=random_greedy_split,
                             debug=debug, initial_actions=initial_actions,
                             shuffle=shuffle)
         sars.to_pickle(path + 'sars_%s' % i)
 
     # Last batch
-    sars = collect_sars(mdp, policy, episodes=last_batch, n_jobs=n_jobs,
+    sars = collect_sars(mdp, policy, episodes=last_block, n_jobs=n_jobs,
                         random_greedy_split=random_greedy_split,
                         debug=debug, initial_actions=initial_actions,
                         shuffle=shuffle)
-    sars.to_pickle(path + 'sars_%s.pkl' % nb_batches)
+    sars.to_pickle(path + 'sars_%s.pkl' % nb_blocks)
 
 
 def build_global_farf_from_disk(nn_stack, path):
+    """
+    Builds FARF' dataset using all SARS' datasets saved in path:
+        F = NN_stack.s_features(S)
+        A = A
+        R = R
+        F' = NN_stack.s_features(S')
+    """
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.pkl')
