@@ -407,7 +407,7 @@ def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
                             random_greedy_split=random_greedy_split,
                             debug=debug, initial_actions=initial_actions,
                             shuffle=shuffle)
-        sars.to_pickle(path + 'sars_%s' % i)
+        sars.to_pickle(path + 'sars_%s.pkl' % i)
 
     # Last batch
     if last_block > 0:
