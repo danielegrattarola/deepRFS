@@ -429,6 +429,7 @@ def build_global_farf_from_disk(nn_stack, path):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.pkl')
+    print 'Got %s files' % len(files)
     farf = pd.DataFrame()
     for f in tqdm(files):
         sars = joblib.load(f)
