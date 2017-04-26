@@ -13,7 +13,7 @@ class ConvNetSimple:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
                  nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
-                 scaler = None, logger=None):
+                 scaler=None, logger=None, chkpt_file=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
@@ -27,6 +27,11 @@ class ConvNetSimple:
         self.sample_weight = sample_weight
         self.scaler = scaler
         self.logger = logger
+
+        if chkpt_file is not None:
+            self.chkpt_file = chkpt_file if logger is None else (logger.path + chkpt_file)
+        else:
+            self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
         # Build network
         self.input = Input(shape=self.input_shape)
@@ -80,9 +85,9 @@ class ConvNetSimple:
             y_train = self.scaler.fit_transform(y_train)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
-        chkpt = 'NN.h5' if self.logger is None else self.logger.path + 'NN.h5'
-        mc = ModelCheckpoint(chkpt, monitor='val_loss', save_best_only=True,
-                             save_weights_only=True)
+
+        mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
+                             save_best_only=True, save_weights_only=True)
 
         if self.binarize:
             x_train[x_train < 0.1] = 0

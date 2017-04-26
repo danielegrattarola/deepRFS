@@ -11,7 +11,7 @@ class ConvNetClassifier:
     def __init__(self, input_shape, nb_classes, nb_actions=1, encoding_dim=512,
                  nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
-                 logger=None):
+                 logger=None, chkpt_file=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.nb_classes = nb_classes
@@ -24,6 +24,11 @@ class ConvNetClassifier:
         self.class_weight = class_weight
         self.sample_weight = sample_weight
         self.logger = logger
+
+        if chkpt_file is not None:
+            self.chkpt_file = chkpt_file if logger is None else (logger.path + chkpt_file)
+        else:
+            self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
         # Build network
         self.input = Input(shape=self.input_shape)
@@ -79,9 +84,9 @@ class ConvNetClassifier:
         y_train = np.asarray(y)
 
         es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
-        chkpt = 'NN.h5' if self.logger is None else self.logger.path + 'NN.h5'
-        mc = ModelCheckpoint(chkpt, monitor='val_loss', save_best_only=True,
-                             save_weights_only=True)
+
+        mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
+                             save_best_only=True, save_weights_only=True)
 
         if self.binarize:
             x_train[x_train < 0.1] = 0

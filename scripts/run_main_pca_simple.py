@@ -229,7 +229,8 @@ for i in range(algorithm_steps):
                                      sample_weight=sars_sample_weight,
                                      nb_epochs=nn_nb_epochs,
                                      binarize=args.binarize,
-                                     logger=logger)
+                                     logger=logger,
+                                     chkpt_file='NN0.h5')
     else:
         target_size = 1  # Initial target is the scalar reward
         nn = ConvNetSimple(mdp.state_shape,
@@ -239,11 +240,12 @@ for i in range(algorithm_steps):
                            sample_weight=sars_sample_weight,
                            nb_epochs=nn_nb_epochs,
                            binarize=args.binarize,
-                           logger=logger)
+                           logger=logger,
+                           chkpt_file='NN0.h5')
 
     nn.fit(S, R)
     del S, A, R
-    nn.load(logger.path + 'NN.h5')  # Load best network (saved by callback)
+    nn.load(logger.path + 'NN0.h5')  # Load best network (saved by callback)
     toc()
 
     # FEATURE SELECTION 0 #
@@ -337,10 +339,11 @@ for i in range(algorithm_steps):
                            nb_epochs=nn_nb_epochs,
                            binarize=args.binarize,
                            scaler=StandardScaler(),
-                           logger=logger)
+                           logger=logger,
+                           chkpt_file='NN%s.h5' % j)
         nn.fit(S, RES)
         del S, A, RES
-        nn.load(logger.path + 'NN.h5')  # Load best network (saved by callback)
+        nn.load(logger.path + 'NN%s.h5' % j)  # Load best network (saved by callback)
         toc()
 
         # FEATURE SELECTION i #
@@ -388,6 +391,8 @@ for i in range(algorithm_steps):
     if args.collect_gfarf:
         global_farf_2 = build_global_farf_from_disk(nn_stack, sars_path)
         global_farf = global_farf.append(global_farf_2, ignore_index=True)
+        log('Got %s additional FARF samples for a total of %s'
+            % (len(global_farf_2), len(global_farf)))
 
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new ActionRegressor
