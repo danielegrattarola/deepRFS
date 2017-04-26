@@ -388,6 +388,8 @@ for i in range(algorithm_steps):
     if args.collect_gfarf:
         global_farf_2 = build_global_farf_from_disk(nn_stack, sars_path)
         global_farf = global_farf.append(global_farf_2, ignore_index=True)
+        log('Got %s additional FARF samples for a total of %s'
+            % (len(global_farf_2), len(global_farf)))
 
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new ActionRegressor
