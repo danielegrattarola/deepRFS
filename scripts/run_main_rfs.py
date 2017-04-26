@@ -235,7 +235,7 @@ for i in range(algorithm_steps):
                                nb_epochs=nn_nb_epochs,
                                binarize=args.binarize,
                                logger=logger,
-                               chkpt_file='NN0.h5')
+                               chkpt_file='NN0_step%s.h5' % i)
     else:
         target_size = 1  # Initial target is the scalar reward
         nn = ConvNet(mdp.state_shape,
@@ -246,11 +246,11 @@ for i in range(algorithm_steps):
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
                      logger=logger,
-                     chkpt_file='NN0.h5')
+                     chkpt_file='NN0_step%s.h5' % i)
 
     nn.fit(S, A, R)
     del S, A, R
-    nn.load(logger.path + 'NN0.h5')  # Load best network (saved by callback)
+    nn.load(logger.path + 'NN0_step%s.h5' % i)  # Load best network (saved by callback)
     toc()
 
     # RECURSIVE FEATURE SELECTION 0 #
@@ -365,10 +365,10 @@ for i in range(algorithm_steps):
                      binarize=args.binarize,
                      scaler=StandardScaler(),
                      logger=logger,
-                     chkpt_file='NN%s.h5' % j)
+                     chkpt_file='NN%s_step%s.h5' % (j, i))
         nn.fit(S, A, RES)
         del S, A, RES
-        nn.load(logger.path + 'NN%s.h5' % j)  # Load best network (saved by callback)
+        nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))  # Load best network (saved by callback)
         toc()
 
         # RECURSIVE FEATURE SELECTION i #
