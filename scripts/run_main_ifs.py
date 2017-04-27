@@ -313,7 +313,7 @@ for i in range(algorithm_steps):
     if args.nn_analysis:
         pred = nn.predict(S[:len(S)/2], A[:len(S)/2])
         plt.scatter(R[:len(S)/2], pred, alpha=0.3)
-        plt.savefig(logger.path + 'nn%s.png' % j)
+        plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
         plt.close()
 
     del S, A, R
@@ -443,7 +443,7 @@ for i in range(algorithm_steps):
                 else:
                     # Will only run the loop once
                     plt.scatter(RES[:len(S)/2], pred[:], alpha=0.3)
-                plt.savefig(logger.path + 'nn%s_%s.png' % (j, f))
+                plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
                 plt.close()
 
         del S, A, RES
