@@ -311,8 +311,8 @@ for i in range(algorithm_steps):
     nn.fit(S, A, R)
 
     if args.nn_analysis:
-        pred = nn.predict(S, A)
-        plt.scatter(R, pred, alpha=0.3)
+        pred = nn.predict(S[:len(S)/2], A[:len(S)/2])
+        plt.scatter(R[:len(S)/2], pred, alpha=0.3)
         plt.savefig(logger.path + 'nn%s.png' % j)
         plt.close()
 
@@ -435,14 +435,14 @@ for i in range(algorithm_steps):
 
         # TODO NN analysis
         if args.nn_analysis:
-            pred = nn.predict(S, A)
+            pred = nn.predict(S[:len(S)/2], A[:len(S)/2])
             for f in range(target_size):
                 plt.figure()
                 if target_size > 1:
-                    plt.scatter(RES[:, f], pred[:, f], alpha=0.3)
+                    plt.scatter(RES[:len(S)/2, f], pred[:, f], alpha=0.3)
                 else:
                     # Will only run the loop once
-                    plt.scatter(RES[:], pred[:], alpha=0.3)
+                    plt.scatter(RES[:len(S)/2], pred[:], alpha=0.3)
                 plt.savefig(logger.path + 'nn%s_%s.png' % (j, f))
                 plt.close()
 
