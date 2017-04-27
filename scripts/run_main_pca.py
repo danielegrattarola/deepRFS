@@ -80,7 +80,7 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
 sars_episodes = 10 if args.debug else args.sars_episodes  # Number of SARS episodes to collect
 nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
-rec_steps = 1 if args.debug else 1  # Number of recursive steps to make
+rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
 variance_pctg = 0.5  # Remove this many % of non-zero feature during FS (kinda)
 fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
@@ -248,9 +248,9 @@ for i in range(algorithm_steps):
     nn.fit(S, A, R)
 
     if args.nn_analysis:
-        pred = nn.predict(S, A)
-        plt.scatter(R, pred, alpha=0.3)
-        plt.savefig(logger.path + 'nn%s.png' % j)
+        pred = nn.predict(S[:5000], A[:5000])
+        plt.scatter(R[:5000], pred, alpha=0.3)
+        plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
         plt.close()
 
     del S, A, R
@@ -354,15 +354,15 @@ for i in range(algorithm_steps):
 
         # TODO NN analysis
         if args.nn_analysis:
-            pred = nn.predict(S, A)
+            pred = nn.predict(S[:5000], A[:5000])
             for f in range(target_size):
                 plt.figure()
                 if target_size > 1:
-                    plt.scatter(RES[:, f], pred[:, f], alpha=0.3)
+                    plt.scatter(RES[:5000, f], pred[:5000, f], alpha=0.3)
                 else:
                     # Will only run the loop once
-                    plt.scatter(RES[:], pred[:], alpha=0.3)
-                plt.savefig(logger.path + 'nn%s_%s.png' % (j, f))
+                    plt.scatter(RES[:5000], pred[:], alpha=0.3)
+                plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
                 plt.close()
 
         del S, A, RES

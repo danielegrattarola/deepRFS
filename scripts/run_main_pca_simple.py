@@ -35,6 +35,8 @@ parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
 parser.add_argument('--farf-analysis', action='store_true',
                     help='Plot and save info about each FARF dataset generated '
                          'during the run')
+parser.add_argument('--nn-analysis', action='store_true',
+                    help='Plot predictions for each network')
 parser.add_argument('--residual-model', type=str, default='linear',
                     help='Type of model to use for building residuals (\'linear'
                          '\', \'extra\')')
@@ -230,7 +232,7 @@ for i in range(algorithm_steps):
                                      nb_epochs=nn_nb_epochs,
                                      binarize=args.binarize,
                                      logger=logger,
-                                     chkpt_file='NN0.h5')
+                                     chkpt_file='NN0_step%s.h5' % i)
     else:
         target_size = 1  # Initial target is the scalar reward
         nn = ConvNetSimple(mdp.state_shape,
@@ -241,11 +243,18 @@ for i in range(algorithm_steps):
                            nb_epochs=nn_nb_epochs,
                            binarize=args.binarize,
                            logger=logger,
-                           chkpt_file='NN0.h5')
+                           chkpt_file='NN0_step%s.h5' % i)
 
     nn.fit(S, R)
+
+    if args.nn_analysis:
+        pred = nn.predict(S[:5000], A[:5000])
+        plt.scatter(R[:5000], pred, alpha=0.3)
+        plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
+        plt.close()
+
     del S, A, R
-    nn.load(logger.path + 'NN0.h5')  # Load best network (saved by callback)
+    nn.load(logger.path + 'NN0_step%s.h5' % i)  # Load best network (saved by callback)
     toc()
 
     # FEATURE SELECTION 0 #
@@ -340,10 +349,24 @@ for i in range(algorithm_steps):
                            binarize=args.binarize,
                            scaler=StandardScaler(),
                            logger=logger,
-                           chkpt_file='NN%s.h5' % j)
+                           chkpt_file='NN%s_step%s.h5' % (j, i))
         nn.fit(S, RES)
+
+        # TODO NN analysis
+        if args.nn_analysis:
+            pred = nn.predict(S[:5000], A[:5000])
+            for f in range(target_size):
+                plt.figure()
+                if target_size > 1:
+                    plt.scatter(RES[:5000, f], pred[:5000, f], alpha=0.3)
+                else:
+                    # Will only run the loop once
+                    plt.scatter(RES[:5000], pred[:], alpha=0.3)
+                plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
+                plt.close()
+
         del S, A, RES
-        nn.load(logger.path + 'NN%s.h5' % j)  # Load best network (saved by callback)
+        nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))  # Load best network (saved by callback)
         toc()
 
         # FEATURE SELECTION i #
