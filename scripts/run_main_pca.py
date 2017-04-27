@@ -35,6 +35,8 @@ parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
 parser.add_argument('--farf-analysis', action='store_true',
                     help='Plot and save info about each FARF dataset generated '
                          'during the run')
+parser.add_argument('--nn-analysis', action='store_true',
+                    help='Plot predictions for each network')
 parser.add_argument('--residual-model', type=str, default='linear',
                     help='Type of model to use for building residuals (\'linear'
                          '\', \'extra\')')
@@ -244,6 +246,13 @@ for i in range(algorithm_steps):
                      chkpt_file='NN0_step%s.h5' % i)
 
     nn.fit(S, A, R)
+
+    if args.nn_analysis:
+        pred = nn.predict(S, A)
+        plt.scatter(R, pred, alpha=0.3)
+        plt.savefig(logger.path + 'nn%s.png' % j)
+        plt.close()
+
     del S, A, R
     nn.load(logger.path + 'NN0_step%s.h5' % i)  # Load best network (saved by callback)
     toc()
@@ -342,6 +351,20 @@ for i in range(algorithm_steps):
                      logger=logger,
                      chkpt_file='NN%s_step%s.h5' % (j, i))
         nn.fit(S, A, RES)
+
+        # TODO NN analysis
+        if args.nn_analysis:
+            pred = nn.predict(S, A)
+            for f in range(target_size):
+                plt.figure()
+                if target_size > 1:
+                    plt.scatter(RES[:, f], pred[:, f], alpha=0.3)
+                else:
+                    # Will only run the loop once
+                    plt.scatter(RES[:], pred[:], alpha=0.3)
+                plt.savefig(logger.path + 'nn%s_%s.png' % (j, f))
+                plt.close()
+
         del S, A, RES
         nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))  # Load best network (saved by callback)
         toc()

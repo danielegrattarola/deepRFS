@@ -1,10 +1,12 @@
 import matplotlib
 import argparse
+
+from sklearn.preprocessing import StandardScaler
+
 from deep_ifs.envs.atari import Atari
 import joblib
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
-from deep_ifs.extraction.ConvNetClassifier import ConvNetClassifier
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
@@ -12,7 +14,6 @@ from deep_ifs.utils.timer import tic, toc, log
 from ifqi.models import Regressor, ActionRegressor
 from matplotlib import pyplot as plt
 from sklearn.ensemble import ExtraTreesRegressor
-
 
 # ARGS
 parser = argparse.ArgumentParser()
@@ -34,6 +35,7 @@ nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
 
 logger = Logger(output_folder='../output/', custom_run_name='test%Y%m%d-%H%M%S')
 nn_stack = NNStack()  # To store all neural networks and FS supports
+nn_old =
 mdp = Atari(args.env, clip_reward=args.classify)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
@@ -62,22 +64,25 @@ if args.sars is not None:
 else:
     sars = collect_sars(mdp, policy, episodes=sars_episodes, random_greedy_split=1)
 sars_sample_weight = get_sample_weight(sars)
+scaler = StandardScaler()
 
-S = pds_to_npa(sars.S)  # 4 frames
-A = pds_to_npa(sars.A)  # Discrete action
-R = pds_to_npa(sars.R)  # Scalar reward
+scaler.fit(D)
+
 toc()
 
 tic('Building model')
-# NN maps frames to reward
-target_size = 1  # Initial target is the scalar reward
-nn = ConvNet(mdp.state_shape,
+image_shape = S.shape[1:]
+target_size = RES.shape[1] if len(RES.shape) > 1 else 1
+# NN maps frames to residual dynamics of last NN
+nn = ConvNet(image_shape,
              target_size,
              nb_actions=nb_actions,
-             l1_alpha=0.01,
+             l1_alpha=0.0,
              sample_weight=sars_sample_weight,
              nb_epochs=nn_nb_epochs,
-             binarize=args.binarize)
+             binarize=args.binarize,
+             scaler=scaler,
+             logger=logger)
 nn.load(args.path)
 toc()
 
