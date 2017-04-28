@@ -327,6 +327,10 @@ for i in range(algorithm_steps):
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+
+    if args.clip_nn0:
+        ifs_y = np.clip(ifs_y, -1, 1)
+
     del farf  # Not used anymore
     ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     # Print the number of nonzero features

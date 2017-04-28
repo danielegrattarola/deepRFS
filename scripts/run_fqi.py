@@ -65,6 +65,8 @@ nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
 global_farf = pd.read_pickle(data_path)
 
+log('Got %s samples' % len(global_farf))
+
 log('Setup')
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 evaluation_results = []
