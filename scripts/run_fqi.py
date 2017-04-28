@@ -49,15 +49,13 @@ parser.add_argument('--eval-freq', type=int, default=5,
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
                          '\'extra\', \'xgb\')')
-parser.add_argument('--sample-weights', action='store_true',
-                    help='Use sample weights to train FQI')
 args = parser.parse_args()
 
 max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
-tic('Reading data')
+log('Reading data')
 # Load NNStack
 nn_stack = NNStack()  # To store all neural networks and IFS support
 nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
@@ -66,26 +64,19 @@ nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
 global_farf = pd.read_pickle(data_path)
 
-# Compute sample weights
-if args.sample_weights:
-    farf_sample_weight = get_sample_weight(global_farf)
-else:
-    farf_sample_weight = None
-toc()
-
-tic('Setup')
+log('Setup')
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 evaluation_results = []
 mdp = Atari(args.env)
 nb_actions = mdp.action_space.n
 
-tic('Building dataset for FQI')
+log('Building dataset for FQI')
 sast, r = split_dataset_for_fqi(global_farf)
 all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
 action_values = np.unique(pds_to_npa(global_farf.A))
-toc()
 
-tic('Creating policy')
+
+log('Creating policy')
 # Create policy
 # Create ActionRegressor
 if args.fqi_model_type == 'extra':
@@ -119,17 +110,15 @@ fqi_params = {'estimator': regressor,
               'horizon': args.iter,
               'verbose': False}
 policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
-toc()  # Creating policy
-toc()  # Setup
 
 n_reward_features = nn_stack.get_support_dim(index=0)
 log('\n%s reward features' % n_reward_features)
 log('%s dynamics features\n' % (nn_stack.get_support_dim() - n_reward_features))
 
 # Initial fit
-policy.partial_fit(sast, r, sample_weight=farf_sample_weight)
+policy.partial_fit(sast, r)
 for i in tqdm(range(args.iter)):
-    policy.partial_fit(sample_weight=farf_sample_weight)
+    policy.partial_fit()
     if i % args.eval_freq == 0 or i == (args.iter-1):
         tqdm.write('Step %s: started eval...' % i)
         evaluation_metrics = evaluate_policy(mdp,
