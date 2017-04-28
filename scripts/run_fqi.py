@@ -9,7 +9,7 @@ from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import evaluate_policy
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.models.epsilonFQI import EpsilonFQI
-from deep_ifs.utils.datasets import get_sample_weight, pds_to_npa, split_dataset_for_fqi
+from deep_ifs.utils.datasets import pds_to_npa, split_dataset_for_fqi
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import tic, toc, log
 from ifqi.models import Regressor, ActionRegressor
@@ -39,6 +39,7 @@ parser.add_argument('--save-video', action='store_true',
                     help='Save the gifs of the evaluation episodes')
 parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
                     help='Atari environment on which to run the algorithm')
+parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
 parser.add_argument('--iter', type=int, default=100,
                     help='Number of fqi iterations to run')
 parser.add_argument('--episodes', type=int, default=10,
@@ -67,7 +68,7 @@ global_farf = pd.read_pickle(data_path)
 log('Setup')
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 evaluation_results = []
-mdp = Atari(args.env)
+mdp = Atari(args.env, clip_reward=args.clip)
 nb_actions = mdp.action_space.n
 
 log('Building dataset for FQI')
@@ -120,20 +121,19 @@ policy.partial_fit(sast, r)
 for i in tqdm(range(args.iter)):
     policy.partial_fit()
     if i % args.eval_freq == 0 or i == (args.iter-1):
-        tqdm.write('Step %s: started eval...' % i)
         evaluation_metrics = evaluate_policy(mdp,
                                              policy,
                                              max_ep_len=max_eval_steps,
                                              n_episodes=args.episodes,
                                              save_video=args.save_video,
                                              save_path=logger.path,
-                                             append_filename='step_%s' % i,
+                                             append_filename='fqi_iter_%03d' % i,
                                              initial_actions=initial_actions)
         evaluation_results.append(evaluation_metrics)
         # Save fqi policy
-        policy.save_fqi(logger.path + 'fqi_step_%s_eval_%s.pkl' %
+        policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl' %
                         (i, int(evaluation_results[-1][0])))
-        tqdm.write('Step %s: %s' % (i, evaluation_results[-1]))
+        tqdm.write('Iter %s: %s' % (i, evaluation_results[-1]))
 
 # FINAL OUTPUT #
 # Plot evaluation results
