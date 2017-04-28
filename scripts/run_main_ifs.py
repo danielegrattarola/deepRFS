@@ -312,6 +312,9 @@ for i in range(algorithm_steps):
 
     if args.nn_analysis:
         pred = nn.predict(S[:5000], A[:5000])
+        plt.suptitle('NN0 step %s' % i)
+        plt.xlabel('Reward')
+        plt.ylabel('NN prediction')
         plt.scatter(R[:5000], pred, alpha=0.3)
         plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
         plt.close()
@@ -438,6 +441,9 @@ for i in range(algorithm_steps):
             pred = nn.predict(S[:5000], A[:5000])
             for f in range(target_size):
                 plt.figure()
+                plt.suptitle('NN%s step %s' % (j, i))
+                plt.xlabel('Residual feature %s of %s' % (f, target_size))
+                plt.ylabel('NN prediction')
                 if target_size > 1:
                     plt.scatter(RES[:5000, f], pred[:5000, f], alpha=0.3)
                 else:
