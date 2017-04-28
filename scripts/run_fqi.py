@@ -16,6 +16,7 @@ from ifqi.models import Regressor, ActionRegressor
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
 from tqdm import tqdm
+from xgboost import XGBRegressor
 
 
 def exit_callback():
@@ -47,7 +48,7 @@ parser.add_argument('--eval-freq', type=int, default=5,
                          ' steps')
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
-                         '\'extra\')')
+                         '\'extra\', \'xgb\')')
 parser.add_argument('--sample-weights', action='store_true',
                     help='Use sample weights to train FQI')
 args = parser.parse_args()
@@ -86,25 +87,28 @@ toc()
 
 tic('Creating policy')
 # Create policy
+# Create ActionRegressor
 if args.fqi_model_type == 'extra':
     fqi_regressor_params = {'n_estimators': 50,
                             'n_jobs': -1}
-    regressor = ActionRegressor(Regressor(regressor_class=ExtraTreesRegressor,
-                                          **fqi_regressor_params),
-                                discrete_actions=action_values,
-                                tol=0.5)
-elif args.fqi_model_type == 'linear':
+    fqi_regressor_class = ExtraTreesRegressor
+elif args.fqi_model_type == 'xgb':
     fqi_regressor_params = {}
-    regressor = ActionRegressor(Regressor(regressor_class=LinearRegression,
-                                          **fqi_regressor_params),
-                                discrete_actions=action_values,
-                                tol=0.5)
-elif args.fqi_model_type == 'ridge':
+    fqi_regressor_class = XGBRegressor
+elif args.fqi_model_type == 'linear':
     fqi_regressor_params = {'n_jobs': -1}
-    regressor = ActionRegressor(Regressor(regressor_class=Ridge,
-                                          **fqi_regressor_params),
-                                discrete_actions=action_values,
-                                tol=0.5)
+    fqi_regressor_class = LinearRegression
+elif args.fqi_model_type == 'ridge':
+    fqi_regressor_params = {}
+    fqi_regressor_class = Ridge
+else:
+    raise NotImplementedError('Allowed models: \'extra\', \'linear\', '
+                              '\'ridge\', \'xgb\'.')
+
+regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
+                                      **fqi_regressor_params),
+                            discrete_actions=action_values,
+                            tol=0.5)
 
 state_dim = nn_stack.get_support_dim()
 fqi_params = {'estimator': regressor,
