@@ -394,7 +394,7 @@ for i in range(algorithm_steps):
 
         tic('Fitting residuals model')
         if args.residual_model == 'extra':
-            max_depth = F.shape[1] / 2
+            max_depth = 1 + F.shape[1] / 2
             model = ExtraTreesRegressor(n_estimators=50,
                                         max_depth=max_depth,
                                         n_jobs=-1)
