@@ -70,6 +70,10 @@ parser.add_argument('--nn0l1', type=float, default=0.01,
                     help='l1 normalization for NN0')
 parser.add_argument('--balanced-weights', action='store_true',
                     help='Use balanced weights instead of the custom ones')
+parser.add_argument('--fqi-iter', type=int, default=300,
+                    help='Number of FQI iterations to run')
+parser.add_argument('--fqi-eval-period', type=int, default=5,
+                    help='Number of FQI iterations between evaluations')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -88,9 +92,9 @@ max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 random_greedy_step = 0.2  # Decrease R/G split by this much at each step
 final_random_greedy_split = 0.1
 random_greedy_split = args.initial_rg
-es_patience = 15  # Number of FQI iterations w/o improvement after which to stop
-es_iter = 5 if args.debug else 300  # Number of FQI iterations
-es_eval_freq = 5  # Number of FQI iterations after which to evaluate
+fqi_patience = 15  # Number of FQI iterations w/o improvement after which to stop
+fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
+fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP
@@ -453,14 +457,14 @@ for i in range(algorithm_steps):
     policy.fqi_params['estimator'] = regressor
 
     # Update policy using early stopping
-    es_current_patience = es_patience
-    es_best = (-np.inf, 0, -np.inf, 0)
+    fqi_current_patience = fqi_patience
+    fqi_best = (-np.inf, 0, -np.inf, 0)
 
     policy.reset(all_features_dim)
     policy.partial_fit(sast, r)
-    for partial_iter in range(es_iter):
+    for partial_iter in range(fqi_iter):
         policy.partial_fit()
-        if partial_iter % es_eval_freq == 0 or partial_iter == (es_iter - 1):
+        if partial_iter % fqi_eval_period == 0 or partial_iter == (fqi_iter - 1):
             es_evaluation = evaluate_policy(mdp,
                                             policy,
                                             max_ep_len=max_eval_steps,
@@ -470,23 +474,23 @@ for i in range(algorithm_steps):
                                             save_path=logger.path,
                                             append_filename='fqi_step_%03d_iter_%03d' % (i, partial_iter))
             policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl'
-                            % (i, partial_iter, round(es_best[0])))
+                            % (i, partial_iter, round(fqi_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
-            if es_evaluation[0] > es_best[0]:
+            if es_evaluation[0] > fqi_best[0]:
                 log('Saving best policy')
-                es_best = es_evaluation
-                es_current_patience = es_patience
+                fqi_best = es_evaluation
+                fqi_current_patience = fqi_patience
                 # Save best policy to restore it later
                 policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
-                                % (i, round(es_best[0])))
+                                % (i, round(fqi_best[0])))
             else:
-                es_current_patience -= 1
-                if es_current_patience == 0:
+                fqi_current_patience -= 1
+                if fqi_current_patience == 0:
                     break
 
     # Restore best policy
     policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
-                    % (i, round(es_best[0])))
+                    % (i, round(fqi_best[0])))
 
     # Decrease R/G split
     if random_greedy_split - random_greedy_step >= final_random_greedy_split:
