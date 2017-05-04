@@ -125,6 +125,8 @@ parser.add_argument('--collect-gfarf', action='store_true',
                     help='Collect GFARF instead of generating it from SARS')
 parser.add_argument('--gfarf-episodes', type=int, default=1000,
                     help='Number of global FARF episodes to collect')
+parser.add_argument('--control-freq', type=int, default=2,
+                    help='Control frequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
 parser.add_argument('--nn0l1', type=float, default=0.01,
@@ -159,7 +161,6 @@ fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
 fqi_patience = fqi_iter  # Number of FQI iterations w/o improvement after which to stop
 fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
-control_freq = 2  # Control frequency when collecting additional gfarf
 
 # SETUP
 logger = Logger(output_folder='../output/',
@@ -244,7 +245,7 @@ for i in range(algorithm_steps):
                         debug=args.debug,
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions,
-                        repeat=control_freq)
+                        repeat=args.control_freq)
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
 
     if args.collect_gfarf:
@@ -258,7 +259,7 @@ for i in range(algorithm_steps):
                              random_greedy_split=random_greedy_split,
                              debug=args.debug,
                              initial_actions=initial_actions,
-                             repeat=control_freq)
+                             repeat=args.control_freq)
         toc()
 
     S = pds_to_npa(sars.S)  # 4 frames
