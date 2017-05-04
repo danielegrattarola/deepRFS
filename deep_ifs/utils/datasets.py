@@ -9,7 +9,7 @@ import joblib
 import os
 
 
-def episode(mdp, policy, video=False, initial_actions=None):
+def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
     """
     Collects an episode of the given MDP using the given policy.
 
@@ -25,14 +25,14 @@ def episode(mdp, policy, video=False, initial_actions=None):
         A sequence of SARS' transitions as np.array
     """
     frame_counter = 0
-    patience = mdp.action_space.n
 
     # Get current state
     state = mdp.reset()
 
     # Force start
     if initial_actions is not None:
-        state, _, _, _ = mdp.step(np.random.choice(initial_actions))
+        action = np.random.choice(initial_actions)
+        state, _, _, _ = mdp.step(action)
 
     reward = 0
     done = False
@@ -45,13 +45,15 @@ def episode(mdp, policy, video=False, initial_actions=None):
         # Select and execute the action, get next state and reward
         action = policy.draw_action(np.expand_dims(state, 0), done)
         action = int(action)
-        next_state, reward, done, info = mdp.step(action)
-
-        if is_stuck(next_state):
-            patience -= 1
-        if patience == 0:
-            patience = mdp.action_space.n
-            next_state, reward, done, info = mdp.step(1)  # Force start
+        # Repeat action
+        temp_reward = 0
+        temp_done = False
+        for _ in range(repeat):
+            next_state, reward, done, info = mdp.step(action)
+            temp_reward += reward
+            temp_done = temp_done or done
+        reward = temp_reward
+        done = temp_done
 
         # build SARS' tuple
         ep_output.append([state, action, reward, next_state, done])
@@ -67,7 +69,7 @@ def episode(mdp, policy, video=False, initial_actions=None):
 
 
 def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
-                 debug=False, initial_actions=None, shuffle=True):
+                 debug=False, initial_actions=None, shuffle=True, repeat=1):
     """
     Collects a dataset of SARS' transitions of the given MDP.
     A percentage of the samples (random_greedy_split) is collected with a fully
@@ -97,7 +99,8 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
 
     policy.set_epsilon(1)
     dataset_random = Parallel(n_jobs=n_jobs)(
-        delayed(episode)(mdp, policy, initial_actions=initial_actions)
+        delayed(episode)(mdp, policy, initial_actions=initial_actions,
+                         repeat=repeat)
         for _ in tqdm(xrange(random_episodes))
     )
     # Each episode is in a list, so the dataset needs to be flattened
@@ -105,7 +108,8 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
 
     policy.set_epsilon(0)
     dataset_greedy = Parallel(n_jobs=n_jobs)(
-        delayed(episode)(mdp, policy, initial_actions=initial_actions)
+        delayed(episode)(mdp, policy, initial_actions=initial_actions,
+                         repeat=repeat)
         for _ in tqdm(xrange(greedy_episodes))
     )
     # Each episode is in a list, so the dataset needs to be flattened
@@ -367,7 +371,7 @@ def build_global_farf(nn_stack, sars):
 
 def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
                          n_jobs=1, random_greedy_split=0.9, debug=False,
-                         initial_actions=None, shuffle=True):
+                         initial_actions=None, shuffle=True, repeat=1):
     """
     Collects a dataset of SARS' transitions of the given MDP and saves it to
     disk in blocks of block_size episodes.
@@ -406,7 +410,7 @@ def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
         sars = collect_sars(mdp, policy, episodes=block_size, n_jobs=n_jobs,
                             random_greedy_split=random_greedy_split,
                             debug=debug, initial_actions=initial_actions,
-                            shuffle=shuffle)
+                            shuffle=shuffle, repeat=repeat)
         sars.to_pickle(path + 'sars_%s.pkl' % i)
 
     # Last batch
@@ -414,7 +418,7 @@ def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
         sars = collect_sars(mdp, policy, episodes=last_block, n_jobs=n_jobs,
                             random_greedy_split=random_greedy_split,
                             debug=debug, initial_actions=initial_actions,
-                            shuffle=shuffle)
+                            shuffle=shuffle, repeat=repeat)
         sars.to_pickle(path + 'sars_%s.pkl' % nb_blocks)
 
 
@@ -436,6 +440,21 @@ def build_global_farf_from_disk(nn_stack, path):
         farf = farf.append(build_global_farf(nn_stack, sars), ignore_index=True)
 
     return farf
+
+
+def downsample_farf(farf, period=5):
+    farf['bin'] = farf.index / period
+
+    farf = pd.DataFrame()
+
+    farf['F'] = farf['F'][::period].reset_index()['F']
+    farf['A'] = None  # TODO how to reduce actions
+    farf['R'] = farf.groupby('bin')['F'].sum()
+    farf['FF'] = farf['FF'].shift(-period + 1)[:-period + 1:period].reset_index()['FF']
+    farf['DONE'] = farf.groupby('bin')['DONE'].sum()
+
+    if len(farf) % period != 0:
+        farf = farf[:-1]
 
 
 def build_features(nn, sars):
