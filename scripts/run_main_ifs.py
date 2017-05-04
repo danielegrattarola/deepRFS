@@ -155,8 +155,8 @@ max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
 random_greedy_step = 0.2  # Decrease R/G split by this much at each step
 final_random_greedy_split = 0.1
 random_greedy_split = args.initial_rg
-fqi_patience = 15  # Number of FQI iterations w/o improvement after which to stop
 fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
+fqi_patience = fqi_iter  # Number of FQI iterations w/o improvement after which to stop
 fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
