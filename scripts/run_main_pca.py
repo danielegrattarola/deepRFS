@@ -64,6 +64,8 @@ parser.add_argument('--collect-gfarf', action='store_true',
                     help='Collect GFARF instead of generating it from SARS')
 parser.add_argument('--gfarf-episodes', type=int, default=1000,
                     help='Number of global FARF episodes to collect')
+parser.add_argument('--control-freq', type=int, default=2,
+                    help='Control frequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
 parser.add_argument('--nn0l1', type=float, default=0.01,
@@ -179,7 +181,8 @@ for i in range(algorithm_steps):
                         episodes=sars_episodes,
                         debug=args.debug,
                         random_greedy_split=random_greedy_split,
-                        initial_actions=initial_actions)
+                        initial_actions=initial_actions,
+                        repeat=args.control_freq)
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
 
     if args.collect_gfarf:
@@ -192,7 +195,8 @@ for i in range(algorithm_steps):
                              episodes=args.gfarf_episodes,
                              random_greedy_split=random_greedy_split,
                              debug=args.debug,
-                             initial_actions=initial_actions)
+                             initial_actions=initial_actions,
+                             repeat=args.control_freq)
         toc()
 
     S = pds_to_npa(sars.S)  # 4 frames
@@ -200,6 +204,14 @@ for i in range(algorithm_steps):
     R = pds_to_npa(sars.R)  # Scalar reward
     if args.clip_nn0:
         R = np.clip(R, -1, 1)  # Clipped scalar reward
+
+    if args.nn_analysis:
+        test_S = S[:5000]
+        S = S[5000:]
+        test_A = A[:5000]
+        A = A[5000:]
+        test_R = R[:5000]
+        R = R[5000:]
 
     if args.balanced_weights:
         sars_sample_weight = get_sample_weight(R)
@@ -252,13 +264,14 @@ for i in range(algorithm_steps):
     nn.fit(S, A, R)
 
     if args.nn_analysis:
-        pred = nn.predict(S[:5000], A[:5000])
+        pred = nn.predict(test_S, test_A)
         plt.suptitle('NN0 step %s' % i)
         plt.xlabel('Reward')
         plt.ylabel('NN prediction')
-        plt.scatter(R[:5000], pred, alpha=0.3)
+        plt.scatter(test_R, pred, alpha=0.3)
         plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
         plt.close()
+        del test_A, test_S, test_R
 
     del S, A, R
     nn.load(logger.path + 'NN0_step%s.h5' % i)  # Load best network (saved by callback)
@@ -267,6 +280,10 @@ for i in range(algorithm_steps):
     # FEATURE SELECTION 0 #
     tic('Building F dataset for PCA')
     F = build_features(nn, sars)  # Features
+
+    if args.clip_nn0:
+        ifs_y = np.clip(ifs_y, -1, 1)
+
     nonzero_mfv_counts = np.count_nonzero(np.mean(F, axis=0))
     log('Number of non-zero feature: %s' % nonzero_mfv_counts)
     log('Memory usage: %s MB' % get_size([F], 'MB'))
@@ -328,15 +345,23 @@ for i in range(algorithm_steps):
         tic('Building SARes dataset')
         # Frames, action, residual dynamics of last NN (Res = D - model(F))
         sares = build_sares(model, sfad)
+        S = pds_to_npa(sares.S)  # 4 frames
+        A = pds_to_npa(sares.A)  # Discrete action
         if args.no_residuals:
             log('Ignoring residuals, using only dynamics.')
             RES = pds_to_npa(sfad.D)  # Residuals are actually the dynamics
         else:
-            RES = pds_to_npa(sares.RES).squeeze()  # Residuals of last NN
-        del sfad  # Not used anymore
-        S = pds_to_npa(sares.S)  # 4 frames
-        A = pds_to_npa(sares.A)  # Discrete action
-        del sares
+            RES = pds_to_npa(sares.RES)  # Residuals of last NN
+
+        if args.nn_analysis:
+            test_S = S[:5000]
+            S = S[5000:]
+            test_A = A[:5000]
+            A = A[5000:]
+            test_RES = RES[:5000]
+            RES = RES[5000:]
+
+        del sfad, sares
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
         log('Max residual values %s' % np.max(RES, axis=0))
@@ -361,19 +386,20 @@ for i in range(algorithm_steps):
 
         # TODO NN analysis
         if args.nn_analysis:
-            pred = nn.predict(S[:5000], A[:5000])
+            pred = nn.predict(test_S, test_A)
             for f in range(target_size):
                 plt.figure()
                 plt.suptitle('NN%s step %s' % (j, i))
                 plt.xlabel('Residual feature %s of %s' % (f, target_size))
                 plt.ylabel('NN prediction')
                 if target_size > 1:
-                    plt.scatter(RES[:5000, f], pred[:5000, f], alpha=0.3)
+                    plt.scatter(test_RES[:, f], pred[:, f], alpha=0.3)
                 else:
                     # Will only run the loop once
-                    plt.scatter(RES[:5000], pred[:], alpha=0.3)
+                    plt.scatter(test_RES[:], pred[:], alpha=0.3)
                 plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
                 plt.close()
+            del test_A, test_S, test_R
 
         del S, A, RES
         nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))  # Load best network (saved by callback)

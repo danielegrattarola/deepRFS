@@ -268,6 +268,14 @@ for i in range(algorithm_steps):
     if args.clip_nn0:
         R = np.clip(R, -1, 1)  # Clipped scalar reward
 
+    if args.nn_analysis:
+        test_S = S[:5000]
+        S = S[5000:]
+        test_A = A[:5000]
+        A = A[5000:]
+        test_R = R[:5000]
+        R = R[5000:]
+
     if args.balanced_weights:
         sars_sample_weight = get_sample_weight(R)
     else:
@@ -319,13 +327,14 @@ for i in range(algorithm_steps):
     nn.fit(S, A, R)
 
     if args.nn_analysis:
-        pred = nn.predict(S[:5000], A[:5000])
+        pred = nn.predict(test_S, test_A)
         plt.suptitle('NN0 step %s' % i)
         plt.xlabel('Reward')
         plt.ylabel('NN prediction')
-        plt.scatter(R[:5000], pred, alpha=0.3)
+        plt.scatter(test_R, pred, alpha=0.3)
         plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
         plt.close()
+        del test_A, test_S, test_R
 
     del S, A, R
     nn.load(logger.path + 'NN0_step%s.h5' % i)  # Load best network (saved by callback)
@@ -372,6 +381,7 @@ for i in range(algorithm_steps):
     # TODO Debug
     if args.debug:
         support[2] = True
+
     # TODO farf analysis
     if args.farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
@@ -424,7 +434,16 @@ for i in range(algorithm_steps):
             log('Ignoring residuals, using only dynamics.')
             RES = pds_to_npa(sfadf.D)
         else:
-            RES = pds_to_npa(sares.RES).squeeze()  # Residual dynamics of last NN
+            RES = pds_to_npa(sares.RES)  # Residuals of last NN
+
+        if args.nn_analysis:
+            test_S = S[:5000]
+            S = S[5000:]
+            test_A = A[:5000]
+            A = A[5000:]
+            test_RES = RES[:5000]
+            RES = RES[5000:]
+
         del sares
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
@@ -450,19 +469,20 @@ for i in range(algorithm_steps):
 
         # TODO NN analysis
         if args.nn_analysis:
-            pred = nn.predict(S[:5000], A[:5000])
+            pred = nn.predict(test_S, test_A)
             for f in range(target_size):
                 plt.figure()
                 plt.suptitle('NN%s step %s' % (j, i))
                 plt.xlabel('Residual feature %s of %s' % (f, target_size))
                 plt.ylabel('NN prediction')
                 if target_size > 1:
-                    plt.scatter(RES[:5000, f], pred[:5000, f], alpha=0.3)
+                    plt.scatter(test_RES[:, f], pred[:, f], alpha=0.3)
                 else:
                     # Will only run the loop once
-                    plt.scatter(RES[:5000], pred[:], alpha=0.3)
+                    plt.scatter(test_RES[:], pred[:], alpha=0.3)
                 plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
                 plt.close()
+            del test_A, test_S, test_R
 
         del S, A, RES
         nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))  # Load best network (saved by callback)
