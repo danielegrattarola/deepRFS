@@ -183,6 +183,13 @@ for i in range(algorithm_steps):
                         random_greedy_split=random_greedy_split,
                         initial_actions=initial_actions,
                         repeat=args.control_freq)
+
+    # TODO NN analysis
+    if args.nn_analysis:
+        test_split = int(0.1 * len(sars))
+        test_sars = sars[test_split:]
+        sars = sars[:test_split]
+
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
 
     if args.collect_gfarf:
@@ -205,13 +212,11 @@ for i in range(algorithm_steps):
     if args.clip_nn0:
         R = np.clip(R, -1, 1)  # Clipped scalar reward
 
+    # TODO NN analysis
     if args.nn_analysis:
-        test_S = S[:5000]
-        S = S[5000:]
-        test_A = A[:5000]
-        A = A[5000:]
-        test_R = R[:5000]
-        R = R[5000:]
+        test_S = pds_to_npa(test_sars.S)
+        test_A = pds_to_npa(test_sars.A)
+        test_R = pds_to_npa(test_sars.R)
 
     if args.balanced_weights:
         sars_sample_weight = get_sample_weight(R)
@@ -263,6 +268,7 @@ for i in range(algorithm_steps):
 
     nn.fit(S, A, R)
 
+    # TODO NN analysis
     if args.nn_analysis:
         pred = nn.predict(test_S, test_A)
         plt.suptitle('NN0 step %s' % i)
@@ -329,7 +335,7 @@ for i in range(algorithm_steps):
 
         tic('Fitting residuals model')
         if args.residual_model == 'extra':
-            max_depth = F.shape[1] / 2
+            max_depth = 1 + F.shape[1] / 2
             model = ExtraTreesRegressor(n_estimators=50,
                                         max_depth=max_depth,
                                         n_jobs=-1)
@@ -353,13 +359,11 @@ for i in range(algorithm_steps):
         else:
             RES = pds_to_npa(sares.RES)  # Residuals of last NN
 
+        # TODO NN analysis
         if args.nn_analysis:
-            test_S = S[:5000]
-            S = S[5000:]
-            test_A = A[:5000]
-            A = A[5000:]
-            test_RES = RES[:5000]
-            RES = RES[5000:]
+            test_S = pds_to_npa(test_sars.S)
+            test_A = pds_to_npa(test_sars.A)
+            test_RES = pds_to_npa(test_sars.RES)
 
         del sfad, sares
         log('Mean residual values %s' % np.mean(RES, axis=0))
