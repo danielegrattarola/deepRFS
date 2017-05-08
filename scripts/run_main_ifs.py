@@ -250,15 +250,13 @@ for i in range(algorithm_steps):
                         initial_actions=initial_actions,
                         repeat=args.control_freq)
 
-    # TODO NN analysis
-    if args.nn_analysis:
-        test_sars = collect_sars(mdp,
-                                 policy,
-                                 episodes=sars_test_episodes,
-                                 debug=args.debug,
-                                 random_greedy_split=random_greedy_split,
-                                 initial_actions=initial_actions,
-                                 repeat=args.control_freq)
+    test_sars = collect_sars(mdp,
+                             policy,
+                             episodes=sars_test_episodes,
+                             debug=args.debug,
+                             random_greedy_split=random_greedy_split,
+                             initial_actions=initial_actions,
+                             repeat=args.control_freq)
 
     # Save SARS dataset
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
@@ -281,14 +279,13 @@ for i in range(algorithm_steps):
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
 
-    if args.nn_analysis:
-        test_S = pds_to_npa(test_sars.S)
-        test_A = pds_to_npa(test_sars.A)
-        test_R = pds_to_npa(test_sars.R)
+    test_S = pds_to_npa(test_sars.S)
+    test_A = pds_to_npa(test_sars.A)
+    test_R = pds_to_npa(test_sars.R)
 
-        # Clip reward
-        if args.clip_nn0:
-            test_R = np.clip(test_R, -1, 1)
+    # Clip reward
+    if args.clip_nn0:
+        test_R = np.clip(test_R, -1, 1)
 
     # Clip reward
     if args.clip_nn0:
@@ -371,7 +368,7 @@ for i in range(algorithm_steps):
         plt.scatter(test_R, pred, alpha=0.3)
         plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
         plt.close()
-        del test_A, test_S, test_R
+    del test_A, test_S, test_R
 
     # ITERATIVE FEATURE SELECTION 0
     tic('Building FARF dataset for IFS 0')
@@ -471,17 +468,15 @@ for i in range(algorithm_steps):
             RES = pds_to_npa(sares.RES)  # Residuals of last NN
         del sares
 
-        # TODO NN analysis
-        if args.nn_analysis:  # Do it here because sfads needs nn
-            test_sfadf = build_sfadf(nn_stack, nn, support, test_sars)
-            test_sares = build_sares(model, test_sfadf)
-            test_S = pds_to_npa(test_sares.S)
-            test_A = pds_to_npa(test_sares.A)
-            if args.no_residuals:
-                test_RES = pds_to_npa(test_sfadf.D)
-            else:
-                test_RES = pds_to_npa(test_sares.RES)
-            del test_sfadf, test_sares
+        test_sfadf = build_sfadf(nn_stack, nn, support, test_sars)
+        test_sares = build_sares(model, test_sfadf)
+        test_S = pds_to_npa(test_sares.S)
+        test_A = pds_to_npa(test_sares.A)
+        if args.no_residuals:
+            test_RES = pds_to_npa(test_sfadf.D)
+        else:
+            test_RES = pds_to_npa(test_sares.RES)
+        del test_sfadf, test_sares
 
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
@@ -540,7 +535,7 @@ for i in range(algorithm_steps):
                     plt.scatter(test_RES[:], pred[:], alpha=0.3)
                 plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
                 plt.close()
-            del test_A, test_S, test_RES
+        del test_A, test_S, test_RES
 
         # ITERATIVE FEATURE SELECTION i
         tic('Building FADF dataset for IFS %s' % j)
