@@ -53,6 +53,8 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
             next_state, reward, done, info = mdp.step(action)
             temp_reward += reward
             temp_done = temp_done or done
+            if temp_done:
+                break
         reward = temp_reward
         done = temp_done
 
@@ -295,7 +297,8 @@ def build_fadf(nn_stack, nn, sars, sfadf):
 
 
 def sares_generator_from_disk(model, nn_stack, nn, support, path,
-                              no_residuals=False):
+                              no_residuals=False, balanced=False,
+                              class_weight=None):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.pkl')
@@ -303,6 +306,13 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path,
     for f in files:
         sars = joblib.load(f)
         sfadf = build_sfadf(nn_stack, nn, support, sars)
+        F = pds_to_npa(sfadf.F)  # All features from NN stack
+        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
+        sample_weight = get_sample_weight(sars,
+                                          balanced=balanced,
+                                          class_weight=class_weight,
+                                          round_reward=True)
+        model.fit(F, D, sample_weight=sample_weight)
         sares = build_sares(model, sfadf)
         S = pds_to_npa(sares.S)
         A = pds_to_npa(sares.A)
@@ -310,7 +320,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path,
             RES = pds_to_npa(sfadf.D)
         else:
             RES = pds_to_npa(sares.RES)
-        yield S, A, RES
+        yield S, A, RES, sample_weight
 
 
 def build_fadf_no_preload(nn, sars, sfadf):
@@ -394,7 +404,8 @@ def get_class_weight(sars):
     return dict(zip(classes, weights))
 
 
-def get_sample_weight(sars, class_weight=None, round_reward=False):
+def get_sample_weight(sars, balanced=False, class_weight=None,
+                      round_reward=False):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -403,6 +414,8 @@ def get_sample_weight(sars, class_weight=None, round_reward=False):
     Args
         sars (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
             pd.Series with rewards.
+        balanced (bool, False): override class weights and use scikit-learn's 
+            weight method
         class_weight (dict, None): dictionary with classes as key and weights as
             values. If None, the dictionary will be computed using sklearn's
             method.
@@ -417,7 +430,7 @@ def get_sample_weight(sars, class_weight=None, round_reward=False):
     if round_reward:
         R = np.round(R)
 
-    if class_weight is None:
+    if class_weight is None and not balanced:
         class_weight = get_class_weight(R)
 
     sample_weight = [class_weight[r] for r in R]

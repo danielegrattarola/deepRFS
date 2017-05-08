@@ -100,7 +100,7 @@ parser.add_argument('--nn-analysis', action='store_true',
 parser.add_argument('--residual-model', type=str, default='linear',
                     help='Type of model to use for building residuals (\'linear'
                          '\', \'extra\')')
-parser.add_argument('--fqi-model-type', type=str, default='extra',
+parser.add_argument('--fqi-model-type', type=str, default='xgb',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
                          '\'extra\', \'xgb\')')
 parser.add_argument('--fqi-model', type=str, default=None,
@@ -118,7 +118,7 @@ parser.add_argument('--clip-nn0', action='store_true',
                     help='Clip reward for NN0 only')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
-parser.add_argument('--sars-episodes', type=int, default=300,
+parser.add_argument('--sars-episodes', type=int, default=500,
                     help='Number of SARS episodes to collect')
 parser.add_argument('--sars-to-disk', type=int, default=0,
                     help='Number of SARS episodes to collect to disk')
@@ -136,9 +136,9 @@ parser.add_argument('--nn0l1', type=float, default=0.001,
                     help='l1 normalization for NN0')
 parser.add_argument('--balanced-weights', action='store_true',
                     help='Use balanced weights instead of the custom ones')
-parser.add_argument('--fqi-iter', type=int, default=300,
+parser.add_argument('--fqi-iter', type=int, default=60,
                     help='Number of FQI iterations to run')
-parser.add_argument('--fqi-eval-period', type=int, default=5,
+parser.add_argument('--fqi-eval-period', type=int, default=1,
                     help='Number of FQI iterations between evaluations')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
@@ -148,7 +148,7 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
 
 # HYPERPARAMETERS
 sars_episodes = 10 if args.debug else args.sars_episodes  # Number of SARS episodes to collect
-nn_nb_epochs = 2 if args.debug else 300  # Number of training epochs for NNs
+nn_nb_epochs = 5 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
@@ -180,7 +180,6 @@ mdp = Atari(args.env, clip_reward=args.classify or args.clip)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
-# Create policy
 # Create ActionRegressor
 if args.fqi_model_type == 'extra':
     fqi_regressor_params = {'n_estimators': 50,
@@ -236,7 +235,6 @@ else:
 
 log('######## START ########')
 for i in range(algorithm_steps):
-    # NEURAL NETWORK 0 #
     log('######## STEP %s ########' % i)
 
     tic('Collecting SARS dataset')
@@ -252,8 +250,8 @@ for i in range(algorithm_steps):
     # TODO NN analysis
     if args.nn_analysis:
         test_split = int(0.9 * len(sars))
-        sars = sars[:test_split]
         test_sars = sars[test_split:]
+        sars = sars[:test_split]
 
     # Save SARS dataset
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
@@ -275,31 +273,22 @@ for i in range(algorithm_steps):
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
+
     # Clip reward
     if args.clip_nn0:
         R = np.clip(R, -1, 1)
 
-    # TODO NN analysis
-    if args.nn_analysis:
-        test_S = pds_to_npa(test_sars.S)
-        test_A = pds_to_npa(test_sars.A)
-        test_R = pds_to_npa(test_sars.R)
-        # Clip reward
-        if args.clip_nn0:
-            test_R = np.clip(test_R, -1, 1)
-
     # Compute sample weights
-    if args.balanced_weights:
-        sars_sample_weight = get_sample_weight(R)
-    else:
-        class_weight = {-100: 100,
-                        -1: 100,
-                        0: 1,
-                        1: 100,
-                        4: 100,
-                        7: 100}
-        sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
-                                               round_reward=True)
+    class_weight = {-100: 100,
+                    -1: 100,
+                    0: 1,
+                    1: 100,
+                    4: 100,
+                    7: 100}
+    sars_sample_weight = get_sample_weight(R,
+                                           balanced=args.balanced_weights,
+                                           class_weight=class_weight,
+                                           round_reward=True)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
@@ -338,16 +327,32 @@ for i in range(algorithm_steps):
                      chkpt_file='NN0_step%s.h5' % i)
     # Fit NN0
     nn.fit(S, A, R)
+    nn.load(logger.path + 'NN0_step%s.h5' % i)
 
     # Fit NN0 on the additional samples saved to disk
     if args.nn_from_disk and args.sars_to_disk > 0:
         log('Fitting NN0 on additional SARS samples')
-        sars_batches = sar_generator_from_disk(sars_path)
-        for S, A, R in sars_batches:
+        sar_batches = sar_generator_from_disk(sars_path)
+        for S, A, R in sar_batches:
+            nn.sample_weight = get_sample_weight(R,
+                                                 balanced=args.balanced_weights,
+                                                 class_weight=class_weight,
+                                                 round_reward=True)
             nn.fit(S, A, R)
+            nn.load(logger.path + 'NN0_step%s.h5' % i)
+    del S, A, R
+    toc()
 
     # TODO NN analysis
     if args.nn_analysis:
+        test_S = pds_to_npa(test_sars.S)
+        test_A = pds_to_npa(test_sars.A)
+        test_R = pds_to_npa(test_sars.R)
+
+        # Clip reward
+        if args.clip_nn0:
+            test_R = np.clip(test_R, -1, 1)
+
         pred = nn.predict(test_S, test_A)
         plt.suptitle('NN0 step %s' % i)
         plt.xlabel('Reward')
@@ -357,12 +362,8 @@ for i in range(algorithm_steps):
         plt.close()
         del test_A, test_S, test_R
 
-    del S, A, R
-    nn.load(logger.path + 'NN0_step%s.h5' % i)  # Load best network (saved by callback)
-    toc()
-
-    # ITERATIVE FEATURE SELECTION 0 #
-    tic('Building FARF dataset for IFS')
+    # ITERATIVE FEATURE SELECTION 0
+    tic('Building FARF dataset for IFS 0')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     del farf
@@ -420,7 +421,7 @@ for i in range(algorithm_steps):
     nn_stack.add(nn, support)
 
     for j in range(1, rec_steps + 1):
-        # RESIDUALS MODEL #
+        # RESIDUALS MODEL
         tic('Building SFADF dataset for residuals model')
         # State, features (stack), action, dynamics (nn), features (stack)
         sfadf = build_sfadf(nn_stack, nn, support, sars)
@@ -446,7 +447,7 @@ for i in range(algorithm_steps):
         del F, D
         toc()
 
-        # NEURAL NETWORK i #
+        # NEURAL NETWORK i
         tic('Building SARes dataset')
         # Frames, action, residual dynamics of last NN (Res = D - model(F))
         sares = build_sares(model, sfadf)
@@ -460,10 +461,16 @@ for i in range(algorithm_steps):
         del sares
 
         # TODO NN analysis
-        if args.nn_analysis:
-            test_S = pds_to_npa(test_sars.S)
-            test_A = pds_to_npa(test_sars.A)
-            test_RES = pds_to_npa(test_sars.RES)
+        if args.nn_analysis:  # Do it here because sfads needs nn
+            test_sfadf = build_sfadf(nn_stack, nn, support, test_sars)
+            test_sares = build_sares(model, test_sfadf)
+            test_S = pds_to_npa(test_sares.S)
+            test_A = pds_to_npa(test_sares.A)
+            if args.no_residuals:
+                test_RES = pds_to_npa(test_sfadf.D)
+            else:
+                test_RES = pds_to_npa(test_sares.RES)
+            del test_sfadf, test_sares
 
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
@@ -487,6 +494,7 @@ for i in range(algorithm_steps):
                      chkpt_file='NN%s_step%s.h5' % (j, i))
         # Fit NNi
         nn.fit(S, A, RES)
+        nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))
 
         # Fit NNi on the additional samples saved to disk
         if args.nn_from_disk and args.sars_to_disk > 0:
@@ -496,11 +504,15 @@ for i in range(algorithm_steps):
                                                       nn,
                                                       support,
                                                       sars_path,
-                                                      no_residuals=args.no_residuals)
-            for S, A, RES in sares_batches:
+                                                      no_residuals=args.no_residuals,
+                                                      balanced=args.balanced_weights,
+                                                      class_weight=class_weight)
+            for S, A, RES, sw in sares_batches:
+                nn.sample_weight = sw
                 nn.fit(S, A, RES)
-
+                nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))
         del S, A, RES
+        toc()
 
         # TODO NN analysis
         if args.nn_analysis:
@@ -517,12 +529,9 @@ for i in range(algorithm_steps):
                     plt.scatter(test_RES[:], pred[:], alpha=0.3)
                 plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
                 plt.close()
-            del test_A, test_S, test_R
+            del test_A, test_S, test_RES
 
-        nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))  # Load best network (saved by callback)
-        toc()
-
-        # ITERATIVE FEATURE SELECTION i #
+        # ITERATIVE FEATURE SELECTION i
         tic('Building FADF dataset for IFS %s' % j)
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
@@ -553,7 +562,7 @@ for i in range(algorithm_steps):
             log('Done.\n')
             break
 
-    # FITTED Q-ITERATION #
+    # FITTED Q-ITERATION
     tic('Building global FARF dataset for FQI')
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
@@ -566,7 +575,7 @@ for i in range(algorithm_steps):
             % (len(global_farf_2), len(global_farf)))
 
     sast, r = split_dataset_for_fqi(global_farf)
-    all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new ActionRegressor
+    all_features_dim = nn_stack.get_support_dim()  # Pass new dimension of states to create ActionRegressor
     action_values = np.unique(pds_to_npa(global_farf.A))
     log('Memory usage: %s MB' % get_size([sast, r], 'MB'))
     toc()

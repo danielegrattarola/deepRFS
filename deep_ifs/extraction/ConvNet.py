@@ -33,6 +33,13 @@ class ConvNet:
         else:
             self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20,
+                                verbose=1)
+
+        self.mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
+                                  save_best_only=True, save_weights_only=True,
+                                  verbose=1)
+
         # Build network
         self.input = Input(shape=self.input_shape)
         self.u = Input(shape=(1,), dtype='int32')
@@ -88,11 +95,6 @@ class ConvNet:
         if self.scaler is not None:
             y_train = self.scaler.fit_transform(y_train)
 
-        es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
-
-        mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
-                             save_best_only=True, save_weights_only=True)
-
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
@@ -101,7 +103,7 @@ class ConvNet:
                               class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
                               nb_epoch=self.nb_epochs, validation_split=0.1,
-                              callbacks=[es, mc])
+                              callbacks=[self.es, self.mc])
 
     def train_on_batch(self, x, u, y):
         """
