@@ -120,6 +120,8 @@ parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--sars-episodes', type=int, default=500,
                     help='Number of SARS episodes to collect')
+parser.add_argument('--sars-test-episodes', type=int, default=100,
+                    help='Number of SARS test episodes to collect')
 parser.add_argument('--sars-to-disk', type=int, default=0,
                     help='Number of SARS episodes to collect to disk')
 parser.add_argument('--nn-from-disk', action='store_true',
@@ -148,6 +150,7 @@ assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
 
 # HYPERPARAMETERS
 sars_episodes = 10 if args.debug else args.sars_episodes  # Number of SARS episodes to collect
+sars_test_episodes = 10 if args.debug else args.sars_test_episodes  # Number of SARS test episodes to collect
 nn_nb_epochs = 5 if args.debug else 300  # Number of training epochs for NNs
 algorithm_steps = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
@@ -249,9 +252,13 @@ for i in range(algorithm_steps):
 
     # TODO NN analysis
     if args.nn_analysis:
-        test_split = int(0.9 * len(sars))
-        test_sars = sars[test_split:]
-        sars = sars[:test_split]
+        test_sars = collect_sars(mdp,
+                                 policy,
+                                 episodes=sars_test_episodes,
+                                 debug=args.debug,
+                                 random_greedy_split=random_greedy_split,
+                                 initial_actions=initial_actions,
+                                 repeat=args.control_freq)
 
     # Save SARS dataset
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
@@ -273,6 +280,15 @@ for i in range(algorithm_steps):
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
+
+    if args.nn_analysis:
+        test_S = pds_to_npa(test_sars.S)
+        test_A = pds_to_npa(test_sars.A)
+        test_R = pds_to_npa(test_sars.R)
+
+        # Clip reward
+        if args.clip_nn0:
+            test_R = np.clip(test_R, -1, 1)
 
     # Clip reward
     if args.clip_nn0:
@@ -326,7 +342,7 @@ for i in range(algorithm_steps):
                      logger=logger,
                      chkpt_file='NN0_step%s.h5' % i)
     # Fit NN0
-    nn.fit(S, A, R)
+    nn.fit(S, A, R, validation_data=([test_S, test_A], test_R))
     nn.load(logger.path + 'NN0_step%s.h5' % i)
 
     # Fit NN0 on the additional samples saved to disk
@@ -341,21 +357,13 @@ for i in range(algorithm_steps):
             # Clip reward
             if args.clip_nn0:
                 R = np.clip(R, -1, 1)
-            nn.fit(S, A, R)
+            nn.fit(S, A, R, validation_data=([test_S, test_A], test_R))
             nn.load(logger.path + 'NN0_step%s.h5' % i)
     del S, A, R
     toc()
 
     # TODO NN analysis
     if args.nn_analysis:
-        test_S = pds_to_npa(test_sars.S)
-        test_A = pds_to_npa(test_sars.A)
-        test_R = pds_to_npa(test_sars.R)
-
-        # Clip reward
-        if args.clip_nn0:
-            test_R = np.clip(test_R, -1, 1)
-
         pred = nn.predict(test_S, test_A)
         plt.suptitle('NN0 step %s' % i)
         plt.xlabel('Reward')
@@ -496,7 +504,7 @@ for i in range(algorithm_steps):
                      logger=logger,
                      chkpt_file='NN%s_step%s.h5' % (j, i))
         # Fit NNi
-        nn.fit(S, A, RES)
+        nn.fit(S, A, RES, validation_data=([test_S, test_A], test_RES))
         nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))
 
         # Fit NNi on the additional samples saved to disk
@@ -512,7 +520,7 @@ for i in range(algorithm_steps):
                                                       class_weight=class_weight)
             for S, A, RES, sw in sares_batches:
                 nn.sample_weight = sw
-                nn.fit(S, A, RES)
+                nn.fit(S, A, RES, validation_data=([test_S, test_A], test_RES))
                 nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))
         del S, A, RES
         toc()
@@ -569,7 +577,7 @@ for i in range(algorithm_steps):
     tic('Building global FARF dataset for FQI')
     # Features (stack), action, reward, features (stack)
     global_farf = build_global_farf(nn_stack, sars)
-    del sars
+    del sars, test_sars
 
     if args.fqi_from_disk and args.sars_to_disk > 0:
         global_farf_2 = build_global_farf_from_disk(nn_stack, sars_path)

@@ -75,7 +75,7 @@ class ConvNet:
         self.model.compile(optimizer=self.optimizer, loss='mse',
                            metrics=['accuracy'])
 
-    def fit(self, x, u, y):
+    def fit(self, x, u, y, validation_data=None):
         """
         Trains the model on a set of batches.
 
@@ -100,7 +100,8 @@ class ConvNet:
         return self.model.fit([x_train, u_train], y_train,
                               class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
-                              nb_epoch=self.nb_epochs, validation_split=0.1,
+                              nb_epoch=self.nb_epochs,
+                              validation_data=validation_data,
                               callbacks=[self.es, self.mc])
 
     def train_on_batch(self, x, u, y):
