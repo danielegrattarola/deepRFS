@@ -338,6 +338,9 @@ for i in range(algorithm_steps):
                                                  balanced=args.balanced_weights,
                                                  class_weight=class_weight,
                                                  round_reward=True)
+            # Clip reward
+            if args.clip_nn0:
+                R = np.clip(R, -1, 1)
             nn.fit(S, A, R)
             nn.load(logger.path + 'NN0_step%s.h5' % i)
     del S, A, R
