@@ -33,12 +33,10 @@ class ConvNet:
         else:
             self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
-        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20,
-                                verbose=1)
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
 
         self.mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
-                                  save_best_only=True, save_weights_only=True,
-                                  verbose=1)
+                                  save_best_only=True, save_weights_only=True)
 
         # Build network
         self.input = Input(shape=self.input_shape)
