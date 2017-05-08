@@ -122,14 +122,8 @@ parser.add_argument('--sars-episodes', type=int, default=500,
                     help='Number of SARS episodes to collect')
 parser.add_argument('--sars-test-episodes', type=int, default=100,
                     help='Number of SARS test episodes to collect')
-parser.add_argument('--sars-to-disk', type=int, default=0,
+parser.add_argument('--sars-to-disk', type=int, default=1,
                     help='Number of SARS episodes to collect to disk')
-parser.add_argument('--nn-from-disk', action='store_true',
-                    help='Train the networks using also the additional SARS epsiodes'
-                         'from the disk')
-parser.add_argument('--fqi-from-disk', action='store_true',
-                    help='Train FQI using also the additional SARS epsiodes'
-                         'from the disk')
 parser.add_argument('--control-freq', type=int, default=2,
                     help='Control frequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
@@ -166,6 +160,12 @@ fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
 fqi_patience = fqi_iter  # Number of FQI iterations w/o improvement after which to stop
 fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
+class_weight = {-100: 100,
+                -1: 100,
+                0: 1,
+                1: 100,
+                4: 100,
+                7: 100}
 
 # SETUP
 logger = Logger(output_folder='../output/',
@@ -208,6 +208,7 @@ regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
 
 # Create EpsilonFQI
 if args.fqi_model is not None and args.nn_stack is not None:
+    tic('Loading policy from %s' % args.fqi_model)
     log('Loading NN stack from %s' % args.nn_stack)
     nn_stack.load(args.nn_stack)
     fqi_params = {'estimator': regressor,
@@ -217,14 +218,13 @@ if args.fqi_model is not None and args.nn_stack is not None:
                   'gamma': mdp.gamma,
                   'horizon': fqi_iter,
                   'verbose': True}
-    log('Loading policy from %s' % args.fqi_model)
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
                                          max_ep_len=max_eval_steps,
                                          n_episodes=3,
                                          initial_actions=initial_actions)
-    log('Loaded policy evaluation: %s' % str(evaluation_metrics))
+    toc('Loaded policy - evaluation: %s' % str(evaluation_metrics))
 else:
     fqi_params = {'estimator': regressor,
                   'state_dim': nn_stack.get_support_dim(),
@@ -237,19 +237,25 @@ else:
 
 
 log('######## START ########')
-for i in range(algorithm_steps):
-    log('######## STEP %s ########' % i)
+for step in range(algorithm_steps):
+    log('######## STEP %s ########' % step)
 
     tic('Collecting SARS dataset')
     # 4 frames, action, reward, 4 frames
-    sars = collect_sars(mdp,
-                        policy,
-                        episodes=sars_episodes,
-                        debug=args.debug,
-                        random_greedy_split=random_greedy_split,
-                        initial_actions=initial_actions,
-                        repeat=args.control_freq)
+    sars_path = logger.path + 'sars_%s/' % step
+    collect_sars_to_disk(mdp,
+                         policy,
+                         sars_path,
+                         datasets=args.sars_to_disk,
+                         episodes=sars_episodes,
+                         debug=args.debug,
+                         random_greedy_split=random_greedy_split,
+                         initial_actions=initial_actions,
+                         repeat=args.control_freq)
+    toc()
 
+    tic('Collecting test SARS dataset')
+    # Collect test dataset
     test_sars = collect_sars(mdp,
                              policy,
                              episodes=sars_test_episodes,
@@ -257,58 +263,27 @@ for i in range(algorithm_steps):
                              random_greedy_split=random_greedy_split,
                              initial_actions=initial_actions,
                              repeat=args.control_freq)
-
-    # Save SARS dataset
-    sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
-
-    if args.sars_to_disk > 0:
-        tic('Collecting additional SARS to disk')
-        sars_path = logger.path + 'sars_%s/' % i
-        os.mkdir(sars_path)
-        collect_sars_to_disk(mdp,
-                             policy,
-                             sars_path,
-                             episodes=args.sars_to_disk,
-                             random_greedy_split=random_greedy_split,
-                             debug=args.debug,
-                             initial_actions=initial_actions,
-                             repeat=args.control_freq)
-        toc()
-
-    S = pds_to_npa(sars.S)  # 4 frames
-    A = pds_to_npa(sars.A)  # Discrete action
-    R = pds_to_npa(sars.R)  # Scalar reward
-
     test_S = pds_to_npa(test_sars.S)
     test_A = pds_to_npa(test_sars.A)
     test_R = pds_to_npa(test_sars.R)
 
     # Clip reward
     if args.clip_nn0:
-        R = np.clip(R, -1, 1)
         test_R = np.clip(test_R, -1, 1)
 
-    # Compute sample weights
-    class_weight = {-100: 100,
-                    -1: 100,
-                    0: 1,
-                    1: 100,
-                    4: 100,
-                    7: 100}
-    sars_sample_weight = get_sample_weight(R,
-                                           balanced=args.balanced_weights,
-                                           class_weight=class_weight,
-                                           round_reward=True)
+    test_sars_sample_weight = get_sample_weight(test_R,
+                                                balanced=args.balanced_weights,
+                                                class_weight=class_weight,
+                                                round_reward=True)
 
-    log('Got %s SARS\' samples' % len(sars))
-    log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
-    toc()
+    toc('Got %s test SARS\' samples' % len(test_sars))
 
-    tic('Resetting NN stack')
+    log('Memory usage: %s MB\n' % get_size([test_sars, test_S, test_A, test_R], 'MB'))
+
+    log('Resetting NN stack')
     nn_stack.reset()  # Clear the stack after collecting SARS' with last policy
-    toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
+    log('Policy stack outputs %s features\n' % policy.nn_stack.get_support_dim())
 
-    tic('Fitting NN0')
     # NN: S -> R
     if args.classify:
         from sklearn.preprocessing import OneHotEncoder
@@ -319,56 +294,54 @@ for i in range(algorithm_steps):
                                nb_classes,
                                nb_actions=nb_actions,
                                l1_alpha=0.0,
-                               sample_weight=sars_sample_weight,
                                nb_epochs=nn_nb_epochs,
                                binarize=args.binarize,
                                logger=logger,
-                               chkpt_file='NN0_step%s.h5' % i)
+                               chkpt_file='NN0_step%s.h5' % step)
     else:
         target_size = 1  # Initial target is the scalar reward
         nn = ConvNet(mdp.state_shape,
                      target_size,
                      nb_actions=nb_actions,
                      l1_alpha=args.nn0l1,
-                     sample_weight=sars_sample_weight,
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
                      logger=logger,
-                     chkpt_file='NN0_step%s.h5' % i)
-    # Fit NN0
-    nn.fit(S, A, R, validation_data=([test_S, test_A], test_R))
-    nn.load(logger.path + 'NN0_step%s.h5' % i)
+                     chkpt_file='NN0_step%s.h5' % step)
 
-    # Fit NN0 on the additional samples saved to disk
-    if args.nn_from_disk and args.sars_to_disk > 0:
-        log('Fitting NN0 on additional SARS samples')
-        sar_batches = sar_generator_from_disk(sars_path)
-        for S, A, R in sar_batches:
-            nn.sample_weight = get_sample_weight(R,
-                                                 balanced=args.balanced_weights,
-                                                 class_weight=class_weight,
-                                                 round_reward=True)
-            # Clip reward
-            if args.clip_nn0:
-                R = np.clip(R, -1, 1)
-            nn.fit(S, A, R, validation_data=([test_S, test_A], test_R))
-            nn.load(logger.path + 'NN0_step%s.h5' % i)
-    del S, A, R
+    # Fit NN0
+    tic('Fitting NN0 (target: R)')
+    sar_batches = sar_generator_from_disk(sars_path)
+    for S, A, R in sar_batches:
+        nn.sample_weight = get_sample_weight(R,
+                                             balanced=args.balanced_weights,
+                                             class_weight=class_weight,
+                                             round_reward=True)
+        # Clip reward
+        if args.clip_nn0:
+            R = np.clip(R, -1, 1)
+
+        nn.fit(S, A, R, validation_data=([test_S, test_A], test_R))
+        nn.load(logger.path + 'NN0_step%s.h5' % step)
     toc()
+
+    del S, A, R
 
     # TODO NN analysis
     if args.nn_analysis:
         pred = nn.predict(test_S, test_A)
-        plt.suptitle('NN0 step %s' % i)
+        plt.suptitle('NN0 step %s' % step)
         plt.xlabel('Reward')
         plt.ylabel('NN prediction')
         plt.scatter(test_R, pred, alpha=0.3)
-        plt.savefig(logger.path + 'NN0_step%s_R.png' % i)
+        plt.savefig(logger.path + 'NN0_step%s_R.png' % step)
         plt.close()
+
     del test_A, test_S, test_R
 
     # ITERATIVE FEATURE SELECTION 0
-    tic('Building FARF dataset for IFS 0')
+    tic('Building dataset for IFS 0')
+    sars = sars_from_disk(sars_path, datasets=1)
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
     del farf
@@ -380,11 +353,11 @@ for i in range(algorithm_steps):
     ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     # Print the number of nonzero features
     nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
-    log('Number of non-zero feature: %s' % nonzero_mfv_counts)
-    log('Memory usage: %s MB' % get_size([ifs_x, ifs_y], 'MB'))
-    toc()
+    toc('Number of non-zero feature: %s' % nonzero_mfv_counts)
 
-    tic('Running IFS with target R')
+    log('Memory usage: %s MB\n' % get_size([ifs_x, ifs_y], 'MB'))
+
+    tic('Running IFS (target: R)')
     ifs_estimator_params = {'n_estimators': ifs_nb_trees,
                             'n_jobs': -1}
     ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
@@ -400,11 +373,10 @@ for i in range(algorithm_steps):
     support = support[:-1]  # Remove action from support
     nb_new_features = np.array(support).sum()
     r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
-    log('Features:\n%s' % np.array(support).nonzero())
+    log('Features: %s' % np.array(support).nonzero())
     log('IFS - New features: %s' % nb_new_features)
     log('Action was%s selected' % ('' if got_action else ' NOT'))
-    log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
-    toc()
+    toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
 
     # TODO Debug
     if args.debug:
@@ -413,7 +385,7 @@ for i in range(algorithm_steps):
     # TODO farf analysis
     if args.farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
-        log('Mean feature values\n%s' % np.mean(ifs_x[:, feature_idxs], axis=0))
+        log('Mean feature values\n%s\n' % np.mean(ifs_x[:, feature_idxs], axis=0))
         for f in feature_idxs:
             np.save(logger.path + 'farf_feature_%s.npy' % f,
                     ifs_x[:, f].reshape(-1))
@@ -423,106 +395,68 @@ for i in range(algorithm_steps):
             plt.close()
 
     del ifs_x, ifs_y
+
+    # Add network to support
     nn_stack.add(nn, support)
 
-    for j in range(1, rec_steps + 1):
-        # RESIDUALS MODEL
-        tic('Building SFADF dataset for residuals model')
-        # State, features (stack), action, dynamics (nn), features (stack)
-        sfadf = build_sfadf(nn_stack, nn, support, sars)
-        F = pds_to_npa(sfadf.F)  # All features from NN stack
-        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
-        log('Mean dynamic values %s' % np.mean(D, axis=0))
-        log('Dynamic values variance %s' % np.std(D, axis=0))
-        log('Max dynamic values %s' % np.max(D, axis=0))
-        log('Memory usage: %s MB' % get_size([sfadf, F, D], 'MB'))
-        toc()
-
-        tic('Fitting residuals model')
+    for i in range(1, rec_steps + 1):
+        # Residual model
         if args.residual_model == 'extra':
-            max_depth = 1 + F.shape[1] / 2
+            max_depth = 1 + nn_stack.get_support_dim() / 2
             model = ExtraTreesRegressor(n_estimators=50,
                                         max_depth=max_depth,
                                         n_jobs=-1)
         elif args.residual_model == 'linear':
             model = LinearRegression(n_jobs=-1)
 
-        # Train residuals model
-        model.fit(F, D, sample_weight=sars_sample_weight)
-        del F, D
-        toc()
-
-        # NEURAL NETWORK i
-        tic('Building SARes dataset')
-        # Frames, action, residual dynamics of last NN (Res = D - model(F))
-        sares = build_sares(model, sfadf)
-        S = pds_to_npa(sares.S)  # 4 frames
-        A = pds_to_npa(sares.A)  # Discrete action
-        if args.no_residuals:
-            log('Ignoring residuals, using only dynamics.')
-            RES = pds_to_npa(sfadf.D)
-        else:
-            RES = pds_to_npa(sares.RES)  # Residuals of last NN
-        del sares
-
+        # SFADF and test SFADF
+        sfadf = build_sfadf(nn_stack, nn, support, sars)  # Used for next IFS
         test_sfadf = build_sfadf(nn_stack, nn, support, test_sars)
-        test_sares = build_sares(model, test_sfadf)
-        test_S = pds_to_npa(test_sares.S)
-        test_A = pds_to_npa(test_sares.A)
-        if args.no_residuals:
-            test_RES = pds_to_npa(test_sfadf.D)
-        else:
-            test_RES = pds_to_npa(test_sares.RES)
-        del test_sfadf, test_sares
 
-        log('Mean residual values %s' % np.mean(RES, axis=0))
-        log('Residual values variance %s' % np.std(RES, axis=0))
-        log('Max residual values %s' % np.max(RES, axis=0))
-        log('Memory usage: %s MB' % get_size([S, A, RES], 'MB'))
-        toc()
-
-        tic('Fitting NN%s' % j)
-        image_shape = S.shape[1:]
-        target_size = RES.shape[1] if len(RES.shape) > 1 else 1
-        # NN maps frames to residual dynamics of last NN
+        # Neural network
+        image_shape = mdp.state_shape
+        target_size = support.sum().astype('int32')
         nn = ConvNet(image_shape,
                      target_size,
                      nb_actions=nb_actions,
                      l1_alpha=0.0,
-                     sample_weight=sars_sample_weight,
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
                      scaler=StandardScaler(),
                      logger=logger,
-                     chkpt_file='NN%s_step%s.h5' % (j, i))
-        # Fit NNi
-        nn.fit(S, A, RES, validation_data=([test_S, test_A], test_RES))
-        nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))
+                     chkpt_file='NN%s_step%s.h5' % (i, step))
 
-        # Fit NNi on the additional samples saved to disk
-        if args.nn_from_disk and args.sars_to_disk > 0:
-            log('Fitting NN%s on additional SARS samples' % i)
-            sares_batches = sares_generator_from_disk(model,
-                                                      nn_stack,
-                                                      nn,
-                                                      support,
-                                                      sars_path,
-                                                      no_residuals=args.no_residuals,
-                                                      balanced=args.balanced_weights,
-                                                      class_weight=class_weight)
-            for S, A, RES, sw in sares_batches:
-                nn.sample_weight = sw
-                nn.fit(S, A, RES, validation_data=([test_S, test_A], test_RES))
-                nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))
-        del S, A, RES
+        # Fit NNi
+        tic('Fitting NN%s' % i)
+        sares_batches = sares_generator_from_disk(model,
+                                                  nn_stack,
+                                                  nn,
+                                                  support,
+                                                  sars_path,
+                                                  no_residuals=args.no_residuals,
+                                                  balanced=args.balanced_weights,
+                                                  class_weight=class_weight,
+                                                  test_sfadf=test_sfadf)
+        for S, A, RES, sw, test_sares in sares_batches:
+            # Test data
+            test_S = pds_to_npa(test_sares.S)
+            test_A = pds_to_npa(test_sares.A)
+            test_RES = pds_to_npa(test_sfadf.D) if args.no_residuals else pds_to_npa(test_sares.RES)
+
+            # Fit network
+            nn.sample_weight = sw
+            nn.fit(S, A, RES, validation_data=([test_S, test_A], test_RES))
+            nn.load(logger.path + 'NN%s_step%s.h5' % (i, step))
         toc()
+
+        del S, A, RES, test_sares, test_sfadf
 
         # TODO NN analysis
         if args.nn_analysis:
             pred = nn.predict(test_S, test_A)
             for f in range(target_size):
                 plt.figure()
-                plt.suptitle('NN%s step %s' % (j, i))
+                plt.suptitle('NN%s step %s' % (i, step))
                 plt.xlabel('Residual feature %s of %s' % (f, target_size))
                 plt.ylabel('NN prediction')
                 if target_size > 1:
@@ -530,21 +464,23 @@ for i in range(algorithm_steps):
                 else:
                     # Will only run the loop once
                     plt.scatter(test_RES[:], pred[:], alpha=0.3)
-                plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (j, i, f))
+                plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (i, step, f))
                 plt.close()
+
         del test_A, test_S, test_RES
 
         # ITERATIVE FEATURE SELECTION i
-        tic('Building FADF dataset for IFS %s' % j)
+        tic('Building FADF dataset for IFS %s' % i)
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
         fadf = build_fadf(nn_stack, nn, sars, sfadf)
         del sfadf
         ifs_x, ifs_y = split_dataset_for_ifs(fadf, features='F', target='D')
         del fadf
-        log('Memory usage: %s MB' % get_size([ifs_x, ifs_y], 'MB'))
         toc()
 
-        tic('Running IFS %s with target D' % j)
+        log('Memory usage: %s MB\n' % get_size([ifs_x, ifs_y], 'MB'))
+
+        tic('Running IFS %s with target D' % i)
         ifs = IFS(**ifs_params)
         preload_features = range(nn_stack.get_support_dim())
         ifs.fit(ifs_x, ifs_y, preload_features=preload_features)
@@ -556,44 +492,34 @@ for i in range(algorithm_steps):
         r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
         log('IFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
-        log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
-        toc()
+        toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
 
         nn_stack.add(nn, support)
 
         if nb_new_features == 0 or r2_change < r2_change_threshold:
-            log('Done.\n')
+            log('Feature extraction done.\n')
             break
 
     # FITTED Q-ITERATION
     tic('Building global FARF dataset for FQI')
-    # Features (stack), action, reward, features (stack)
-    global_farf = build_global_farf(nn_stack, sars)
-    del sars, test_sars
-
-    if args.fqi_from_disk and args.sars_to_disk > 0:
-        global_farf_2 = build_global_farf_from_disk(nn_stack, sars_path)
-        global_farf = global_farf.append(global_farf_2, ignore_index=True)
-        log('Got %s additional FARF samples for a total of %s'
-            % (len(global_farf_2), len(global_farf)))
-
+    global_farf = build_global_farf_from_disk(nn_stack, sars_path)
     sast, r = split_dataset_for_fqi(global_farf)
     all_features_dim = nn_stack.get_support_dim()  # Pass new dimension of states to create ActionRegressor
     action_values = np.unique(pds_to_npa(global_farf.A))
-    log('Memory usage: %s MB' % get_size([sast, r], 'MB'))
-    toc()
+    toc('Got %s samples' % len(global_farf))
+
+    log('Memory usage: %s MB\n' % get_size([sast, r], 'MB'))
 
     # Save dataset
     tic('Saving global FARF and NNStack')
-    global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % i)
+    global_farf.to_pickle(logger.path + 'global_farf_%s.pickle' % step)
     del global_farf
-
     # Save nn_stack
-    os.mkdir(logger.path + 'nn_stack_%s/' % i)
-    nn_stack.save(logger.path + 'nn_stack_%s/' % i)
+    os.mkdir(logger.path + 'nn_stack_%s/' % step)
+    nn_stack.save(logger.path + 'nn_stack_%s/' % step)
     toc()
 
-    tic('Updating policy %s' % i)
+    tic('Updating policy %s' % step)
     nb_reward_features = nn_stack.get_support_dim(index=0)
     nb_dynamics_features = nn_stack.get_support_dim() - nb_reward_features
     log('%s reward features' % nb_reward_features)
@@ -622,9 +548,9 @@ for i in range(algorithm_steps):
                                             initial_actions=initial_actions,
                                             save_video=args.save_video,
                                             save_path=logger.path,
-                                            append_filename='fqi_step_%03d_iter_%03d' % (i, partial_iter))
+                                            append_filename='fqi_step_%03d_iter_%03d' % (step, partial_iter))
             policy.save_fqi(logger.path + 'fqi_step_%03d_iter_%03d_score_%s.pkl'
-                            % (i, partial_iter, round(fqi_best[0])))
+                            % (step, partial_iter, round(fqi_best[0])))
             log('Evaluation: %s' % str(es_evaluation))
             if es_evaluation[0] > fqi_best[0]:
                 log('Saving best policy')
@@ -632,7 +558,7 @@ for i in range(algorithm_steps):
                 fqi_current_patience = fqi_patience
                 # Save best policy to restore it later
                 policy.save_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
-                                % (i, round(fqi_best[0])))
+                                % (step, round(fqi_best[0])))
             else:
                 fqi_current_patience -= 1
                 if fqi_current_patience == 0:
@@ -640,17 +566,17 @@ for i in range(algorithm_steps):
 
     # Restore best policy
     policy.load_fqi(logger.path + 'best_fqi_%03d_score_%s.pkl'
-                    % (i, round(fqi_best[0])))
+                    % (step, round(fqi_best[0])))
 
     # Decrease R/G split
     if random_greedy_split - random_greedy_step >= final_random_greedy_split:
         random_greedy_split -= random_greedy_step
     else:
         random_greedy_split = final_random_greedy_split
+    toc()
 
     del sast, r
     gc.collect()
-    toc()
 
     tic('Evaluating best policy after update')
     evaluation_metrics = evaluate_policy(mdp,
@@ -659,12 +585,12 @@ for i in range(algorithm_steps):
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,
-                                         append_filename='best_step_%03d' % i,
+                                         append_filename='best_step_%03d' % step,
                                          initial_actions=initial_actions)
     evaluation_results.append(evaluation_metrics)
     toc(evaluation_results)
 
-    log('######## DONE %s ########' % i + '\n')
+    log('######## DONE %s ########' % step + '\n')
 
 # FINAL OUTPUT #
 # Plot evaluation results
@@ -673,8 +599,9 @@ evaluation_results = pd.DataFrame(evaluation_results,
                                   columns=['score', 'confidence_score',
                                            'steps', 'confidence_steps'])
 evaluation_results.to_csv('evaluation.csv', index=False)
-fig = evaluation_results[['score', 'steps']].plot().get_figure()
-fig.savefig(logger.path + 'evaluation.png')
-
+fig = evaluation_results['score'].plot().get_figure()
+fig.savefig(logger.path + 'score_evaluation.png')
+fig = evaluation_results['steps'].plot().get_figure()
+fig.savefig(logger.path + 'steps_evaluation.png')
 toc('Done. Exit...')
 # END #

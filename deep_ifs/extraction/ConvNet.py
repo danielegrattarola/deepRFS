@@ -83,33 +83,33 @@ class ConvNet:
             x: samples on which to train.
             u: actions associated to the samples.
             y: targets on which to train.
+            validation_data: tuple ([X, U], Y) to use as validation data
         Returns
             The metrics of interest as defined in the model (loss, accuracy,
                 etc.)
         """
+        # Preprocess training data
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
         y_train = np.asarray(y)
         if self.scaler is not None:
             y_train = self.scaler.fit_transform(y_train)
-
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
 
+        # Preprocess validation data
         if validation_data:
-            val_x = np.asarray(
-                validation_data[0][0]).astype('float32') / 255
+            val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
             val_u = np.asarray(validation_data[0][1])
             val_y = np.asarray(validation_data[1])
             if self.scaler is not None:
                 val_y = self.scaler.fit_transform(val_y)
-
             if self.binarize:
                 val_x[val_x < 0.1] = 0
                 val_x[val_x >= 0.1] = 1
-
             validation_data = ([val_x, val_u], val_y)
+
         return self.model.fit([x_train, u_train], y_train,
                               class_weight=self.class_weight,
                               sample_weight=self.sample_weight,

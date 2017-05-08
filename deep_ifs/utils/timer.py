@@ -25,14 +25,11 @@ def toc(message=None):
     n_tabs = (len(time_stack) - 1)
     try:
         output = '\t' * n_tabs + fmt % (time() - time_stack.pop())
+        if message:
+            output = '\t' * n_tabs + str(message) + '\n' + output
         print output
         if logfile is not None:
             logfile.write(output + '\n')
-        if message:
-            output = '\t' * n_tabs + str(message)
-            print output
-            if logfile is not None:
-                logfile.write(output + '\n')
         print ''
     except IndexError:
         print "You have to invoke toc() before calling tic()\n"

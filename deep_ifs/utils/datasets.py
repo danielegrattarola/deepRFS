@@ -136,13 +136,13 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
     return pd.DataFrame(dataset, columns=header)
 
 
-def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
+def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
                          n_jobs=1, random_greedy_split=0.9, debug=False,
                          initial_actions=None, shuffle=True, repeat=1):
     """
-    Collects a dataset of SARS' transitions of the given MDP and saves it to
-    disk in blocks of block_size episodes.
-    A percentage of the samples (random_greedy_split) is collected with a fully
+    Collects datasets of SARS' transitions of the given MDP and saves them to
+    disk.
+    A percentage of each dataset (random_greedy_split) is collected with a fully
     random policy, whereas the remaining part is collected with a greedy policy.
 
     Args
@@ -150,10 +150,10 @@ def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
         policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
             Methods draw_action and set_epsilon are expected.
         path (str): folder in which to save the dataset.
-        episodes (int, 100): number of episodes to collect.
-        block_size (int, 10): number of episodes in a block.
+        datasets (int, 100): number of datasets to collect.
+        episodes (int, 100): number of episodes in a dataset.
         n_jobs (int, 1): number of processes to use (-1 for all available cores).
-            Leave 1 if running stuff on GPU.
+            Leave 1 if running on GPU.
         random_greedy_split (float, 0.9): percentage of random episodes to
             collect.
         debug (bool, False): collect the episodes in debug mode (only a very
@@ -162,41 +162,66 @@ def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
             episode of the MDP.
         shuffle (bool, True): whether to shuffle the dataset before returning
             it.
-
-    Return
-        A SARS' dataset as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
+        repeat (int, 1): control frequency for the policy.
     """
     if not path.endswith('/'):
         path += '/'
     if not os.path.exists(path):
         os.mkdir(path)
-    nb_blocks = episodes / block_size
-    last_block = episodes % block_size
 
-    for i in tqdm(range(nb_blocks)):
-        sars = collect_sars(mdp, policy, episodes=block_size, n_jobs=n_jobs,
+    for i in range(datasets):
+        sars = collect_sars(mdp, policy, episodes=episodes, n_jobs=n_jobs,
                             random_greedy_split=random_greedy_split,
                             debug=debug, initial_actions=initial_actions,
                             shuffle=shuffle, repeat=repeat)
         sars.to_pickle(path + 'sars_%s.pkl' % i)
 
-    # Last batch
-    if last_block > 0:
-        sars = collect_sars(mdp, policy, episodes=last_block, n_jobs=n_jobs,
-                            random_greedy_split=random_greedy_split,
-                            debug=debug, initial_actions=initial_actions,
-                            shuffle=shuffle, repeat=repeat)
-        sars.to_pickle(path + 'sars_%s.pkl' % nb_blocks)
-
 
 def sar_generator_from_disk(path):
+    """
+    Generator of S, A, R arrays from SARS datasets saved in path.
+    
+    Args
+        path (str): path to folder containing 'sars_*.pkl' files (as collected
+            with collect_sars_to_disk)
+    
+    Yield
+        (S, A, R) (np.array, np.array, np.array): np.arrays with states, 
+            actions and rewards from each SARS dataset in path.
+     
+    """
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.pkl')
     print 'Got %s files' % len(files)
     for f in files:
         sars = joblib.load(f)
-        yield pds_to_npa(sars.S), pds_to_npa(sars.A), pds_to_npa(sars.R)
+        S = pds_to_npa(sars.S)
+        A = pds_to_npa(sars.A)
+        R = pds_to_npa(sars.R)
+        del sars
+        yield S, A, R
+
+
+def sars_from_disk(path, datasets=1):
+    """
+    Args
+        path (str): path to folder containing 'sars_*.pkl' files (as collected
+            with collect_sars_to_disk)
+        datasets (int, 1): number of datasets to read and merge.
+
+    Return
+        A single SARS' dataset composed of the first n datasets in path, 
+        as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
+    """
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.pkl')
+    files = files[:datasets]
+    sars = pd.DataFrame()
+    for f in files:
+        sars = sars.append(joblib.load(f), ignore_index=True)
+    return sars
 
 
 def build_farf(nn, sars):
@@ -256,25 +281,6 @@ def build_sfad(nn_stack, nn, support, sars):
     return df
 
 
-def build_sares(model, sfadf):
-    """
-    Builds SARes dataset from SFADF':
-        S = S
-        A = A
-        Res = D - M(F)
-    """
-    header = ['S', 'A', 'RES']
-    df = pd.DataFrame(columns=header)
-    df['S'] = sfadf.S
-    df['A'] = sfadf.A
-    dynamics = pds_to_npa(sfadf.D)
-    features = pds_to_npa(sfadf.F)
-    predictions = model.predict(features)
-    residuals = dynamics - predictions
-    df['RES'] = residuals.tolist()
-    return df
-
-
 def build_fadf(nn_stack, nn, sars, sfadf):
     """
     Builds new FADF' dataset from SARS' and SFADF':
@@ -296,33 +302,6 @@ def build_fadf(nn_stack, nn, sars, sfadf):
     return df
 
 
-def sares_generator_from_disk(model, nn_stack, nn, support, path,
-                              no_residuals=False, balanced=False,
-                              class_weight=None):
-    if not path.endswith('/'):
-        path += '/'
-    files = glob.glob(path + 'sars_*.pkl')
-    print 'Got %s files' % len(files)
-    for f in files:
-        sars = joblib.load(f)
-        sfadf = build_sfadf(nn_stack, nn, support, sars)
-        F = pds_to_npa(sfadf.F)  # All features from NN stack
-        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
-        sample_weight = get_sample_weight(sars,
-                                          balanced=balanced,
-                                          class_weight=class_weight,
-                                          round_reward=True)
-        model.fit(F, D, sample_weight=sample_weight)
-        sares = build_sares(model, sfadf)
-        S = pds_to_npa(sares.S)
-        A = pds_to_npa(sares.A)
-        if no_residuals:
-            RES = pds_to_npa(sfadf.D)
-        else:
-            RES = pds_to_npa(sares.RES)
-        yield S, A, RES, sample_weight
-
-
 def build_fadf_no_preload(nn, sars, sfadf):
     """
     Builds new FADF' dataset from SARS' and SFADF':
@@ -338,6 +317,83 @@ def build_fadf_no_preload(nn, sars, sfadf):
     df['D'] = sfadf.D
     df['FF'] = nn.all_features(pds_to_npa(sars.SS)).tolist()
     return df
+
+
+def build_sares(model, sfadf, no_residuals=False):
+    """
+    Builds SARes dataset from SFADF':
+        S = S
+        A = A
+        Res = D - M(F)
+    """
+    header = ['S', 'A', 'RES']
+    df = pd.DataFrame(columns=header)
+    df['S'] = sfadf.S
+    df['A'] = sfadf.A
+    dynamics = pds_to_npa(sfadf.D)
+    features = pds_to_npa(sfadf.F)
+    if no_residuals:
+        df['RES'] = sfadf.D
+    else:
+        predictions = model.predict(features)
+        residuals = dynamics - predictions
+        df['RES'] = residuals.tolist()
+    return df
+
+
+def sares_generator_from_disk(model, nn_stack, nn, support, path,
+                              no_residuals=False, balanced=False,
+                              class_weight=None, test_sfadf=None):
+    """
+    Generator of S, A, RES arrays from SARS datasets saved in path.
+
+    Args
+        model: residual model M: F -> D
+        nn_stack (NNStack)
+        nn (ConvNet or GenericEncoder)
+        support (np.array): support mask for nn
+        path (str): path to folder containing 'sars_*.pkl' files (as collected
+            with collect_sars_to_disk)
+        no_residuals (bool, False): whether to return residuals or dynamics in 
+            the RES column of the sares dataset.
+        balanced (bool, False): passed to the get_sample_weight method 
+        class_weigth (dict, None): passed to the get_sample_weight method 
+        test_sfadf (pd.DataFrame, None): compute the test SARES dataset from 
+            this dataset.
+
+    Yield
+        (S, A, RES, sample_weights, test_sares) (np.array, np.array, np.array,
+            np.array, pd.DataFrame): np.arrays with states, actions and 
+            residuals, sample weights calculated on the reward column, test 
+            SARES dataset calculated using the model fitted on the current SARS,
+            for each SARS dataset in path.
+    """
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.pkl')
+    print 'Got %s files' % len(files)
+
+    for f in files:
+        sars = joblib.load(f)
+        sfadf = build_sfadf(nn_stack, nn, support, sars)
+        F = pds_to_npa(sfadf.F)  # All features from NN stack
+        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
+        sample_weight = get_sample_weight(sars,
+                                          balanced=balanced,
+                                          class_weight=class_weight,
+                                          round_reward=True)
+        model.fit(F, D, sample_weight=sample_weight)
+        sares = build_sares(model, sfadf, no_residuals=no_residuals)
+        S = pds_to_npa(sares.S)
+        A = pds_to_npa(sares.A)
+        RES = pds_to_npa(sares.RES)
+
+        if test_sfadf:
+            test_sares = build_sares(model, test_sfadf, no_residuals=no_residuals)
+        else:
+            test_sares = None
+
+        yield S, A, RES, sample_weight, test_sares
 
 
 def build_global_farf(nn_stack, sars):
