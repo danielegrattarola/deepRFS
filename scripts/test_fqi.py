@@ -1,4 +1,5 @@
 import argparse
+import numpy as np
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import evaluate_policy
 from deep_ifs.extraction.NNStack import NNStack
@@ -20,9 +21,17 @@ parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
                     help='Atari environment on which to run the algorithm')
 parser.add_argument('--episodes', type=int, default=10,
                     help='Number of episodes to run in evaluation')
+parser.add_argument('--max-eval-steps', type=int, default=500,
+                    help='Max number of steps in an episode (-1 for inf)')
 args = parser.parse_args()
 
-max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
+# Max length of evaluation episodes
+if args.debug:
+    max_eval_steps = 2
+elif args.max_eval_steps == -1:
+    max_eval_steps = np.inf
+else:
+    max_eval_steps = args.max_eval_steps
 
 logger = Logger(output_folder='../output/', custom_run_name='test%Y%m%d-%H%M%S')
 mdp = Atari(args.env)
