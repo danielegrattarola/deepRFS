@@ -9,6 +9,7 @@ import joblib
 import os
 
 
+# DATASET BUILDERS
 def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
     """
     Collects an episode of the given MDP using the given policy.
@@ -133,108 +134,67 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
     return pd.DataFrame(dataset, columns=header)
 
 
-def get_class_weight(sars):
+def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
+                         n_jobs=1, random_greedy_split=0.9, debug=False,
+                         initial_actions=None, shuffle=True, repeat=1):
     """
-    Returns a dictionary with classes (reward values) as keys and weights as
-    values.
-    The return value can be passed directly to Keras's class_weight parameter
-    in model.fit.
+    Collects a dataset of SARS' transitions of the given MDP and saves it to
+    disk in blocks of block_size episodes.
+    A percentage of the samples (random_greedy_split) is collected with a fully
+    random policy, whereas the remaining part is collected with a greedy policy.
 
     Args
-        sars (pd.DataFrame): a SARS' dataset in pandas format.
+        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
+        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
+            Methods draw_action and set_epsilon are expected.
+        path (str): folder in which to save the dataset.
+        episodes (int, 100): number of episodes to collect.
+        block_size (int, 10): number of episodes in a block.
+        n_jobs (int, 1): number of processes to use (-1 for all available cores).
+            Leave 1 if running stuff on GPU.
+        random_greedy_split (float, 0.9): percentage of random episodes to
+            collect.
+        debug (bool, False): collect the episodes in debug mode (only a very
+            small fraction of transitions will be returned).
+        initial_actions (list, None): list of action indices that start an
+            episode of the MDP.
+        shuffle (bool, True): whether to shuffle the dataset before returning
+            it.
+
+    Return
+        A SARS' dataset as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
     """
-    if isinstance(sars, pd.DataFrame):
-        R = pds_to_npa(sars.R)
-    elif isinstance(sars, pd.Series):
-        R = pds_to_npa(sars)
-    else:
-        R = sars
+    if not path.endswith('/'):
+        path += '/'
+    if not os.path.exists(path):
+        os.mkdir(path)
+    nb_blocks = episodes / block_size
+    last_block = episodes % block_size
 
-    classes = np.unique(R)
-    y = pds_to_npa(R)
-    weights = compute_class_weight('balanced', classes, y)
-    return dict(zip(classes, weights))
+    for i in tqdm(range(nb_blocks)):
+        sars = collect_sars(mdp, policy, episodes=block_size, n_jobs=n_jobs,
+                            random_greedy_split=random_greedy_split,
+                            debug=debug, initial_actions=initial_actions,
+                            shuffle=shuffle, repeat=repeat)
+        sars.to_pickle(path + 'sars_%s.pkl' % i)
 
-
-def get_sample_weight(sars, class_weight=None, round=False):
-    """
-    Returns a list with the class weight of each sample.
-    The return value can be passed directly to Keras's sample_weight parameter
-    in model.fit
-
-    Args
-        sars (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
-            pd.Series with rewards.
-        class_weight (dict, None): dictionary with classes as key and weights as
-            values. If None, the dictionary will be computed using sklearn's
-            method.
-        round (bool, False): round the rewards to the nearest integer before
-            applying the class weights.
-    """
-    if isinstance(sars, pd.DataFrame):
-        R = pds_to_npa(sars.R)
-    else:
-        R = sars
-
-    if round:
-        R = np.round(R)
-
-    if class_weight is None:
-        class_weight = get_class_weight(R)
-
-    sample_weight = [class_weight[r] for r in R]
-    return np.array(sample_weight)
+    # Last batch
+    if last_block > 0:
+        sars = collect_sars(mdp, policy, episodes=last_block, n_jobs=n_jobs,
+                            random_greedy_split=random_greedy_split,
+                            debug=debug, initial_actions=initial_actions,
+                            shuffle=shuffle, repeat=repeat)
+        sars.to_pickle(path + 'sars_%s.pkl' % nb_blocks)
 
 
-def split_dataset_for_ifs(dataset, features='F', target='R'):
-    """
-    Splits the dataset into x = features + actions, y = target
-
-    Args
-        dataset (pd.DataFrame): a dataset in pandas format.
-        features (str, 'F'): key to index the dataset
-        target (str, 'R'): key to index the dataset
-    """
-    f = pds_to_npa(dataset[features])
-    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
-    x = np.concatenate((f, a), axis=1)
-    y = pds_to_npa(dataset[target])
-    return x, y
-
-
-def split_dataset_for_rfs(dataset, features='F', next_features='FF', target='R'):
-    """
-    Splits the dataset into f = features, a = actions, ff = features of next
-    states, y = target.
-
-    Args
-        dataset (pd.DataFrame): a dataset in pandas format.
-        features (str, 'F'): key to index the dataset
-        next_features (str, 'FF'): key to index the dataset
-        target (str, 'R'): key to index the dataset
-    """
-    f = pds_to_npa(dataset[features])
-    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
-    ff = pds_to_npa(dataset[next_features])
-    y = pds_to_npa(dataset[target])
-    return f, a, ff, y
-
-
-def split_dataset_for_fqi(global_farf):
-    """
-    Splits the dataset into faft = features + actions + features of next state,
-    r = reward
-
-    Args
-        global_farf (pd.DataFrame): a dataset in pandas format.
-    """
-    f = pds_to_npa(global_farf.F)
-    a = global_farf.A.as_matrix()
-    ff = pds_to_npa(global_farf.FF)
-    done = global_farf.DONE.as_matrix()
-    r = pds_to_npa(global_farf.R)
-    faft = np.column_stack((f, a, ff, done))
-    return faft, r
+def sar_generator_from_disk(path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.pkl')
+    print 'Got %s files' % len(files)
+    for f in files:
+        sars = joblib.load(f)
+        yield pds_to_npa(sars.S), pds_to_npa(sars.A), pds_to_npa(sars.R)
 
 
 def build_farf(nn, sars):
@@ -334,6 +294,25 @@ def build_fadf(nn_stack, nn, sars, sfadf):
     return df
 
 
+def sares_generator_from_disk(model, nn_stack, nn, support, path,
+                              no_residuals=False):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.pkl')
+    print 'Got %s files' % len(files)
+    for f in files:
+        sars = joblib.load(f)
+        sfadf = build_sfadf(nn_stack, nn, support, sars)
+        sares = build_sares(model, sfadf)
+        S = pds_to_npa(sares.S)
+        A = pds_to_npa(sares.A)
+        if no_residuals:
+            RES = pds_to_npa(sfadf.D)
+        else:
+            RES = pds_to_npa(sares.RES)
+        yield S, A, RES
+
+
 def build_fadf_no_preload(nn, sars, sfadf):
     """
     Builds new FADF' dataset from SARS' and SFADF':
@@ -358,6 +337,7 @@ def build_global_farf(nn_stack, sars):
         A = A
         R = R
         F' = NN_stack.s_features(S')
+        DONE = DONE
     """
     header = ['F', 'A', 'R', 'FF', 'DONE']
     df = pd.DataFrame(columns=header)
@@ -369,59 +349,6 @@ def build_global_farf(nn_stack, sars):
     return df
 
 
-def collect_sars_to_disk(mdp, policy, path, episodes=100, block_size=10,
-                         n_jobs=1, random_greedy_split=0.9, debug=False,
-                         initial_actions=None, shuffle=True, repeat=1):
-    """
-    Collects a dataset of SARS' transitions of the given MDP and saves it to
-    disk in blocks of block_size episodes.
-    A percentage of the samples (random_greedy_split) is collected with a fully
-    random policy, whereas the remaining part is collected with a greedy policy.
-
-    Args
-        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
-        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
-            Methods draw_action and set_epsilon are expected.
-        path (str): folder in which to save the dataset.
-        episodes (int, 100): number of episodes to collect.
-        block_size (int, 10): number of episodes in a block.
-        n_jobs (int, 1): number of processes to use (-1 for all available cores).
-            Leave 1 if running stuff on GPU.
-        random_greedy_split (float, 0.9): percentage of random episodes to
-            collect.
-        debug (bool, False): collect the episodes in debug mode (only a very
-            small fraction of transitions will be returned).
-        initial_actions (list, None): list of action indices that start an
-            episode of the MDP.
-        shuffle (bool, True): whether to shuffle the dataset before returning
-            it.
-
-    Return
-        A SARS' dataset as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
-    """
-    if not path.endswith('/'):
-        path += '/'
-    if not os.path.exists(path):
-        os.mkdir(path)
-    nb_blocks = episodes / block_size
-    last_block = episodes % block_size
-
-    for i in tqdm(range(nb_blocks)):
-        sars = collect_sars(mdp, policy, episodes=block_size, n_jobs=n_jobs,
-                            random_greedy_split=random_greedy_split,
-                            debug=debug, initial_actions=initial_actions,
-                            shuffle=shuffle, repeat=repeat)
-        sars.to_pickle(path + 'sars_%s.pkl' % i)
-
-    # Last batch
-    if last_block > 0:
-        sars = collect_sars(mdp, policy, episodes=last_block, n_jobs=n_jobs,
-                            random_greedy_split=random_greedy_split,
-                            debug=debug, initial_actions=initial_actions,
-                            shuffle=shuffle, repeat=repeat)
-        sars.to_pickle(path + 'sars_%s.pkl' % nb_blocks)
-
-
 def build_global_farf_from_disk(nn_stack, path):
     """
     Builds FARF' dataset using all SARS' datasets saved in path:
@@ -429,6 +356,7 @@ def build_global_farf_from_disk(nn_stack, path):
         A = A
         R = R
         F' = NN_stack.s_features(S')
+        DONE = DONE
     """
     if not path.endswith('/'):
         path += '/'
@@ -440,6 +368,111 @@ def build_global_farf_from_disk(nn_stack, path):
         farf = farf.append(build_global_farf(nn_stack, sars), ignore_index=True)
 
     return farf
+
+
+# DATASET HELPERS
+def get_class_weight(sars):
+    """
+    Returns a dictionary with classes (reward values) as keys and weights as
+    values.
+    The return value can be passed directly to Keras's class_weight parameter
+    in model.fit.
+
+    Args
+        sars (pd.DataFrame): a SARS' dataset in pandas format.
+    """
+    if isinstance(sars, pd.DataFrame):
+        R = pds_to_npa(sars.R)
+    elif isinstance(sars, pd.Series):
+        R = pds_to_npa(sars)
+    else:
+        R = sars
+
+    classes = np.unique(R)
+    y = pds_to_npa(R)
+    weights = compute_class_weight('balanced', classes, y)
+    return dict(zip(classes, weights))
+
+
+def get_sample_weight(sars, class_weight=None, round_reward=False):
+    """
+    Returns a list with the class weight of each sample.
+    The return value can be passed directly to Keras's sample_weight parameter
+    in model.fit
+
+    Args
+        sars (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
+            pd.Series with rewards.
+        class_weight (dict, None): dictionary with classes as key and weights as
+            values. If None, the dictionary will be computed using sklearn's
+            method.
+        round (bool, False): round the rewards to the nearest integer before
+            applying the class weights.
+    """
+    if isinstance(sars, pd.DataFrame):
+        R = pds_to_npa(sars.R)
+    else:
+        R = sars
+
+    if round_reward:
+        R = np.round(R)
+
+    if class_weight is None:
+        class_weight = get_class_weight(R)
+
+    sample_weight = [class_weight[r] for r in R]
+    return np.array(sample_weight)
+
+
+def split_dataset_for_ifs(dataset, features='F', target='R'):
+    """
+    Splits the dataset into x = features + actions, y = target
+
+    Args
+        dataset (pd.DataFrame): a dataset in pandas format.
+        features (str, 'F'): key to index the dataset
+        target (str, 'R'): key to index the dataset
+    """
+    f = pds_to_npa(dataset[features])
+    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
+    x = np.concatenate((f, a), axis=1)
+    y = pds_to_npa(dataset[target])
+    return x, y
+
+
+def split_dataset_for_rfs(dataset, features='F', next_features='FF', target='R'):
+    """
+    Splits the dataset into f = features, a = actions, ff = features of next
+    states, y = target.
+
+    Args
+        dataset (pd.DataFrame): a dataset in pandas format.
+        features (str, 'F'): key to index the dataset
+        next_features (str, 'FF'): key to index the dataset
+        target (str, 'R'): key to index the dataset
+    """
+    f = pds_to_npa(dataset[features])
+    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
+    ff = pds_to_npa(dataset[next_features])
+    y = pds_to_npa(dataset[target])
+    return f, a, ff, y
+
+
+def split_dataset_for_fqi(global_farf):
+    """
+    Splits the dataset into faft = features + actions + features of next state,
+    r = reward
+
+    Args
+        global_farf (pd.DataFrame): a dataset in pandas format.
+    """
+    f = pds_to_npa(global_farf.F)
+    a = global_farf.A.as_matrix()
+    ff = pds_to_npa(global_farf.FF)
+    done = global_farf.DONE.as_matrix()
+    r = pds_to_npa(global_farf.R)
+    faft = np.column_stack((f, a, ff, done))
+    return faft, r
 
 
 def downsample_farf(farf, period=5):

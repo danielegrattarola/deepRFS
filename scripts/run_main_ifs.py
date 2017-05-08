@@ -65,7 +65,6 @@ import matplotlib
 matplotlib.use('Agg')
 import argparse
 import gc
-import os
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
@@ -121,15 +120,19 @@ parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--sars-episodes', type=int, default=300,
                     help='Number of SARS episodes to collect')
-parser.add_argument('--collect-gfarf', action='store_true',
-                    help='Collect GFARF instead of generating it from SARS')
-parser.add_argument('--gfarf-episodes', type=int, default=1000,
-                    help='Number of global FARF episodes to collect')
+parser.add_argument('--sars-to-disk', type=int, default=0,
+                    help='Number of SARS episodes to collect to disk')
+parser.add_argument('--nn-from-disk', action='store_true',
+                    help='Train the networks using also the additional SARS epsiodes'
+                         'from the disk')
+parser.add_argument('--fqi-from-disk', action='store_true',
+                    help='Train FQI using also the additional SARS epsiodes'
+                         'from the disk')
 parser.add_argument('--control-freq', type=int, default=2,
                     help='Control frequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
-parser.add_argument('--nn0l1', type=float, default=0.01,
+parser.add_argument('--nn0l1', type=float, default=0.001,
                     help='l1 normalization for NN0')
 parser.add_argument('--balanced-weights', action='store_true',
                     help='Use balanced weights instead of the custom ones')
@@ -150,7 +153,6 @@ algorithm_steps = 100  # Number of steps to make in the main loop
 rec_steps = 1 if args.debug else 100  # Number of recursive steps to make
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
-fqi_iterations = 2 if args.debug else 120  # Number of steps to train FQI
 r2_change_threshold = 0.10  # % of IFS R2 improvement below which to stop loop
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
@@ -211,7 +213,7 @@ if args.fqi_model is not None and args.nn_stack is not None:
                   'action_dim': 1,  # Action is discrete monodimensional
                   'discrete_actions': action_values,
                   'gamma': mdp.gamma,
-                  'horizon': fqi_iterations,
+                  'horizon': fqi_iter,
                   'verbose': True}
     log('Loading policy from %s' % args.fqi_model)
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
@@ -227,7 +229,7 @@ else:
                   'action_dim': 1,  # Action is discrete monodimensional
                   'discrete_actions': action_values,
                   'gamma': mdp.gamma,
-                  'horizon': fqi_iterations,
+                  'horizon': fqi_iter,
                   'verbose': True}
     policy = EpsilonFQI(fqi_params, nn_stack)  # Do not unpack the dict
 
@@ -249,20 +251,21 @@ for i in range(algorithm_steps):
 
     # TODO NN analysis
     if args.nn_analysis:
-        test_split = int(0.1 * len(sars))
-        test_sars = sars[test_split:]
+        test_split = int(0.9 * len(sars))
         sars = sars[:test_split]
+        test_sars = sars[test_split:]
 
+    # Save SARS dataset
     sars.to_pickle(logger.path + 'sars_%s.pickle' % i)  # Save SARS
 
-    if args.collect_gfarf:
-        tic('Collecting SARS to train FQI')
+    if args.sars_to_disk > 0:
+        tic('Collecting additional SARS to disk')
         sars_path = logger.path + 'sars_%s/' % i
         os.mkdir(sars_path)
         collect_sars_to_disk(mdp,
                              policy,
                              sars_path,
-                             episodes=args.gfarf_episodes,
+                             episodes=args.sars_to_disk,
                              random_greedy_split=random_greedy_split,
                              debug=args.debug,
                              initial_actions=initial_actions,
@@ -272,15 +275,20 @@ for i in range(algorithm_steps):
     S = pds_to_npa(sars.S)  # 4 frames
     A = pds_to_npa(sars.A)  # Discrete action
     R = pds_to_npa(sars.R)  # Scalar reward
+    # Clip reward
     if args.clip_nn0:
-        R = np.clip(R, -1, 1)  # Clipped scalar reward
+        R = np.clip(R, -1, 1)
 
     # TODO NN analysis
     if args.nn_analysis:
         test_S = pds_to_npa(test_sars.S)
         test_A = pds_to_npa(test_sars.A)
         test_R = pds_to_npa(test_sars.R)
+        # Clip reward
+        if args.clip_nn0:
+            test_R = np.clip(test_R, -1, 1)
 
+    # Compute sample weights
     if args.balanced_weights:
         sars_sample_weight = get_sample_weight(R)
     else:
@@ -291,7 +299,7 @@ for i in range(algorithm_steps):
                         4: 100,
                         7: 100}
         sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
-                                               round=True)
+                                               round_reward=True)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
@@ -302,7 +310,7 @@ for i in range(algorithm_steps):
     toc('Policy stack outputs %s features' % policy.nn_stack.get_support_dim())
 
     tic('Fitting NN0')
-    # NN maps frames to reward
+    # NN: S -> R
     if args.classify:
         from sklearn.preprocessing import OneHotEncoder
         ohe = OneHotEncoder(sparse=False)
@@ -328,8 +336,15 @@ for i in range(algorithm_steps):
                      binarize=args.binarize,
                      logger=logger,
                      chkpt_file='NN0_step%s.h5' % i)
-
+    # Fit NN0
     nn.fit(S, A, R)
+
+    # Fit NN0 on the additional samples saved to disk
+    if args.nn_from_disk and args.sars_to_disk > 0:
+        log('Fitting NN0 on additional SARS samples')
+        sars_batches = sar_generator_from_disk(sars_path)
+        for S, A, R in sars_batches:
+            nn.fit(S, A, R)
 
     # TODO NN analysis
     if args.nn_analysis:
@@ -350,11 +365,12 @@ for i in range(algorithm_steps):
     tic('Building FARF dataset for IFS')
     farf = build_farf(nn, sars)  # Features, action, reward, next_features
     ifs_x, ifs_y = split_dataset_for_ifs(farf, features='F', target='R')
+    del farf
 
+    # Clip reward for IFS
     if args.clip_nn0:
         ifs_y = np.clip(ifs_y, -1, 1)
 
-    del farf  # Not used anymore
     ifs_y = ifs_y.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     # Print the number of nonzero features
     nonzero_mfv_counts = np.count_nonzero(np.mean(ifs_x[:-1], axis=0))
@@ -441,6 +457,7 @@ for i in range(algorithm_steps):
             RES = pds_to_npa(sfadf.D)
         else:
             RES = pds_to_npa(sares.RES)  # Residuals of last NN
+        del sares
 
         # TODO NN analysis
         if args.nn_analysis:
@@ -448,7 +465,6 @@ for i in range(algorithm_steps):
             test_A = pds_to_npa(test_sars.A)
             test_RES = pds_to_npa(test_sars.RES)
 
-        del sares
         log('Mean residual values %s' % np.mean(RES, axis=0))
         log('Residual values variance %s' % np.std(RES, axis=0))
         log('Max residual values %s' % np.max(RES, axis=0))
@@ -469,7 +485,22 @@ for i in range(algorithm_steps):
                      scaler=StandardScaler(),
                      logger=logger,
                      chkpt_file='NN%s_step%s.h5' % (j, i))
+        # Fit NNi
         nn.fit(S, A, RES)
+
+        # Fit NNi on the additional samples saved to disk
+        if args.nn_from_disk and args.sars_to_disk > 0:
+            log('Fitting NN%s on additional SARS samples' % i)
+            sares_batches = sares_generator_from_disk(model,
+                                                      nn_stack,
+                                                      nn,
+                                                      support,
+                                                      sars_path,
+                                                      no_residuals=args.no_residuals)
+            for S, A, RES in sares_batches:
+                nn.fit(S, A, RES)
+
+        del S, A, RES
 
         # TODO NN analysis
         if args.nn_analysis:
@@ -488,7 +519,6 @@ for i in range(algorithm_steps):
                 plt.close()
             del test_A, test_S, test_R
 
-        del S, A, RES
         nn.load(logger.path + 'NN%s_step%s.h5' % (j, i))  # Load best network (saved by callback)
         toc()
 
@@ -529,7 +559,7 @@ for i in range(algorithm_steps):
     global_farf = build_global_farf(nn_stack, sars)
     del sars
 
-    if args.collect_gfarf:
+    if args.fqi_from_disk and args.sars_to_disk > 0:
         global_farf_2 = build_global_farf_from_disk(nn_stack, sars_path)
         global_farf = global_farf.append(global_farf_2, ignore_index=True)
         log('Got %s additional FARF samples for a total of %s'
