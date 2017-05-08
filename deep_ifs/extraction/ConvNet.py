@@ -149,7 +149,7 @@ class ConvNet:
             x_test[x_test < 0.1] = 0
             x_test[x_test >= 0.1] = 1
         u_test = np.asarray(u)
-        pred = self.model.predict_on_batch([x_test, u_test])
+        pred = self.model.predict([x_test, u_test])
 
         if self.scaler is not None:
             pred = self.scaler.inverse_transform(pred)
