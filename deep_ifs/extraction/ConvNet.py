@@ -98,18 +98,18 @@ class ConvNet:
             x_train[x_train >= 0.1] = 1
 
         if validation_data:
-            validation_data[0][0] = np.asarray(
+            val_x = np.asarray(
                 validation_data[0][0]).astype('float32') / 255
-            validation_data[0][1] = np.asarray(validation_data[0][1])
-            validation_data[1] = np.asarray(validation_data[1])
+            val_u = np.asarray(validation_data[0][1])
+            val_y = np.asarray(validation_data[1])
             if self.scaler is not None:
-                validation_data[1] = self.scaler.fit_transform(
-                    validation_data[1])
+                val_y = self.scaler.fit_transform(val_y)
 
             if self.binarize:
-                validation_data[0][0][validation_data[0][0] < 0.1] = 0
-                validation_data[0][0][validation_data[0][0] >= 0.1] = 1
+                val_x[val_x < 0.1] = 0
+                val_x[val_x >= 0.1] = 1
 
+            validation_data = ([val_x, val_u], val_y)
         return self.model.fit([x_train, u_train], y_train,
                               class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
