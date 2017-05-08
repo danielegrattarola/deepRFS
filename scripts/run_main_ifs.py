@@ -285,11 +285,8 @@ for i in range(algorithm_steps):
 
     # Clip reward
     if args.clip_nn0:
-        test_R = np.clip(test_R, -1, 1)
-
-    # Clip reward
-    if args.clip_nn0:
         R = np.clip(R, -1, 1)
+        test_R = np.clip(test_R, -1, 1)
 
     # Compute sample weights
     class_weight = {-100: 100,
