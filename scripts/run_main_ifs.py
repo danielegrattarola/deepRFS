@@ -444,7 +444,7 @@ for step in range(algorithm_steps):
             test_RES = pds_to_npa(test_sfadf.D) if args.no_residuals else pds_to_npa(test_sares.RES)
 
             # Fit network
-            nn.sample_weight = sw
+            # nn.sample_weight = sw
             nn.fit(S, A, RES, validation_data=([test_S, test_A], test_RES))
             nn.load(logger.path + 'NN%s_step%s.h5' % (i, step))
         toc()

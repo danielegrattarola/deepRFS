@@ -72,8 +72,7 @@ class ConvNet:
         if load_path is not None:
             self.load(load_path)
 
-        self.model.compile(optimizer=self.optimizer, loss='mse',
-                           metrics=['accuracy'])
+        self.model.compile(optimizer=self.optimizer, loss='mse')
 
     def fit(self, x, u, y, validation_data=None):
         """
