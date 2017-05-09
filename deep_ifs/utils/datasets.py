@@ -486,7 +486,7 @@ def get_sample_weight(sars, balanced=False, class_weight=None,
     if round_reward:
         R = np.round(R)
 
-    if class_weight is None and not balanced:
+    if class_weight is None or balanced:
         class_weight = get_class_weight(R)
 
     sample_weight = [class_weight[r] for r in R]

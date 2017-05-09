@@ -426,7 +426,7 @@ for step in range(algorithm_steps):
                      logger=logger,
                      chkpt_file='NN%s_step%s.h5' % (i, step))
 
-        # Fit NNi
+        # Fit NNi (target: RES)
         tic('Fitting NN%s' % i)
         sares_batches = sares_generator_from_disk(model,
                                                   nn_stack,
