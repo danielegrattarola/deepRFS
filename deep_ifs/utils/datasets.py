@@ -388,7 +388,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path,
         A = pds_to_npa(sares.A)
         RES = pds_to_npa(sares.RES)
 
-        if test_sfadf:
+        if test_sfadf is not None:
             test_sares = build_sares(model, test_sfadf, no_residuals=no_residuals)
         else:
             test_sares = None
