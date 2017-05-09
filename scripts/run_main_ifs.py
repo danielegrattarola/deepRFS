@@ -430,8 +430,8 @@ for step in range(algorithm_steps):
         tic('Fitting NN%s' % i)
         sares_batches = sares_generator_from_disk(model,
                                                   nn_stack,
-                                                  nn,
-                                                  support,
+                                                  nn_stack.get_model(-1),
+                                                  nn_stack.get_support(-1),
                                                   sars_path,
                                                   no_residuals=args.no_residuals,
                                                   balanced=args.balanced_weights,
@@ -441,7 +441,7 @@ for step in range(algorithm_steps):
             # Test data
             test_S = pds_to_npa(test_sares.S)
             test_A = pds_to_npa(test_sares.A)
-            test_RES = pds_to_npa(test_sfadf.D) if args.no_residuals else pds_to_npa(test_sares.RES)
+            test_RES = pds_to_npa(test_sares.RES)
 
             # Fit network
             # nn.sample_weight = sw

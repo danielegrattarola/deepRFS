@@ -44,6 +44,16 @@ class NNStack:
                 output = np.column_stack((output, prediction))
         return np.array(output)
 
+    def model_s_features(self, x, index):
+        d = self.stack[index]
+        return d['model'].s_features(x, d['support'])
+
+    def get_model(self, index):
+        return self.stack[index]['model']
+
+    def get_support(self, index):
+        return self.stack[index]['support']
+
     def get_support_dim(self, index=None):
         """
         Returns the cumulative dimension of all supports in the stack, or the
