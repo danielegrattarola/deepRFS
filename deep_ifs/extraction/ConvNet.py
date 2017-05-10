@@ -93,6 +93,8 @@ class ConvNet:
         y_train = np.asarray(y)
         if self.scaler is not None:
             y_train = self.scaler.fit_transform(y_train)
+            if np.any(np.isnan(y_train)) or np.any(np.isinf(y_train)):
+                print('WARNING: nan in y_train.')
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
@@ -103,7 +105,9 @@ class ConvNet:
             val_u = np.asarray(validation_data[0][1])
             val_y = np.asarray(validation_data[1])
             if self.scaler is not None:
-                val_y = self.scaler.fit_transform(val_y)
+                val_y = self.scaler.transform(val_y)
+            if np.any(np.isnan(val_y)) or np.any(np.isinf(val_y)):
+                print('WARNING: nan in val_y.')
             if self.binarize:
                 val_x[val_x < 0.1] = 0
                 val_x[val_x >= 0.1] = 1
