@@ -36,7 +36,8 @@ class ConvNet:
         self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
 
         self.mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
-                                  save_best_only=True, save_weights_only=True)
+                                  save_best_only=True, save_weights_only=True,
+                                  verbose=1)
 
         # Build network
         self.input = Input(shape=self.input_shape)
@@ -98,12 +99,12 @@ class ConvNet:
             x_train[x_train >= 0.1] = 1
 
         # Preprocess validation data
-        if validation_data:
+        if validation_data is not None:
             val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
             val_u = np.asarray(validation_data[0][1])
             val_y = np.asarray(validation_data[1])
             if self.scaler is not None:
-                val_y = self.scaler.fit_transform(val_y)
+                val_y = self.scaler.transform(val_y)
             if self.binarize:
                 val_x[val_x < 0.1] = 0
                 val_x[val_x >= 0.1] = 1
@@ -115,6 +116,26 @@ class ConvNet:
                               nb_epoch=self.nb_epochs,
                               validation_data=validation_data,
                               callbacks=[self.es, self.mc])
+
+    def fit_generator(self, generator, samples_per_epoch, nb_epochs,
+                      validation_data=None):
+        # Preprocess validation data
+        if validation_data is not None:
+            val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
+            val_u = np.asarray(validation_data[0][1])
+            val_y = np.asarray(validation_data[1])
+            if self.scaler is not None:
+                val_y = self.scaler.transform(val_y)
+            if self.binarize:
+                val_x[val_x < 0.1] = 0
+                val_x[val_x >= 0.1] = 1
+            validation_data = ([val_x, val_u], val_y)
+
+        return self.model.fit_generator(generator,
+                                        samples_per_epoch,
+                                        nb_epochs,
+                                        callbacks=[self.es, self.mc],
+                                        validation_data=validation_data)
 
     def train_on_batch(self, x, u, y):
         """

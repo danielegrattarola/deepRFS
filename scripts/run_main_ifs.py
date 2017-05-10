@@ -254,8 +254,9 @@ for step in range(algorithm_steps):
                          repeat=args.control_freq)
     toc()
 
-    tic('Collecting test SARS dataset')
     # Collect test dataset
+    # TODO single dataset for validation, IFS, residual model
+    tic('Collecting test SARS dataset')
     test_sars = collect_sars(mdp,
                              policy,
                              episodes=sars_test_episodes,
@@ -367,20 +368,20 @@ for step in range(algorithm_steps):
                   'verbose': 0,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
-    ifs.fit(ifs_x, ifs_y)
-    support = ifs.get_support()
-    got_action = support[-1]  # Action is the last feature
-    support = support[:-1]  # Remove action from support
-    nb_new_features = np.array(support).sum()
-    r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
-    log('Features: %s' % np.array(support).nonzero())
-    log('IFS - New features: %s' % nb_new_features)
-    log('Action was%s selected' % ('' if got_action else ' NOT'))
-    toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
-
     # TODO Debug
     if args.debug:
-        support[2] = True
+        support = np.array([True, True] + [False] * 510)
+    else:
+        ifs.fit(ifs_x, ifs_y)
+        support = ifs.get_support()
+        got_action = support[-1]  # Action is the last feature
+        support = support[:-1]  # Remove action from support
+        nb_new_features = np.array(support).sum()
+        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
+        log('Features: %s' % np.array(support).nonzero())
+        log('IFS - New features: %s' % nb_new_features)
+        log('Action was%s selected' % ('' if got_action else ' NOT'))
+        toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
 
     # TODO farf analysis
     if args.farf_analysis:
@@ -410,8 +411,20 @@ for step in range(algorithm_steps):
             model = LinearRegression(n_jobs=-1)
 
         # SFADF and test SFADF
-        sfadf = build_sfadf(nn_stack, nn, support, sars)  # Used for next IFS
+        # TODO single dataset for validation, IFS, residual model
+        sfadf = build_sfadf(nn_stack, nn, support, sars)
         test_sfadf = build_sfadf(nn_stack, nn, support, test_sars)
+
+        # Fit residuals model once
+        F = pds_to_npa(sfadf.F)
+        D = pds_to_npa(sfadf.D)
+        model.fit(F, D)
+
+        # Test data
+        test_sares = build_sares(model, test_sfadf, no_residuals=args.no_residuals)
+        test_S = pds_to_npa(test_sares.S)
+        test_A = pds_to_npa(test_sares.A)
+        test_RES = pds_to_npa(test_sares.RES)
 
         # Neural network
         image_shape = mdp.state_shape
@@ -428,28 +441,37 @@ for step in range(algorithm_steps):
 
         # Fit NNi (target: RES)
         tic('Fitting NN%s' % i)
-        sares_batches = sares_generator_from_disk(model,
-                                                  nn_stack,
-                                                  nn_stack.get_model(-1),
-                                                  nn_stack.get_support(-1),
-                                                  sars_path,
-                                                  no_residuals=args.no_residuals,
-                                                  balanced=args.balanced_weights,
-                                                  class_weight=class_weight,
-                                                  test_sfadf=test_sfadf)
-        for S, A, RES, sw, test_sares in sares_batches:
-            # Test data
-            test_S = pds_to_npa(test_sares.S)
-            test_A = pds_to_npa(test_sares.A)
-            test_RES = pds_to_npa(test_sares.RES)
 
-            # Fit network
-            # nn.sample_weight = sw
-            nn.fit(S, A, RES, validation_data=([test_S, test_A], test_RES))
-            nn.load(logger.path + 'NN%s_step%s.h5' % (i, step))
+        log('Fitting scaler for residuals')
+        scaler = fit_res_scaler(StandardScaler(),
+                                model,
+                                nn_stack,
+                                nn_stack.get_model(-1),
+                                nn_stack.get_support(-1),
+                                sars_path,
+                                no_residuals=args.no_residuals)
+
+        # Generator
+        sares_generator = sares_generator_from_disk(model,
+                                                    nn_stack,
+                                                    nn_stack.get_model(-1),
+                                                    nn_stack.get_support(-1),
+                                                    sars_path,
+                                                    scaler=scaler,
+                                                    binarize=args.binarize,
+                                                    no_residuals=args.no_residuals,
+                                                    balanced=args.balanced_weights,
+                                                    class_weight=class_weight)
+
+        test_RES = scaler.transform(test_RES)  # Scale validation target
+
+        # Fit network
+        # TODO fit_generator requires number of samples per epoch and number of epochs
+        nn.fit_generator(sares_generator, _, _, validation_data=([test_S, test_A], test_RES))
+        nn.load(logger.path + 'NN%s_step%s.h5' % (i, step))
         toc()
 
-        del S, A, RES, test_sares, test_sfadf
+        del test_sares, test_sfadf
 
         # TODO NN analysis
         if args.nn_analysis:

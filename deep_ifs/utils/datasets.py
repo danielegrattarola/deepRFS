@@ -131,6 +131,8 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
     # TODO debug
     if debug:
         dataset = dataset[:7]
+        dataset[:2, 2] = 1.0
+        dataset[6, 2] = -1.0
 
     header = ['S', 'A', 'R', 'SS', 'DONE']
     return pd.DataFrame(dataset, columns=header)
@@ -341,9 +343,9 @@ def build_sares(model, sfadf, no_residuals=False):
     return df
 
 
-def sares_generator_from_disk(model, nn_stack, nn, support, path,
-                              no_residuals=False, balanced=False,
-                              class_weight=None, test_sfadf=None):
+def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
+                              scaler=None, binarize=False, no_residuals=False,
+                              balanced=False, class_weight=None):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -360,13 +362,6 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path,
         class_weigth (dict, None): passed to the get_sample_weight method 
         test_sfadf (pd.DataFrame, None): compute the test SARES dataset from 
             this dataset.
-
-    Yield
-        (S, A, RES, sample_weights, test_sares) (np.array, np.array, np.array,
-            np.array, pd.DataFrame): np.arrays with states, actions and 
-            residuals, sample weights calculated on the reward column, test 
-            SARES dataset calculated using the model fitted on the current SARS,
-            for each SARS dataset in path.
     """
     if not path.endswith('/'):
         path += '/'
@@ -375,25 +370,42 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path,
 
     for f in files:
         sars = joblib.load(f)
+
+        # Make sure the dataset has length multiple of batch_size
+        # TODO maybe do this without dropping?
+        # TODO maybe move this in collect_sars? (do this and return total number of collected samples after dropping)
+        sars.drop(sars.sample(len(sars) % batch_size).index, inplace=True)
+        nb_batches = len(sars) / batch_size
+
+        # Do stuff with SARS
         sfadf = build_sfadf(nn_stack, nn, support, sars)
-        F = pds_to_npa(sfadf.F)  # All features from NN stack
-        D = pds_to_npa(sfadf.D)  # Feature dynamics of last NN
+        # TODO If SW are balanced they'll be computed on each dataset
         sample_weight = get_sample_weight(sars,
                                           balanced=balanced,
                                           class_weight=class_weight,
                                           round_reward=True)
-        model.fit(F, D, sample_weight=sample_weight)
+        del sars
+
+        # Build SARES
         sares = build_sares(model, sfadf, no_residuals=no_residuals)
-        S = pds_to_npa(sares.S)
-        A = pds_to_npa(sares.A)
-        RES = pds_to_npa(sares.RES)
+        del sfadf
 
-        if test_sfadf is not None:
-            test_sares = build_sares(model, test_sfadf, no_residuals=no_residuals)
-        else:
-            test_sares = None
+        for i in range(nb_batches):
+            start = i * batch_size
+            stop = (i + 1) * batch_size
+            S = pds_to_npa(sares[start:stop].S)
+            A = pds_to_npa(sares[start:stop].A)
+            RES = pds_to_npa(sares[start:stop].RES)
 
-        yield S, A, RES, sample_weight, test_sares
+            # Preprocess data
+            S = S.astype('float32') / 255  # Convert to 0-1 range
+            if scaler is not None:
+                RES = scaler.transform(RES)
+            if binarize:
+                S[S < 0.1] = 0
+                S[S >= 0.1] = 1
+
+            yield ([S, A], RES, sample_weight[start:stop])
 
 
 def build_global_farf(nn_stack, sars):
@@ -566,3 +578,27 @@ def build_features(nn, sars):
     """
     features = nn.all_features(pds_to_npa(sars.S))
     return features
+
+
+def fit_res_scaler(scaler, model, nn_stack, nn, support, path, no_residuals=False):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.pkl')
+    print 'Got %s files' % len(files)
+
+    # Fit scaler
+    for idx, f in enumerate(files):
+        sars = joblib.load(f)
+        sfadf = build_sfadf(nn_stack, nn, support, sars)
+        del sars
+        sares = build_sares(model, sfadf, no_residuals=no_residuals)
+        del sfadf
+
+        if idx == 0:
+            target = pds_to_npa(sares.RES)
+        else:
+            new_target = pds_to_npa(sares.RES)
+            target = np.append(target, new_target, axis=0)
+
+    scaler.fit(target)
+    return scaler
