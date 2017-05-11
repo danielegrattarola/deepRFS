@@ -46,6 +46,13 @@ class GatherLayer(Layer):
     def get_output_shape_for(self, input_shape):
         return input_shape[0], self.output_dim
 
+    def compute_output_shape(self, input_shape):
+        assert input_shape and len(input_shape) >= 2
+        assert input_shape[-1]
+        output_shape = list(input_shape)
+        output_shape[-1] = self.output_dim
+        return tuple(output_shape)
+
     @staticmethod
     def gather_layer(args, output_size, nb_actions):
         full_output, indices = args

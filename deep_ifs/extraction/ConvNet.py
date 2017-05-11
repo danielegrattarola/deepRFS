@@ -43,17 +43,17 @@ class ConvNet:
         self.input = Input(shape=self.input_shape)
         self.u = Input(shape=(1,), dtype='int32')
 
-        self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
-                                    activation='relu', subsample=(4, 4),
-                                    dim_ordering='th')(self.input)
+        self.hidden = Convolution2D(32, (8, 8), padding='valid',
+                                    activation='relu', strides=(4, 4),
+                                    data_format='channels_first')(self.input)
 
-        self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
-                                    activation='relu', subsample=(2, 2),
-                                    dim_ordering='th')(self.hidden)
+        self.hidden = Convolution2D(64, (4, 4), padding='valid',
+                                    activation='relu', strides=(2, 2),
+                                    data_format='channels_first')(self.hidden)
 
-        self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
-                                    activation='relu', subsample=(1, 1),
-                                    dim_ordering='th')(self.hidden)
+        self.hidden = Convolution2D(64, (3, 3), padding='valid',
+                                    activation='relu', strides=(1, 1),
+                                    data_format='channels_first')(self.hidden)
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
@@ -63,8 +63,8 @@ class ConvNet:
         self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
         # Models
-        self.model = Model(input=[self.input, self.u], output=self.output_u)
-        self.encoder = Model(input=self.input, output=self.features)
+        self.model = Model(outputs=[self.output_u], inputs=[self.input, self.u])
+        self.encoder = Model(outputs=[self.features], inputs=[self.input])
 
         # Optimization algorithm
         self.optimizer = Adam()
@@ -117,7 +117,7 @@ class ConvNet:
         return self.model.fit([x_train, u_train], y_train,
                               class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
-                              nb_epoch=self.nb_epochs,
+                              epochs=self.nb_epochs,
                               validation_data=validation_data,
                               callbacks=[self.es, self.mc])
 
