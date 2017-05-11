@@ -268,6 +268,8 @@ for step in range(algorithm_steps):
     test_S = pds_to_npa(test_sars[:, 0])
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])
+    if args.clip_nn0:
+        test_R = np.clip(test_R, -1, 1)
 
     test_sars_sample_weight = get_sample_weight(test_R,
                                                 balanced=args.balanced_weights,
