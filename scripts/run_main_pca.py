@@ -258,7 +258,7 @@ for step in range(algorithm_steps):
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
                      validation_data=([test_S, test_A], test_R),
-                     clip=args.clip_nn0)
+                     clip_val=args.clip_nn0)
     nn.load(logger.path + 'NN0_step%s.h5' % step)
     toc()
 

@@ -322,7 +322,7 @@ for step in range(algorithm_steps):
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
                      validation_data=([test_S, test_A], test_R),
-                     clip=args.clip_nn0)
+                     clip_val=args.clip_nn0)
     nn.load(logger.path + 'NN0_step%s.h5' % step)
     toc()
 
@@ -474,8 +474,6 @@ for step in range(algorithm_steps):
                     plt.scatter(test_RES[:], pred[:], alpha=0.3)
                 plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (i, step, f))
                 plt.close()
-
-        del test_A, test_S, test_RES
 
         # ITERATIVE FEATURE SELECTION i
         tic('Building FADF dataset for IFS %s' % i)
