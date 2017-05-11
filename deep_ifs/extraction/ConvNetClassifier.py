@@ -4,6 +4,8 @@ from keras.layers import Input, Convolution2D, Flatten, Dense, BatchNormalizatio
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.regularizers import l1
+from sklearn.exceptions import NotFittedError
+
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
 
@@ -30,21 +32,27 @@ class ConvNetClassifier:
         else:
             self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=5)
+
+        self.mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
+                                  save_best_only=True, save_weights_only=True,
+                                  verbose=1)
+
         # Build network
         self.input = Input(shape=self.input_shape)
         self.u = Input(shape=(1,), dtype='int32')
 
-        self.hidden = Convolution2D(32, 8, 8, border_mode='valid',
-                                    activation='relu', subsample=(4, 4),
-                                    dim_ordering='th')(self.input)
+        self.hidden = Convolution2D(32, (8, 8), padding='valid',
+                                    activation='relu', strides=(4, 4),
+                                    data_format='channels_first')(self.input)
 
-        self.hidden = Convolution2D(64, 4, 4, border_mode='valid',
-                                    activation='relu', subsample=(2, 2),
-                                    dim_ordering='th')(self.hidden)
+        self.hidden = Convolution2D(64, (4, 4), padding='valid',
+                                    activation='relu', strides=(2, 2),
+                                    data_format='channels_first')(self.hidden)
 
-        self.hidden = Convolution2D(64, 3, 3, border_mode='valid',
-                                    activation='relu', subsample=(1, 1),
-                                    dim_ordering='th')(self.hidden)
+        self.hidden = Convolution2D(64, (3, 3), padding='valid',
+                                    activation='relu', strides=(1, 1),
+                                    data_format='channels_first')(self.hidden)
 
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
@@ -54,8 +62,8 @@ class ConvNetClassifier:
         self.output_u = GatherLayer(self.nb_classes, self.nb_actions)([self.output, self.u])
 
         # Models
-        self.model = Model(input=[self.input, self.u], output=self.output_u)
-        self.encoder = Model(input=self.input, output=self.features)
+        self.model = Model(outputs=[self.output_u], inputs=[self.input, self.u])
+        self.encoder = Model(outputs=[self.features], inputs=[self.input])
 
         # Optimization algorithm
         self.optimizer = Adam()
@@ -67,7 +75,7 @@ class ConvNetClassifier:
         self.model.compile(optimizer=self.optimizer, loss='binary_crossentropy',
                            metrics=['accuracy'])
 
-    def fit(self, x, u, y):
+    def fit(self, x, u, y, validation_data=None):
         """
         Trains the model on a set of batches.
 
@@ -75,28 +83,66 @@ class ConvNetClassifier:
             x: samples on which to train.
             u: actions associated to the samples.
             y: targets on which to train.
+            validation_data: tuple ([X, U], Y) to use as validation data
         Returns
             The metrics of interest as defined in the model (loss, accuracy,
                 etc.)
         """
+        # Preprocess training data
         x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
         u_train = np.asarray(u)
         y_train = np.asarray(y)
-
-        es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
-
-        mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
-                             save_best_only=True, save_weights_only=True)
-
+        if self.scaler is not None:
+            y_train = self.scaler.fit_transform(y_train)
+            if np.any(np.isnan(y_train)) or np.any(np.isinf(y_train)):
+                print('WARNING: nan in y_train.')
         if self.binarize:
             x_train[x_train < 0.1] = 0
             x_train[x_train >= 0.1] = 1
 
+        # Preprocess validation data
+        if validation_data is not None:
+            val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
+            val_u = np.asarray(validation_data[0][1])
+            val_y = np.asarray(validation_data[1])
+            if self.scaler is not None:
+                val_y = self.scaler.transform(val_y)
+            if np.any(np.isnan(val_y)) or np.any(np.isinf(val_y)):
+                print('WARNING: nan in val_y.')
+            if self.binarize:
+                val_x[val_x < 0.1] = 0
+                val_x[val_x >= 0.1] = 1
+            validation_data = ([val_x, val_u], val_y)
+
         return self.model.fit([x_train, u_train], y_train,
                               class_weight=self.class_weight,
                               sample_weight=self.sample_weight,
-                              nb_epoch=self.nb_epochs, validation_split=0.1,
-                              callbacks=[es, mc])
+                              epochs=self.nb_epochs,
+                              validation_data=validation_data,
+                              callbacks=[self.es, self.mc])
+
+    def fit_generator(self, generator, steps_per_epoch, nb_epochs,
+                      validation_data=None, clip=False):
+        # Preprocess validation data
+        if validation_data is not None:
+            val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
+            val_u = np.asarray(validation_data[0][1])
+            val_y = np.asarray(validation_data[1])
+            if self.scaler is not None:
+                val_y = self.scaler.transform(val_y)
+            if self.binarize:
+                val_x[val_x < 0.1] = 0
+                val_x[val_x >= 0.1] = 1
+            if clip:
+                val_y = np.clip(val_y, -1, 1)
+            validation_data = ([val_x, val_u], val_y)
+
+        return self.model.fit_generator(generator,
+                                        steps_per_epoch,
+                                        epochs=nb_epochs,
+                                        max_q_size=20,
+                                        callbacks=[self.es, self.mc],
+                                        validation_data=validation_data)
 
     def train_on_batch(self, x, u, y):
         """
