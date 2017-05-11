@@ -37,7 +37,7 @@ class ConvNet:
 
         self.mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
                                   save_best_only=True, save_weights_only=True,
-                                  verbose=1)
+                                  verbose=0)
 
         # Build network
         self.input = Input(shape=self.input_shape)
