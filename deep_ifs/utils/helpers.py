@@ -96,11 +96,11 @@ def p_dump(obj, filename):
     np.save(filename, obj)
 
 
-def pds_to_npa(pandas_series):
+def pds_to_npa(object_array):
     """
     Converts a pandas series of dtype 'object' to a numpy array
     """
-    return np.array([_ for _ in pandas_series])
+    return np.array([_ for _ in object_array])
 
 
 def is_stuck(state):

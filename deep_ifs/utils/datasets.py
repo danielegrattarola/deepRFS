@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from deep_ifs.utils.helpers import flat2list, pds_to_npa, is_stuck
+from deep_ifs.utils.timer import log
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from sklearn.utils.class_weight import compute_class_weight
@@ -72,7 +73,8 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
 
 
 def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
-                 debug=False, initial_actions=None, shuffle=True, repeat=1):
+                 debug=False, initial_actions=None, shuffle=True, repeat=1,
+                 return_dataframe=False):
     """
     Collects a dataset of SARS' transitions of the given MDP.
     A percentage of the samples (random_greedy_split) is collected with a fully
@@ -134,13 +136,17 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
         dataset[:2, 2] = 1.0
         dataset[6, 2] = -1.0
 
-    header = ['S', 'A', 'R', 'SS', 'DONE']
-    return pd.DataFrame(dataset, columns=header)
+    if return_dataframe:
+        header = ['S', 'A', 'R', 'SS', 'DONE']
+        return pd.DataFrame(dataset, columns=header)
+    else:
+        return dataset
 
 
 def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
                          n_jobs=1, random_greedy_split=0.9, debug=False,
-                         initial_actions=None, shuffle=True, repeat=1):
+                         initial_actions=None, shuffle=True, repeat=1,
+                         batch_size=None):
     """
     Collects datasets of SARS' transitions of the given MDP and saves them to
     disk.
@@ -171,15 +177,30 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     if not os.path.exists(path):
         os.mkdir(path)
 
+    samples_in_dataset = 0
     for i in range(datasets):
         sars = collect_sars(mdp, policy, episodes=episodes, n_jobs=n_jobs,
                             random_greedy_split=random_greedy_split,
                             debug=debug, initial_actions=initial_actions,
                             shuffle=shuffle, repeat=repeat)
-        sars.to_pickle(path + 'sars_%s.pkl' % i)
+
+        # Cut dataset to match batch size
+        if batch_size is not None:
+            excess = len(sars) % batch_size
+            if excess > 0:
+                sars = sars[:-excess]
+
+        log('Got %s samples (dropped %s)' % (len(sars), excess))
+        samples_in_dataset += len(sars)
+        np.save(path + 'sars_%s.npy' % i, sars)
+
+    return samples_in_dataset
 
 
-def sar_generator_from_disk(path):
+# NN0
+def sar_generator_from_disk(path, batch_size=32, balanced=False,
+                            class_weight=None, round_target=False,
+                            binarize=False, clip=False):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
     
@@ -194,15 +215,51 @@ def sar_generator_from_disk(path):
     """
     if not path.endswith('/'):
         path += '/'
-    files = glob.glob(path + 'sars_*.pkl')
+    files = glob.glob(path + 'sars_*.npy')
     print 'Got %s files' % len(files)
-    for f in files:
-        sars = joblib.load(f)
-        S = pds_to_npa(sars.S)
-        A = pds_to_npa(sars.A)
-        R = pds_to_npa(sars.R)
-        del sars
-        yield S, A, R
+
+    # If balanced, compute class weight on all rewards
+    if class_weight is None or balanced:
+        class_weight = get_class_weight_from_disk(path,
+                                                  round_target=round_target)
+
+    while True:
+        for idx, f in enumerate(files):
+            sars = np.load(f)
+            if idx > 0:
+                sars = np.append(excess_sars, sars, axis=0)
+
+            excess = len(sars) % batch_size
+            if excess > 0:
+                excess_sars = sars[-excess:]
+                sars = sars[:-excess]
+            else:
+                excess_sars = sars[0:0]  # just to preserve shapes
+
+            nb_batches = len(sars) / batch_size
+
+            sample_weight = get_sample_weight(sars[:, 2],
+                                              balanced=False,  # Dealt with manually
+                                              class_weight=class_weight,
+                                              round_target=round_target)
+
+            for i in range(nb_batches):
+                start = i * batch_size
+                stop = (i + 1) * batch_size
+                S = pds_to_npa(sars[start:stop, 0])
+                A = pds_to_npa(sars[start:stop, 1])
+                R = pds_to_npa(sars[start:stop, 2])
+
+                # Preprocess data
+                S = S.astype('float32') / 255  # Convert to 0-1 range
+                if binarize:
+                    S[S < 0.1] = 0
+                    S[S >= 0.1] = 1
+
+                if clip:
+                    R = np.clip(R, -1, 1)
+
+                yield ([S, A], R, sample_weight[start:stop])
 
 
 def sars_from_disk(path, datasets=1):
@@ -218,11 +275,14 @@ def sars_from_disk(path, datasets=1):
     """
     if not path.endswith('/'):
         path += '/'
-    files = glob.glob(path + 'sars_*.pkl')
+    files = glob.glob(path + 'sars_*.npy')
     files = files[:datasets]
     sars = pd.DataFrame()
-    for f in files:
-        sars = sars.append(joblib.load(f), ignore_index=True)
+    for idx, f in enumerate(files):
+        if idx == 0:
+            sars = np.load(f)
+        else:
+            sars = np.append(sars, np.load(f), axis=0)
     return sars
 
 
@@ -241,6 +301,37 @@ def build_farf(nn, sars):
     df['R'] = sars.R
     df['FF'] = nn.all_features(pds_to_npa(sars.SS)).tolist()
     return df
+
+
+# IFS0
+def build_far_from_disk(nn, path, clip=False):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            F = nn.all_features(pds_to_npa(sars[:, 0]))
+            A = pds_to_npa(sars[:, 1])
+            R = pds_to_npa(sars[:, 2])
+        else:
+            new_F = nn.all_features(pds_to_npa(sars[:, 0]))
+            new_A = pds_to_npa(sars[:, 1])
+            new_R = pds_to_npa(sars[:, 2])
+            F = np.append(F, new_F, axis=0)
+            A = np.append(A, new_A, axis=0)
+            R = np.append(R, new_R, axis=0)
+
+    A = A.reshape(-1, 1)
+    FA = np.concatenate((F, A), axis=1)
+
+    # Post processing
+    if clip:
+        R = np.clip(R, -1, 1)
+    R = R.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
+    return FA, R
 
 
 def build_sfadf(nn_stack, nn, support, sars):
@@ -262,6 +353,36 @@ def build_sfadf(nn_stack, nn, support, sars):
     df['D'] = dynamics.tolist()
     df['FF'] = nn_stack.s_features(pds_to_npa(sars.SS)).tolist()
     return df
+
+
+def build_fd(nn_stack, nn, support, sars):
+    F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+    D = nn.s_features(pds_to_npa(sars[:, 0]), support) - \
+        nn.s_features(pds_to_npa(sars[:, 3]), support)
+    return F, D
+
+
+# MODEL
+def build_fd_from_disk(nn_stack, nn, support, path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+            D = nn.s_features(pds_to_npa(sars[:, 0]), support) - \
+                nn.s_features(pds_to_npa(sars[:, 3]), support)
+        else:
+            new_F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+            new_D = nn.s_features(pds_to_npa(sars[:, 0]), support) - \
+                    nn.s_features(pds_to_npa(sars[:, 3]), support)
+            F = np.append(F, new_F, axis=0)
+            D = np.append(D, new_D, axis=0)
+
+    return F, D
 
 
 def build_sfad(nn_stack, nn, support, sars):
@@ -304,6 +425,31 @@ def build_fadf(nn_stack, nn, sars, sfadf):
     return df
 
 
+# IFS i
+def build_fa_from_disk(nn_stack, nn, path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            F = np.column_stack((nn_stack.s_features(pds_to_npa(sars[:, 0])),
+                                nn.all_features(pds_to_npa(sars[:, 0]))))
+            A = pds_to_npa(sars[:, 1])
+        else:
+            new_F = np.column_stack((nn_stack.s_features(pds_to_npa(sars[:, 0])),
+                                    nn.all_features(pds_to_npa(sars[:, 0]))))
+            new_A = pds_to_npa(sars[:, 1])
+            F = np.append(F, new_F, axis=0)
+            A = np.append(A, new_A, axis=0)
+
+    A = A.reshape(-1, 1)
+    FA = np.concatenate((F, A), axis=1)
+    return FA
+
+
 def build_fadf_no_preload(nn, sars, sfadf):
     """
     Builds new FADF' dataset from SARS' and SFADF':
@@ -343,9 +489,21 @@ def build_sares(model, sfadf, no_residuals=False):
     return df
 
 
+def build_res(model, F, D, no_residuals=False):
+    if no_residuals:
+        RES = D
+    else:
+        predictions = model.predict(F)
+        RES = D - predictions
+    return RES
+
+
+# NNi
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                               scaler=None, binarize=False, no_residuals=False,
-                              balanced=False, class_weight=None):
+                              use_sample_weights=True, balanced=False,
+                              class_weight=None, round_target=False,
+                              clip=False):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -365,47 +523,58 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
     """
     if not path.endswith('/'):
         path += '/'
-    files = glob.glob(path + 'sars_*.pkl')
+    files = glob.glob(path + 'sars_*.npy')
     print 'Got %s files' % len(files)
 
-    for f in files:
-        sars = joblib.load(f)
+    # If balanced, compute class weight on all rewards
+    if use_sample_weights and (class_weight is None or balanced):
+        class_weight = get_class_weight_from_disk(path,
+                                                  round_target=round_target)
 
-        # Make sure the dataset has length multiple of batch_size
-        # TODO maybe do this without dropping?
-        # TODO maybe move this in collect_sars? (do this and return total number of collected samples after dropping)
-        sars.drop(sars.sample(len(sars) % batch_size).index, inplace=True)
-        nb_batches = len(sars) / batch_size
+    while True:
+        for idx, f in enumerate(files):
+            sars = np.load(f)
+            if idx > 0:
+                sars = np.append(excess_sars, sars, axis=0)
 
-        # Do stuff with SARS
-        sfadf = build_sfadf(nn_stack, nn, support, sars)
-        # TODO If SW are balanced they'll be computed on each dataset
-        sample_weight = get_sample_weight(sars,
-                                          balanced=balanced,
-                                          class_weight=class_weight,
-                                          round_reward=True)
-        del sars
+            excess = len(sars) % batch_size
+            if excess > 0:
+                excess_sars = sars[-excess:]
+                sars = sars[:-excess]
+            else:
+                excess_sars = sars[0:0]  # just to preserve shapes
 
-        # Build SARES
-        sares = build_sares(model, sfadf, no_residuals=no_residuals)
-        del sfadf
+            nb_batches = len(sars) / batch_size
 
-        for i in range(nb_batches):
-            start = i * batch_size
-            stop = (i + 1) * batch_size
-            S = pds_to_npa(sares[start:stop].S)
-            A = pds_to_npa(sares[start:stop].A)
-            RES = pds_to_npa(sares[start:stop].RES)
+            # Compute sample_weights over reward
+            if use_sample_weights:
+                sample_weight = get_sample_weight(sars[:, 2],
+                                                  balanced=False,  # Dealt with manually
+                                                  class_weight=class_weight,
+                                                  round_target=round_target)
 
-            # Preprocess data
-            S = S.astype('float32') / 255  # Convert to 0-1 range
-            if scaler is not None:
-                RES = scaler.transform(RES)
-            if binarize:
-                S[S < 0.1] = 0
-                S[S >= 0.1] = 1
+            for i in range(nb_batches):
+                start = i * batch_size
+                stop = (i + 1) * batch_size
+                S = pds_to_npa(sars[start:stop, 0])
+                A = pds_to_npa(sars[start:stop, 1])
+                F, D = build_fd(nn_stack, nn, support, sars[start:stop])
+                RES = build_res(model, F, D, no_residuals=no_residuals)
 
-            yield ([S, A], RES, sample_weight[start:stop])
+                # Preprocess data
+                S = S.astype('float32') / 255  # Convert to 0-1 range
+                if binarize:
+                    S[S < 0.1] = 0
+                    S[S >= 0.1] = 1
+                if scaler is not None:
+                    RES = scaler.transform(RES)
+                if clip:
+                    RES = np.clip(RES, -1, 1)
+
+                if use_sample_weights:
+                    yield ([S, A], RES, sample_weight[start:stop])
+                else:
+                    yield ([S, A], RES)
 
 
 def build_global_farf(nn_stack, sars):
@@ -427,7 +596,7 @@ def build_global_farf(nn_stack, sars):
     return df
 
 
-def build_global_farf_from_disk(nn_stack, path):
+def build_fart_r_from_disk(nn_stack, path):
     """
     Builds FARF' dataset using all SARS' datasets saved in path:
         F = NN_stack.s_features(S)
@@ -438,18 +607,36 @@ def build_global_farf_from_disk(nn_stack, path):
     """
     if not path.endswith('/'):
         path += '/'
-    files = glob.glob(path + 'sars_*.pkl')
+    files = glob.glob(path + 'sars_*.npy')
     print 'Got %s files' % len(files)
-    farf = pd.DataFrame()
-    for f in tqdm(files):
-        sars = joblib.load(f)
-        farf = farf.append(build_global_farf(nn_stack, sars), ignore_index=True)
 
-    return farf
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+            A = pds_to_npa(sars[:, 1])
+            R = pds_to_npa(sars[:, 2])
+            FF = nn_stack.s_features(pds_to_npa(sars[:, 3]))
+            DONE = pds_to_npa(sars[:, 4])
+        else:
+            new_F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+            new_A = pds_to_npa(sars[:, 1])
+            new_R = pds_to_npa(sars[:, 2])
+            new_FF = nn_stack.s_features(pds_to_npa(sars[:, 3]))
+            new_DONE = pds_to_npa(sars[:, 4])
+            F = np.append(F, new_F, axis=0)
+            A = np.append(A, new_A, axis=0)
+            R = np.append(R, new_R, axis=0)
+            FF = np.append(FF, new_FF, axis=0)
+            DONE = np.append(DONE, new_DONE, axis=0)
+
+    faft = np.column_stack((F, A, FF, DONE))
+    action_values = np.unique(A)
+    return faft, R, action_values
 
 
 # DATASET HELPERS
-def get_class_weight(sars):
+def get_class_weight(target, round_target=False):
     """
     Returns a dictionary with classes (reward values) as keys and weights as
     values.
@@ -459,28 +646,27 @@ def get_class_weight(sars):
     Args
         sars (pd.DataFrame): a SARS' dataset in pandas format.
     """
-    if isinstance(sars, pd.DataFrame):
-        R = pds_to_npa(sars.R)
-    elif isinstance(sars, pd.Series):
-        R = pds_to_npa(sars)
+    if isinstance(target, pd.DataFrame):
+        target = pds_to_npa(target.R)
     else:
-        R = sars
+        target = pds_to_npa(target)
 
-    classes = np.unique(R)
-    y = pds_to_npa(R)
-    weights = compute_class_weight('balanced', classes, y)
+    if round_target:
+        target = np.round(target)
+
+    classes = np.unique(target)
+    weights = compute_class_weight('balanced', classes, target)
     return dict(zip(classes, weights))
 
 
-def get_sample_weight(sars, balanced=False, class_weight=None,
-                      round_reward=False):
+def get_class_weight_from_disk(path, round_target=False):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
     in model.fit
 
     Args
-        sars (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
+        target (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
             pd.Series with rewards.
         balanced (bool, False): override class weights and use scikit-learn's 
             weight method
@@ -490,18 +676,55 @@ def get_sample_weight(sars, balanced=False, class_weight=None,
         round (bool, False): round the rewards to the nearest integer before
             applying the class weights.
     """
-    if isinstance(sars, pd.DataFrame):
-        R = pds_to_npa(sars.R)
-    else:
-        R = sars
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            target = pds_to_npa(sars[:, 2])
+        else:
+            target = np.append(target, sars[:, 2])
 
-    if round_reward:
-        R = np.round(R)
+    if round_target:
+        target = np.round(target)
+
+    classes = np.unique(target)
+    weights = compute_class_weight('balanced', classes, target)
+    return dict(zip(classes, weights))
+
+
+def get_sample_weight(target, balanced=False, class_weight=None,
+                      round_target=False):
+    """
+    Returns a list with the class weight of each sample.
+    The return value can be passed directly to Keras's sample_weight parameter
+    in model.fit
+
+    Args
+        target (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
+            pd.Series with rewards.
+        balanced (bool, False): override class weights and use scikit-learn's 
+            weight method
+        class_weight (dict, None): dictionary with classes as key and weights as
+            values. If None, the dictionary will be computed using sklearn's
+            method.
+        round (bool, False): round the rewards to the nearest integer before
+            applying the class weights.
+    """
+    if isinstance(target, pd.DataFrame):
+        target = pds_to_npa(target.R)
+    else:
+        target = pds_to_npa(target)
+
+    if round_target:
+        target = np.round(target)
 
     if class_weight is None or balanced:
-        class_weight = get_class_weight(R)
+        class_weight = get_class_weight(target, round_target=round_target)
 
-    sample_weight = [class_weight[r] for r in R]
+    sample_weight = [class_weight[r] for r in target]
     return np.array(sample_weight)
 
 
@@ -556,21 +779,6 @@ def split_dataset_for_fqi(global_farf):
     return faft, r
 
 
-def downsample_farf(farf, period=5):
-    farf['bin'] = farf.index / period
-
-    farf = pd.DataFrame()
-
-    farf['F'] = farf['F'][::period].reset_index()['F']
-    farf['A'] = None  # TODO how to reduce actions
-    farf['R'] = farf.groupby('bin')['F'].sum()
-    farf['FF'] = farf['FF'].shift(-period + 1)[:-period + 1:period].reset_index()['FF']
-    farf['DONE'] = farf.groupby('bin')['DONE'].sum()
-
-    if len(farf) % period != 0:
-        farf = farf[:-1]
-
-
 def build_features(nn, sars):
     """
     Builds F dataset using SARS' dataset:
@@ -580,25 +788,7 @@ def build_features(nn, sars):
     return features
 
 
-def fit_res_scaler(scaler, model, nn_stack, nn, support, path, no_residuals=False):
-    if not path.endswith('/'):
-        path += '/'
-    files = glob.glob(path + 'sars_*.pkl')
-    print 'Got %s files' % len(files)
-
-    # Fit scaler
-    for idx, f in enumerate(files):
-        sars = joblib.load(f)
-        sfadf = build_sfadf(nn_stack, nn, support, sars)
-        del sars
-        sares = build_sares(model, sfadf, no_residuals=no_residuals)
-        del sfadf
-
-        if idx == 0:
-            target = pds_to_npa(sares.RES)
-        else:
-            new_target = pds_to_npa(sares.RES)
-            target = np.append(target, new_target, axis=0)
-
-    scaler.fit(target)
+def fit_res_scaler(scaler, F, D, model, no_residuals=False):
+    RES = build_res(model, F, D, no_residuals=no_residuals)
+    scaler.fit(RES)
     return scaler

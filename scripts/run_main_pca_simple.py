@@ -207,7 +207,7 @@ for i in range(algorithm_steps):
                         4: 100,
                         7: 100}
         sars_sample_weight = get_sample_weight(R, class_weight=class_weight,
-                                               round_reward=True)
+                                               round_target=True)
 
     log('Got %s SARS\' samples' % len(sars))
     log('Memory usage: %s MB' % get_size([sars, S, A, R], 'MB'))
