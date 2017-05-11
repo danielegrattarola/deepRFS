@@ -123,7 +123,7 @@ class ConvNet:
                               callbacks=[self.es, self.mc])
 
     def fit_generator(self, generator, steps_per_epoch, nb_epochs,
-                      validation_data=None, clip=False):
+                      validation_data=None, clip_val=False):
         # Preprocess validation data
         if validation_data is not None:
             val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
@@ -134,7 +134,7 @@ class ConvNet:
             if self.binarize:
                 val_x[val_x < 0.1] = 0
                 val_x[val_x >= 0.1] = 1
-            if clip:
+            if clip_val:
                 val_y = np.clip(val_y, -1, 1)
             validation_data = ([val_x, val_u], val_y)
 
