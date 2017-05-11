@@ -3,6 +3,7 @@ import matplotlib
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import argparse
 import atexit
+import joblib
 import numpy as np
 import pandas as pd
 from deep_ifs.envs.atari import Atari
@@ -61,23 +62,17 @@ log('Reading data')
 nn_stack = NNStack()  # To store all neural networks and IFS support
 nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 
-# Load global FARF'
+# Load dataset for FQI
 data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
-global_farf = pd.read_pickle(data_path)
+faft, r, action_values = joblib.load(data_path)
 
-log('Got %s samples' % len(global_farf))
+log('Got %s samples' % len(faft))
 
 log('Setup')
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 evaluation_results = []
 mdp = Atari(args.env, clip_reward=args.clip)
 nb_actions = mdp.action_space.n
-
-log('Building dataset for FQI')
-sast, r = split_dataset_for_fqi(global_farf)
-all_features_dim = nn_stack.get_support_dim()  # Need to pass new dimension of "states" to instantiate new FQI
-action_values = np.unique(pds_to_npa(global_farf.A))
-
 
 log('Creating policy')
 # Create policy
@@ -119,7 +114,7 @@ log('\n%s reward features' % n_reward_features)
 log('%s dynamics features\n' % (nn_stack.get_support_dim() - n_reward_features))
 
 # Initial fit
-policy.partial_fit(sast, r)
+policy.partial_fit(faft, r)
 for i in tqdm(range(args.iter)):
     policy.partial_fit()
     if i % args.eval_freq == 0 or i == (args.iter-1):

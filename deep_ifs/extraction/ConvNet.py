@@ -33,7 +33,7 @@ class ConvNet:
         else:
             self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
-        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=20)
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=5)
 
         self.mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
                                   save_best_only=True, save_weights_only=True,
@@ -140,6 +140,7 @@ class ConvNet:
         return self.model.fit_generator(generator,
                                         steps_per_epoch,
                                         epochs=nb_epochs,
+                                        max_q_size=20,
                                         callbacks=[self.es, self.mc],
                                         validation_data=validation_data)
 

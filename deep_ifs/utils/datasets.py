@@ -197,7 +197,6 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     return samples_in_dataset
 
 
-# NN0
 def sar_generator_from_disk(path, batch_size=32, balanced=False,
                             class_weight=None, round_target=False,
                             binarize=False, clip=False):
@@ -303,7 +302,27 @@ def build_farf(nn, sars):
     return df
 
 
-# IFS0
+def build_f_from_disk(nn, path):
+    """
+    Builds F dataset using SARS' dataset:
+        F = NN[i].features(S)
+    """
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            F = nn.all_features(pds_to_npa(sars[:, 0]))
+        else:
+            new_F = nn.all_features(pds_to_npa(sars[:, 0]))
+            F = np.append(F, new_F, axis=0)
+
+    return F
+
+
 def build_far_from_disk(nn, path, clip=False):
     if not path.endswith('/'):
         path += '/'
@@ -362,7 +381,6 @@ def build_fd(nn_stack, nn, support, sars):
     return F, D
 
 
-# MODEL
 def build_fd_from_disk(nn_stack, nn, support, path):
     if not path.endswith('/'):
         path += '/'
@@ -777,15 +795,6 @@ def split_dataset_for_fqi(global_farf):
     r = pds_to_npa(global_farf.R)
     faft = np.column_stack((f, a, ff, done))
     return faft, r
-
-
-def build_features(nn, sars):
-    """
-    Builds F dataset using SARS' dataset:
-        F = NN[i].features(S)
-    """
-    features = nn.all_features(pds_to_npa(sars.S))
-    return features
 
 
 def fit_res_scaler(scaler, F, D, model, no_residuals=False):

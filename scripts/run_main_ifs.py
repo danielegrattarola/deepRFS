@@ -118,11 +118,11 @@ parser.add_argument('--clip-nn0', action='store_true',
                     help='Clip reward for NN0 only')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
-parser.add_argument('--sars-episodes', type=int, default=500,
+parser.add_argument('--sars-episodes', type=int, default=100,
                     help='Number of SARS episodes to collect')
-parser.add_argument('--sars-test-episodes', type=int, default=100,
+parser.add_argument('--sars-test-episodes', type=int, default=500,
                     help='Number of SARS test episodes to collect')
-parser.add_argument('--sars-to-disk', type=int, default=1,
+parser.add_argument('--sars-to-disk', type=int, default=25,
                     help='Number of SARS episodes to collect to disk')
 parser.add_argument('--control-freq', type=int, default=2,
                     help='Control frequency (1 action every n steps)')
@@ -515,7 +515,7 @@ for step in range(algorithm_steps):
 
     # Save dataset
     tic('Saving global FARF and NNStack')
-    joblib.dump((faft, r), logger.path + 'global_farf_%s.pickle' % step)
+    joblib.dump((faft, r, action_values), logger.path + 'global_farf_%s.pickle' % step)
     # Save nn_stack
     os.mkdir(logger.path + 'nn_stack_%s/' % step)
     nn_stack.save(logger.path + 'nn_stack_%s/' % step)
