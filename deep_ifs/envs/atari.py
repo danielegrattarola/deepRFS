@@ -26,8 +26,7 @@ class Atari(gym.Env):
 
         self.clip_reward = clip_reward
         self.final_reward = -1.0 / (1.0 - self.gamma)
-        if self.clip_reward:
-            self.final_reward = np.clip(self.final_reward, -1, 1)
+        self.lives = None
 
         # initialize state
         self.seed()
@@ -41,9 +40,14 @@ class Atari(gym.Env):
     def step(self, action):
         current_state = self.get_state()
         obs, reward, done, info = self.env.step(int(action))
-        # Negative reward at end of episode
-        if done:
+
+        # Negative reward when a life is lost
+        if not info['ale.lives'] == self.lives:
+            self.lives = info['ale.lives']
             reward = self.final_reward
+            if done:
+                self.lives = self.initial_lives
+
         if self.clip_reward:
             reward = np.clip(reward, -1, 1)
 
