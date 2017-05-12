@@ -79,10 +79,11 @@ log('Creating policy')
 # Create ActionRegressor
 if args.fqi_model_type == 'extra':
     fqi_regressor_params = {'n_estimators': 50,
+                            'max_depth': 1 + nn_stack.get_support_dim() / 2,
                             'n_jobs': -1}
     fqi_regressor_class = ExtraTreesRegressor
 elif args.fqi_model_type == 'xgb':
-    fqi_regressor_params = {}
+    fqi_regressor_params = {'n_estimators': 100}
     fqi_regressor_class = XGBRegressor
 elif args.fqi_model_type == 'linear':
     fqi_regressor_params = {'n_jobs': -1}
