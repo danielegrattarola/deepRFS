@@ -44,20 +44,15 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
     assert metric in ['discounted', 'average', 'cumulative'], \
         "Unsupported metric"
-    # out = Parallel(n_jobs=n_jobs)(
-    #     delayed(_eval)(
-    #         mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
-    #         save_video=save_video, save_path=save_path,
-    #         append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
-    #         initial_actions=initial_actions
-    #     )
-    #     for eid in range(n_episodes)
-    # )
-
-    out = [_eval(mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
-                 save_video=save_video, save_path=save_path,
-                 append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
-                 initial_actions=initial_actions) for eid in range(n_episodes)]
+    out = Parallel(n_jobs=n_jobs)(
+        delayed(_eval)(
+            mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
+            save_video=save_video, save_path=save_path,
+            append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
+            initial_actions=initial_actions
+        )
+        for eid in range(n_episodes)
+    )
 
     values, steps = np.array(zip(*out))
     return values.mean(), 2 * values.std() / np.sqrt(n_episodes), \
@@ -79,7 +74,7 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
 
     # Force start
     if initial_actions is not None:
-        state, _, _, _ = mdp.step(np.random.choice(initial_actions))
+        state, _, _, lives_count = mdp.step(np.random.choice(initial_actions))
 
     if save_video:
         frames.append(state[-1])
@@ -97,11 +92,11 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         action = int(action)
         next_state, reward, done, info = mdp.step(action)
 
-        if is_stuck(next_state):
-            patience -= 1
-        if patience == 0:
-            patience = mdp.action_space.n
-            next_state, reward, done, info = mdp.step(1)  # Force start
+        if initial_actions is not None:
+            if info['ale.lives'] < lives_count:
+                print 'Stuck, force starting'
+                lives_count = info['ale.lives']
+                next_state, reward, done, info = mdp.step(np.random.choice(initial_actions))
 
         # Update figures of merit
         ep_performance += df * reward  # Update performance
