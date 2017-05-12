@@ -53,7 +53,7 @@ parser.add_argument('--fqi-model-type', type=str, default='extra',
                          '\'extra\', \'xgb\')')
 args = parser.parse_args()
 
-max_eval_steps = 2 if args.debug else 500  # Max length of evaluation episodes
+max_eval_steps = 2 if args.debug else 1000  # Max length of evaluation episodes
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # SETUP

@@ -94,7 +94,6 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
 
         if initial_actions is not None:
             if info['ale.lives'] < lives_count:
-                print 'Stuck, force starting'
                 lives_count = info['ale.lives']
                 next_state, reward, done, info = mdp.step(np.random.choice(initial_actions))
 
