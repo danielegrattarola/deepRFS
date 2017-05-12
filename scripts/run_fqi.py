@@ -51,8 +51,8 @@ parser.add_argument('--eval-freq', type=int, default=5,
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
                          '\'extra\', \'xgb\')')
-parser.add_argument('--use-sw', action='store_true',
-                    help='Use sample weights for FQI fit')
+parser.add_argument('--clip', action='store_true',
+                    help='Clip reward')
 args = parser.parse_args()
 
 max_eval_steps = 2 if args.debug else 1000  # Max length of evaluation episodes
@@ -68,12 +68,15 @@ nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
 faft, r, action_values = joblib.load(data_path)
 
-if args.use_sw:
-    sample_weight = get_sample_weight(r,
-                                      balanced=True,
-                                      round_target=True)
-else:
-    sample_weight = None
+if args.clip:
+    r = np.clip(r, -1, 1)
+
+# if args.use_sw and args.fqi_model_type != 'xgb':
+#     sample_weight = get_sample_weight(r,
+#                                       balanced=True,
+#                                       round_target=True)
+# else:
+#     sample_weight = None
 
 log('Got %s samples' % len(faft))
 
@@ -125,9 +128,9 @@ log('\n%s reward features' % n_reward_features)
 log('%s dynamics features\n' % (nn_stack.get_support_dim() - n_reward_features))
 
 # Initial fit
-policy.partial_fit(faft, r, sample_weight=sample_weight)
+policy.partial_fit(faft, r)
 for i in tqdm(range(args.iter)):
-    policy.partial_fit(sample_weight=sample_weight)
+    policy.partial_fit()
     if i % args.eval_freq == 0 or i == (args.iter-1):
         evaluation_metrics = evaluate_policy(mdp,
                                              policy,
