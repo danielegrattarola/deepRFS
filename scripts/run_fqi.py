@@ -51,7 +51,7 @@ parser.add_argument('--eval-freq', type=int, default=5,
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
                          '\'extra\', \'xgb\')')
-parser.add_argument('--clip', action='store_true',
+parser.add_argument('--clip-r', action='store_true',
                     help='Clip reward')
 args = parser.parse_args()
 
