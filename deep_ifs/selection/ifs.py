@@ -258,7 +258,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
         else:
             n_splits = cv.get_n_splits(X, y)
 
-        if self.verbose > 0:
+        if self.verbose > 1:
             print("Fitting {0} folds for each of iteration".format(n_splits))
 
         if 0.0 < self.n_features_step < 1.0:
@@ -298,7 +298,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
         score, confidence_interval = -np.inf, 0
         proceed = np.sum(current_support_) < X.shape[1]
         while proceed:
-            if self.verbose > 0:
+            if self.verbose > 1:
                 print('\nN-times variance of target: {}'.format(
                     target.var() * target.shape[0]))
             # update values
@@ -312,7 +312,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
                 # target = MinMaxScaler().fit_transform(target.reshape(
                 #     -1,1)).ravel()
 
-            if self.verbose > 0:
+            if self.verbose > 1:
                 print()
                 print('Feature ranking')
                 print()
@@ -347,7 +347,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
             # for sparse case ranks is matrix
             ranks = np.ravel(ranks)
 
-            if self.verbose > 0:
+            if self.verbose > 1:
                 ranked_f = features[ranks]
                 if features_names is not None:
                     ranked_n = features_names[ranks]
@@ -445,7 +445,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
 
             # check terminal condition
             proceed = score - old_score > old_confidence_interval + confidence_interval if score >= 0 and old_score >= 0 else True
-            if self.verbose > 0:
+            if self.verbose > 1:
                 print("PROCEED: {}\n\t{} - {} > {} + {}\n\t{} > {} )".format(
                     proceed, score, old_score,
                     old_confidence_interval,

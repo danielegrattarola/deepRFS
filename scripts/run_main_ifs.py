@@ -355,7 +355,7 @@ for step in range(algorithm_steps):
                   'n_features_step': 1,
                   'cv': None,
                   'scale': True,
-                  'verbose': 0,
+                  'verbose': 1,
                   'significance': ifs_significance}
     ifs = IFS(**ifs_params)
 
