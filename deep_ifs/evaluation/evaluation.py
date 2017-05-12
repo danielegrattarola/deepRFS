@@ -44,15 +44,20 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
     assert metric in ['discounted', 'average', 'cumulative'], \
         "Unsupported metric"
-    out = Parallel(n_jobs=n_jobs)(
-        delayed(_eval)(
-            mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
-            save_video=save_video, save_path=save_path,
-            append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
-            initial_actions=initial_actions
-        )
-        for eid in range(n_episodes)
-    )
+    # out = Parallel(n_jobs=n_jobs)(
+    #     delayed(_eval)(
+    #         mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
+    #         save_video=save_video, save_path=save_path,
+    #         append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
+    #         initial_actions=initial_actions
+    #     )
+    #     for eid in range(n_episodes)
+    # )
+
+    out = [_eval(mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
+                 save_video=save_video, save_path=save_path,
+                 append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
+                 initial_actions=initial_actions) for eid in range(n_episodes)]
 
     values, steps = np.array(zip(*out))
     return values.mean(), 2 * values.std() / np.sqrt(n_episodes), \
