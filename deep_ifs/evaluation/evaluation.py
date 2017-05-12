@@ -68,7 +68,6 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
     df = 1.0  # Discount factor
     frame_counter = 0
     patience = mdp.action_space.n
-    action_stats = {i: 0 for i in mdp.action_space.values}
 
     # Get current state
     state = mdp.reset()
@@ -92,7 +91,6 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
                                     evaluation=True)
         action = int(action)
         next_state, reward, done, info = mdp.step(action)
-        action_stats[action] += 1
 
         if initial_actions is not None:
             if info['ale.lives'] < lives_count:
@@ -125,7 +123,5 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
                                (append_filename, ep_performance, frame_counter)
         filename = time.strftime(filename)
         imageio.mimsave(filename, frames)
-
-    print action_stats
 
     return ep_performance, frame_counter
