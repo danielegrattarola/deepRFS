@@ -707,7 +707,7 @@ def get_class_weight_from_disk(path, clip_target=False, round_target=False):
         if idx == 0:
             target = pds_to_npa(sars[:, 2])
         else:
-            target = np.append(target, sars[:, 2])
+            target = np.append(target, pds_to_npa(sars[:, 2]))
 
     if round_target:
         target = np.round(target)
