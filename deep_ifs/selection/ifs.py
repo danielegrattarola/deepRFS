@@ -416,7 +416,7 @@ class IFS(BaseEstimator, MetaEstimatorMixin, SelectorMixin):
 
             # compute score and confidence interval
             # score = r2_score(y_true=y, y_pred=y_hat, multioutput='uniform_average')  # np.mean(cv_scores)
-            if self.verbose > 0:
+            if self.verbose > 1:
                 print('r2: {}'.format(np.mean(cv_scores, axis=0)))
 
             score = np.mean(cv_scores)
