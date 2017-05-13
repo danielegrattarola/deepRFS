@@ -220,6 +220,7 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
     # If balanced, compute class weight on all rewards
     if class_weight is None or balanced:
         class_weight = get_class_weight_from_disk(path,
+                                                  clip_target=clip,
                                                   round_target=round_target)
 
     while True:
@@ -654,7 +655,7 @@ def build_fart_r_from_disk(nn_stack, path):
 
 
 # DATASET HELPERS
-def get_class_weight(target, round_target=False):
+def get_class_weight(target, clip_target=False, round_target=False):
     """
     Returns a dictionary with classes (reward values) as keys and weights as
     values.
@@ -672,12 +673,15 @@ def get_class_weight(target, round_target=False):
     if round_target:
         target = np.round(target)
 
+    if clip_target:
+        target = np.clip(target, -1, 1)
+
     classes = np.unique(target)
     weights = compute_class_weight('balanced', classes, target)
     return dict(zip(classes, weights))
 
 
-def get_class_weight_from_disk(path, round_target=False):
+def get_class_weight_from_disk(path, clip_target=False, round_target=False):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -708,13 +712,16 @@ def get_class_weight_from_disk(path, round_target=False):
     if round_target:
         target = np.round(target)
 
+    if clip_target:
+        target = np.clip(target, -1, 1)
+
     classes = np.unique(target)
     weights = compute_class_weight('balanced', classes, target)
     return dict(zip(classes, weights))
 
 
 def get_sample_weight(target, balanced=False, class_weight=None,
-                      round_target=False):
+                      clip_target=False, round_target=False):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -738,6 +745,9 @@ def get_sample_weight(target, balanced=False, class_weight=None,
 
     if round_target:
         target = np.round(target)
+
+    if clip_target:
+        target = np.clip(target, -1, 1)
 
     if class_weight is None or balanced:
         class_weight = get_class_weight(target, round_target=round_target)

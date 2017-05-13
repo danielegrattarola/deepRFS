@@ -68,7 +68,7 @@ nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
 faft, r, action_values = joblib.load(data_path)
 
-if args.clip:
+if args.clip_r:
     r = np.clip(r, -1, 1)
 
 # if args.use_sw and args.fqi_model_type != 'xgb':
