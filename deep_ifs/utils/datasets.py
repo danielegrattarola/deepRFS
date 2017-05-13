@@ -34,7 +34,8 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
     # Force start
     if initial_actions is not None:
         action = np.random.choice(initial_actions)
-        state, _, _, _ = mdp.step(action)
+        state, _, _, info = mdp.step(action)
+        lives_count = info['ale.lives']
 
     reward = 0
     done = False
@@ -58,6 +59,12 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
                 break
         reward = temp_reward
         done = temp_done
+
+        if initial_actions is not None:
+            if info['ale.lives'] < lives_count:
+                ep_output[-1][2] = mdp.final_reward
+                lives_count = info['ale.lives']
+                next_state, reward, done, info = mdp.step(np.random.choice(initial_actions))
 
         # build SARS' tuple
         ep_output.append([state, action, reward, next_state, done])
@@ -238,9 +245,10 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
 
             nb_batches = len(sars) / batch_size
 
-            sample_weight = get_sample_weight(sars[:, 2],
+            sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
                                               balanced=False,  # Dealt with manually
                                               class_weight=class_weight,
+                                              clip_target=clip,
                                               round_target=round_target)
 
             for i in range(nb_batches):
@@ -750,7 +758,9 @@ def get_sample_weight(target, balanced=False, class_weight=None,
         target = np.clip(target, -1, 1)
 
     if class_weight is None or balanced:
-        class_weight = get_class_weight(target, round_target=round_target)
+        class_weight = get_class_weight(target,
+                                        clip_target=clip_target,
+                                        round_target=round_target)
 
     sample_weight = [class_weight[r] for r in target]
     return np.array(sample_weight)

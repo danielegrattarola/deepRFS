@@ -274,6 +274,7 @@ for step in range(algorithm_steps):
     test_sars_sample_weight = get_sample_weight(test_R,
                                                 balanced=args.balanced_weights,
                                                 class_weight=class_weight,
+                                                clip_target=args.clip_nn0,
                                                 round_target=True)
 
     toc('Got %s test SARS\' samples' % len(test_sars))

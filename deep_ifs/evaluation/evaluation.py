@@ -74,7 +74,8 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
 
     # Force start
     if initial_actions is not None:
-        state, _, _, lives_count = mdp.step(np.random.choice(initial_actions))
+        state, _, _, info = mdp.step(np.random.choice(initial_actions))
+        lives_count = info['ale.lives']
 
     if save_video:
         frames.append(state[-1])

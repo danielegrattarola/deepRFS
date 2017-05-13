@@ -27,6 +27,8 @@ class Atari(gym.Env):
         self.clip_reward = clip_reward
         self.final_reward = -1.0 / (1.0 - self.gamma)
 
+        self.lives = 5
+
         # initialize state
         self.seed()
         self.reset()
