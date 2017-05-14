@@ -190,7 +190,7 @@ if args.fqi_model_type == 'extra':
                             'n_jobs': -1}
     fqi_regressor_class = ExtraTreesRegressor
 elif args.fqi_model_type == 'xgb':
-    fqi_regressor_params = {}
+    fqi_regressor_params = {'max_depth': 10}
     fqi_regressor_class = XGBRegressor
 elif args.fqi_model_type == 'linear':
     fqi_regressor_params = {'n_jobs': -1}

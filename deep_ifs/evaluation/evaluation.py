@@ -67,7 +67,6 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
     ep_performance = 0.0
     df = 1.0  # Discount factor
     frame_counter = 0
-    patience = mdp.action_space.n
 
     # Get current state
     state = mdp.reset()
@@ -99,7 +98,7 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         next_state, reward, done, info = mdp.step(action)
 
         # Update figures of merit
-        ep_performance += df * reward  # Update performance
+        ep_performance += df * np.clip(reward, -1, 1)  # Update performance
         df *= gamma  # Update discount factor
 
         # Render environment
@@ -112,7 +111,7 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
             frames.append(state[-1])
 
         if frame_counter >= max_ep_len:
-            ep_performance += df * mdp.final_reward
+            ep_performance += df * np.clip(mdp.final_reward, -1, 1)
             break
 
     if metric == 'average':
