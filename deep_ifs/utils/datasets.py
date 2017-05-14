@@ -45,6 +45,11 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
     while not done:
         frame_counter += 1
 
+        if initial_actions is not None:
+            if info['ale.lives'] < lives_count:
+                lives_count = info['ale.lives']
+                state, _, _, _ = mdp.step(np.random.choice(initial_actions))
+
         # Select and execute the action, get next state and reward
         action = policy.draw_action(np.expand_dims(state, 0), done)
         action = int(action)
@@ -59,12 +64,6 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
                 break
         reward = temp_reward
         done = temp_done
-
-        if initial_actions is not None:
-            if info['ale.lives'] < lives_count:
-                ep_output[-1][2] = mdp.final_reward
-                lives_count = info['ale.lives']
-                next_state, reward, done, info = mdp.step(np.random.choice(initial_actions))
 
         # build SARS' tuple
         ep_output.append([state, action, reward, next_state, done])
