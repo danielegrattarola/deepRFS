@@ -118,13 +118,15 @@ parser.add_argument('--clip-nn0', action='store_true',
                     help='Clip reward for NN0 only')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
+parser.add_argument('--load-sars', type=str, default=None,
+                    help='Path to dataset folder to use instead of collecting')
 parser.add_argument('--sars-episodes', type=int, default=100,
                     help='Number of SARS episodes to collect')
-parser.add_argument('--sars-test-episodes', type=int, default=500,
+parser.add_argument('--sars-test-episodes', type=int, default=250,
                     help='Number of SARS test episodes to collect')
 parser.add_argument('--sars-to-disk', type=int, default=25,
                     help='Number of SARS episodes to collect to disk')
-parser.add_argument('--control-freq', type=int, default=2,
+parser.add_argument('--control-freq', type=int, default=1,
                     help='Control frequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
@@ -132,7 +134,7 @@ parser.add_argument('--nn0l1', type=float, default=0.001,
                     help='l1 normalization for NN0')
 parser.add_argument('--balanced-weights', action='store_true',
                     help='Use balanced weights instead of the custom ones')
-parser.add_argument('--fqi-iter', type=int, default=60,
+parser.add_argument('--fqi-iter', type=int, default=300,
                     help='Number of FQI iterations to run')
 parser.add_argument('--fqi-eval-period', type=int, default=1,
                     help='Number of FQI iterations between evaluations')
@@ -242,29 +244,38 @@ for step in range(algorithm_steps):
     log('######## STEP %s ########' % step)
 
     tic('Collecting SARS dataset')
-    # 4 frames, action, reward, 4 frames
-    sars_path = logger.path + 'sars_%s/' % step
-    samples_in_dataset = collect_sars_to_disk(mdp,
-                                              policy,
-                                              sars_path,
-                                              datasets=args.sars_to_disk,
-                                              episodes=sars_episodes,
-                                              debug=args.debug,
-                                              random_greedy_split=random_greedy_split,
-                                              initial_actions=initial_actions,
-                                              repeat=args.control_freq,
-                                              batch_size=nn_batch_size)
+    if args.load_sars is None:
+        # 4 frames, action, reward, 4 frames
+        sars_path = logger.path + 'sars_%s/' % step
+        samples_in_dataset = collect_sars_to_disk(mdp,
+                                                  policy,
+                                                  sars_path,
+                                                  datasets=args.sars_to_disk,
+                                                  episodes=sars_episodes,
+                                                  debug=args.debug,
+                                                  random_greedy_split=random_greedy_split,
+                                                  initial_actions=initial_actions,
+                                                  repeat=args.control_freq,
+                                                  batch_size=nn_batch_size)
+    else:
+        sars_path = args.load_sars
+        samples_in_dataset = get_nb_samples_from_disk(sars_path)
+
     toc('Got %s SARS\' samples' % samples_in_dataset)
 
     # Collect test dataset
     tic('Collecting test SARS dataset')
-    test_sars = collect_sars(mdp,
-                             policy,
-                             episodes=sars_test_episodes,
-                             debug=args.debug,
-                             random_greedy_split=random_greedy_split,
-                             initial_actions=initial_actions,
-                             repeat=args.control_freq)
+    if args.load_sars is None:
+        test_sars = collect_sars(mdp,
+                                 policy,
+                                 episodes=sars_test_episodes,
+                                 debug=args.debug,
+                                 random_greedy_split=random_greedy_split,
+                                 initial_actions=initial_actions,
+                                 repeat=args.control_freq)
+    else:
+        test_sars = np.load(sars_path + '/valid_sars.npy')
+
     test_S = pds_to_npa(test_sars[:, 0])
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])

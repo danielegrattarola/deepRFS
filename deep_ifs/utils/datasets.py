@@ -820,3 +820,17 @@ def fit_res_scaler(scaler, F, D, model, no_residuals=False):
     RES = build_res(model, F, D, no_residuals=no_residuals)
     scaler.fit(RES)
     return scaler
+
+
+def get_nb_samples_from_disk(path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+
+    result = 0
+    for f in files:
+        sars = np.load(f)
+        result += len(sars)
+
+    return result
