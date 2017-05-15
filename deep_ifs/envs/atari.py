@@ -49,7 +49,7 @@ class Atari(gym.Env):
             reward = self.final_reward
 
         if self.clip_reward:
-            reward = np.clip(reward, -1, 1)
+            reward = np.clip(reward, 0, 1)
 
         obs = self._preprocess_observation(obs)
         self.env.state = self._get_next_state(current_state, obs)
