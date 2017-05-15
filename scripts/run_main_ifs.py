@@ -69,6 +69,7 @@ from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.extraction.ConvNet import ConvNet
+from deep_ifs.extraction.GenericEncoder import GenericEncoder
 from deep_ifs.extraction.ConvNetClassifier import ConvNetClassifier
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.selection.ifs import IFS
@@ -290,7 +291,8 @@ for step in range(algorithm_steps):
 
     toc('Got %s test SARS\' samples' % len(test_sars))
 
-    log('Memory usage: %s MB\n' % get_size([test_sars, test_S, test_A, test_R], 'MB'))
+    log('Memory usage (test_sars, test_S, test_A, test_R): %s MB\n' %
+        get_size([test_sars, test_S, test_A, test_R], 'MB'))
 
     log('Resetting NN stack')
     nn_stack.reset()  # Clear the stack after collecting SARS' with last policy
@@ -348,6 +350,11 @@ for step in range(algorithm_steps):
         plt.savefig(logger.path + 'NN0_step%s_R.png' % step)
         plt.close()
 
+    # Use encoder only to free memory
+    nn.save_encoder(logger.path + 'NN0_encoder_step%s.h5' % step)
+    del nn
+    nn = GenericEncoder(logger.path + 'NN0_encoder_step%s.h5' % step)
+
     # ITERATIVE FEATURE SELECTION 0
     tic('Building dataset for IFS 0')
     FA, R = build_far_from_disk(nn,
@@ -358,7 +365,7 @@ for step in range(algorithm_steps):
     toc('Number of non-zero feature: %s' %
         np.count_nonzero(np.mean(FA[:-1], axis=0)))
 
-    log('Memory usage: %s MB\n' % get_size([FA, R], 'MB'))
+    log('Memory usage (FA, R): %s MB\n' % get_size([FA, R], 'MB'))
 
     tic('Running IFS (target: R)')
     ifs_estimator_params = {'n_estimators': ifs_nb_trees,
@@ -426,6 +433,8 @@ for step in range(algorithm_steps):
         test_F, test_D = build_fd(nn_stack, nn, support, test_sars)
         test_RES = build_res(model, test_F, test_D, no_residuals=args.no_residuals)
 
+        log('Memory usage (F, D): %s MB\n' % get_size([F, D], 'MB'))
+
         # Neural network
         image_shape = mdp.state_shape
         target_size = support.sum().astype('int32')
@@ -487,6 +496,12 @@ for step in range(algorithm_steps):
                 plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (i, step, f))
                 plt.close()
 
+        # Use encoder only to free memory
+        nn.save_encoder(logger.path + 'NN%s_encoder_step%s.h5' % (i, step))
+        del nn
+        gc.collect()
+        nn = GenericEncoder(logger.path + 'NN%s_encoder_step%s.h5' % (i, step))
+
         # ITERATIVE FEATURE SELECTION i
         tic('Building FADF dataset for IFS %s' % i)
         # Features (stack + last nn), action, dynamics (previous nn), features (stack + last nn)
@@ -494,7 +509,7 @@ for step in range(algorithm_steps):
         # D is already computed
         toc()
 
-        log('Memory usage: %s MB\n' % get_size([FA, D], 'MB'))
+        log('Memory usage (FA, D): %s MB\n' % get_size([FA, D], 'MB'))
 
         tic('Running IFS %s with target D' % i)
         ifs = IFS(**ifs_params)
@@ -523,7 +538,7 @@ for step in range(algorithm_steps):
     all_features_dim = nn_stack.get_support_dim()  # Pass new dimension of states to create ActionRegressor
     toc('Got %s samples' % len(faft))
 
-    log('Memory usage: %s MB\n' % get_size([faft, r], 'MB'))
+    log('Memory usage (faft, r): %s MB\n' % get_size([faft, r], 'MB'))
 
     # Save dataset
     tic('Saving global FARF and NNStack')
