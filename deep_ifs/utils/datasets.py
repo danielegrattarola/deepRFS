@@ -1,13 +1,15 @@
+import glob
+import os
+
 import numpy as np
 import pandas as pd
-from deep_ifs.utils.helpers import flat2list, pds_to_npa, is_stuck
-from deep_ifs.utils.timer import log
 from joblib import Parallel, delayed
-from tqdm import tqdm
 from sklearn.utils.class_weight import compute_class_weight
-import glob
-import joblib
-import os
+from tqdm import tqdm
+
+from deep_ifs.extraction.ConvNet import ConvNet
+from deep_ifs.utils.helpers import flat2list, pds_to_npa
+from deep_ifs.utils.timer import log
 
 
 # DATASET BUILDERS
@@ -232,6 +234,8 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
     while True:
         for idx, f in enumerate(files):
             sars = np.load(f)
+            if clip:
+                sars = np.clip(sars[:, 2], -1, 1)
             if idx > 0:
                 sars = np.append(excess_sars, sars, axis=0)
 
@@ -247,7 +251,6 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
             sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
                                               balanced=False,  # Dealt with manually
                                               class_weight=class_weight,
-                                              clip_target=clip,
                                               round_target=round_target)
 
             for i in range(nb_batches):
@@ -258,39 +261,9 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
                 R = pds_to_npa(sars[start:stop, 2])
 
                 # Preprocess data
-                S = S.astype('float32') / 255  # Convert to 0-1 range
-                if binarize:
-                    S[S < 0.1] = 0
-                    S[S >= 0.1] = 1
-
-                if clip:
-                    R = np.clip(R, -1, 1)
+                S = ConvNet.preprocess_state(S, binarize=binarize)
 
                 yield ([S, A], R, sample_weight[start:stop])
-
-
-def sars_from_disk(path, datasets=1):
-    """
-    Args
-        path (str): path to folder containing 'sars_*.pkl' files (as collected
-            with collect_sars_to_disk)
-        datasets (int, 1): number of datasets to read and merge.
-
-    Return
-        A single SARS' dataset composed of the first n datasets in path, 
-        as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
-    """
-    if not path.endswith('/'):
-        path += '/'
-    files = glob.glob(path + 'sars_*.npy')
-    files = files[:datasets]
-    sars = pd.DataFrame()
-    for idx, f in enumerate(files):
-        if idx == 0:
-            sars = np.load(f)
-        else:
-            sars = np.append(sars, np.load(f), axis=0)
-    return sars
 
 
 def build_farf(nn, sars):
@@ -339,6 +312,8 @@ def build_far_from_disk(nn, path, clip=False):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if clip:
+            sars = np.clip(sars[:, 2], -1, 1)
         if idx == 0:
             F = nn.all_features(pds_to_npa(sars[:, 0]))
             A = pds_to_npa(sars[:, 1])
@@ -355,31 +330,8 @@ def build_far_from_disk(nn, path, clip=False):
     FA = np.concatenate((F, A), axis=1)
 
     # Post processing
-    if clip:
-        R = np.clip(R, -1, 1)
     R = R.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     return FA, R
-
-
-def build_sfadf(nn_stack, nn, support, sars):
-    """
-    Builds SFADF' dataset using SARS' dataset:
-        S = S
-        F = NN_stack.s_features(S)
-        A = A
-        D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
-        F' = NN_stack.s_features(S')
-    """
-    header = ['S', 'F', 'A', 'D', 'FF']
-    df = pd.DataFrame(columns=header)
-    df['S'] = sars.S
-    df['F'] = nn_stack.s_features(pds_to_npa(sars.S)).tolist()
-    df['A'] = sars.A
-    dynamics = nn.s_features(pds_to_npa(sars.S), support) - \
-               nn.s_features(pds_to_npa(sars.SS), support)
-    df['D'] = dynamics.tolist()
-    df['FF'] = nn_stack.s_features(pds_to_npa(sars.SS)).tolist()
-    return df
 
 
 def build_fd(nn_stack, nn, support, sars):
@@ -411,46 +363,6 @@ def build_fd_from_disk(nn_stack, nn, support, path):
     return F, D
 
 
-def build_sfad(nn_stack, nn, support, sars):
-    """
-    Builds SFAD dataset using SARS' dataset:
-        S = S
-        F = NN_stack.s_features(S)
-        A = A
-        D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
-    """
-    header = ['S', 'F', 'A', 'D']
-    df = pd.DataFrame(columns=header)
-    df['S'] = sars.S
-    df['F'] = nn_stack.s_features(pds_to_npa(sars.S)).tolist()
-    df['A'] = sars.A
-    dynamics = nn.s_features(pds_to_npa(sars.S), support) - \
-               nn.s_features(pds_to_npa(sars.SS), support)
-    df['D'] = dynamics.tolist()
-    return df
-
-
-def build_fadf(nn_stack, nn, sars, sfadf):
-    """
-    Builds new FADF' dataset from SARS' and SFADF':
-        F = NN_stack.s_features(S) + NN[i].features(S)
-        A = A
-        D = SFADF'.D
-        F' = NN_stack.s_features(S') + NN[i].features(S')
-    """
-    header = ['F', 'A', 'D', 'FF']
-    df = pd.DataFrame(columns=header)
-    features = np.column_stack((nn_stack.s_features(pds_to_npa(sars.S)),
-                                nn.all_features(pds_to_npa(sars.S))))
-    df['F'] = features.tolist()
-    df['A'] = sars.A
-    df['D'] = sfadf.D
-    features = np.column_stack((nn_stack.s_features(pds_to_npa(sars.SS)),
-                                nn.all_features(pds_to_npa(sars.SS))))
-    df['FF'] = features.tolist()
-    return df
-
-
 # IFS i
 def build_fa_from_disk(nn_stack, nn, path):
     if not path.endswith('/'):
@@ -476,45 +388,6 @@ def build_fa_from_disk(nn_stack, nn, path):
     return FA
 
 
-def build_fadf_no_preload(nn, sars, sfadf):
-    """
-    Builds new FADF' dataset from SARS' and SFADF':
-        F = NN[i].features(S)
-        A = A
-        D = SFADF'.D
-        F' = NN[i].features(S')
-    """
-    header = ['F', 'A', 'D', 'FF']
-    df = pd.DataFrame(columns=header)
-    df['F'] = nn.all_features(pds_to_npa(sars.S)).tolist()
-    df['A'] = sars.A
-    df['D'] = sfadf.D
-    df['FF'] = nn.all_features(pds_to_npa(sars.SS)).tolist()
-    return df
-
-
-def build_sares(model, sfadf, no_residuals=False):
-    """
-    Builds SARes dataset from SFADF':
-        S = S
-        A = A
-        Res = D - M(F)
-    """
-    header = ['S', 'A', 'RES']
-    df = pd.DataFrame(columns=header)
-    df['S'] = sfadf.S
-    df['A'] = sfadf.A
-    dynamics = pds_to_npa(sfadf.D)
-    features = pds_to_npa(sfadf.F)
-    if no_residuals:
-        df['RES'] = sfadf.D
-    else:
-        predictions = model.predict(features)
-        residuals = dynamics - predictions
-        df['RES'] = residuals.tolist()
-    return df
-
-
 def build_res(model, F, D, no_residuals=False):
     if no_residuals:
         RES = D
@@ -526,10 +399,9 @@ def build_res(model, F, D, no_residuals=False):
 
 # NNi
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
-                              scaler=None, binarize=False, no_residuals=False,
+                              binarize=False, no_residuals=False,
                               use_sample_weights=True, balanced=False,
-                              class_weight=None, round_target=False,
-                              clip=False):
+                              class_weight=None, round_target=False):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -588,38 +460,12 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                 RES = build_res(model, F, D, no_residuals=no_residuals)
 
                 # Preprocess data
-                S = S.astype('float32') / 255  # Convert to 0-1 range
-                if binarize:
-                    S[S < 0.1] = 0
-                    S[S >= 0.1] = 1
-                if scaler is not None:
-                    RES = scaler.transform(RES)
-                if clip:
-                    RES = np.clip(RES, -1, 1)
+                S = ConvNet.preprocess_state(S, binarize=binarize)
 
                 if use_sample_weights:
                     yield ([S, A], RES, sample_weight[start:stop])
                 else:
                     yield ([S, A], RES)
-
-
-def build_global_farf(nn_stack, sars):
-    """
-    Builds FARF' dataset using SARS' dataset:
-        F = NN_stack.s_features(S)
-        A = A
-        R = R
-        F' = NN_stack.s_features(S')
-        DONE = DONE
-    """
-    header = ['F', 'A', 'R', 'FF', 'DONE']
-    df = pd.DataFrame(columns=header)
-    df['F'] = nn_stack.s_features(pds_to_npa(sars.S)).tolist()
-    df['A'] = sars.A
-    df['R'] = sars.R
-    df['FF'] = nn_stack.s_features(pds_to_npa(sars.SS)).tolist()
-    df['DONE'] = sars.DONE
-    return df
 
 
 def build_fart_r_from_disk(nn_stack, path):
@@ -662,7 +508,7 @@ def build_fart_r_from_disk(nn_stack, path):
 
 
 # DATASET HELPERS
-def get_class_weight(target, clip_target=False, round_target=False):
+def get_class_weight(target, round_target=False):
     """
     Returns a dictionary with classes (reward values) as keys and weights as
     values.
@@ -679,9 +525,6 @@ def get_class_weight(target, clip_target=False, round_target=False):
 
     if round_target:
         target = np.round(target)
-
-    if clip_target:
-        target = np.clip(target, -1, 1)
 
     classes = np.unique(target)
     weights = compute_class_weight('balanced', classes, target)
@@ -728,7 +571,7 @@ def get_class_weight_from_disk(path, clip_target=False, round_target=False):
 
 
 def get_sample_weight(target, balanced=False, class_weight=None,
-                      clip_target=False, round_target=False):
+                      round_target=False):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -753,73 +596,11 @@ def get_sample_weight(target, balanced=False, class_weight=None,
     if round_target:
         target = np.round(target)
 
-    if clip_target:
-        target = np.clip(target, -1, 1)
-
     if class_weight is None or balanced:
-        class_weight = get_class_weight(target,
-                                        clip_target=clip_target,
-                                        round_target=round_target)
+        class_weight = get_class_weight(target, round_target=round_target)
 
     sample_weight = [class_weight[r] for r in target]
     return np.array(sample_weight)
-
-
-def split_dataset_for_ifs(dataset, features='F', target='R'):
-    """
-    Splits the dataset into x = features + actions, y = target
-
-    Args
-        dataset (pd.DataFrame): a dataset in pandas format.
-        features (str, 'F'): key to index the dataset
-        target (str, 'R'): key to index the dataset
-    """
-    f = pds_to_npa(dataset[features])
-    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
-    x = np.concatenate((f, a), axis=1)
-    y = pds_to_npa(dataset[target])
-    return x, y
-
-
-def split_dataset_for_rfs(dataset, features='F', next_features='FF', target='R'):
-    """
-    Splits the dataset into f = features, a = actions, ff = features of next
-    states, y = target.
-
-    Args
-        dataset (pd.DataFrame): a dataset in pandas format.
-        features (str, 'F'): key to index the dataset
-        next_features (str, 'FF'): key to index the dataset
-        target (str, 'R'): key to index the dataset
-    """
-    f = pds_to_npa(dataset[features])
-    a = pds_to_npa(dataset['A']).reshape(-1, 1)  # 1D discreet action
-    ff = pds_to_npa(dataset[next_features])
-    y = pds_to_npa(dataset[target])
-    return f, a, ff, y
-
-
-def split_dataset_for_fqi(global_farf):
-    """
-    Splits the dataset into faft = features + actions + features of next state,
-    r = reward
-
-    Args
-        global_farf (pd.DataFrame): a dataset in pandas format.
-    """
-    f = pds_to_npa(global_farf.F)
-    a = global_farf.A.as_matrix()
-    ff = pds_to_npa(global_farf.FF)
-    done = global_farf.DONE.as_matrix()
-    r = pds_to_npa(global_farf.R)
-    faft = np.column_stack((f, a, ff, done))
-    return faft, r
-
-
-def fit_res_scaler(scaler, F, D, model, no_residuals=False):
-    RES = build_res(model, F, D, no_residuals=no_residuals)
-    scaler.fit(RES)
-    return scaler
 
 
 def get_nb_samples_from_disk(path):

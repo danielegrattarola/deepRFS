@@ -10,7 +10,6 @@ from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import evaluate_policy
 from deep_ifs.extraction.NNStack import NNStack
 from deep_ifs.models.epsilonFQI import EpsilonFQI
-from deep_ifs.utils.datasets import pds_to_npa, split_dataset_for_fqi, get_class_weight, get_sample_weight
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import tic, toc, log
 from ifqi.models import Regressor, ActionRegressor

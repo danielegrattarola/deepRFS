@@ -1,16 +1,14 @@
 # TODO Documentation
+import joblib
 import matplotlib
 
 # Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
 import argparse
 import gc
-import os
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
-from deep_ifs.extraction.ConvNet import ConvNet
-from deep_ifs.extraction.ConvNetClassifier import ConvNetClassifier
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
@@ -20,7 +18,6 @@ from ifqi.models import Regressor, ActionRegressor
 from matplotlib import pyplot as plt
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 
@@ -221,29 +218,15 @@ for step in range(algorithm_steps):
     log('Policy stack outputs %s features\n' % policy.nn_stack.get_support_dim())
 
     # NN: S -> R
-    if args.classify:
-        from sklearn.preprocessing import OneHotEncoder
-        ohe = OneHotEncoder(sparse=False)
-        R = ohe.fit_transform(R.reshape(-1, 1) - R.min())
-        nb_classes = R.shape[1]  # Target is the one-hot encoded reward
-        nn = ConvNetClassifier(mdp.state_shape,
-                               nb_classes,
-                               nb_actions=nb_actions,
-                               l1_alpha=0.0,
-                               nb_epochs=nn_nb_epochs,
-                               binarize=args.binarize,
-                               logger=logger,
-                               chkpt_file='NN0_step%s.h5' % step)
-    else:
-        target_size = 1  # Initial target is the scalar reward
-        nn = ConvNet(mdp.state_shape,
-                     target_size,
-                     nb_actions=nb_actions,
-                     l1_alpha=args.nn0l1,
-                     nb_epochs=nn_nb_epochs,
-                     binarize=args.binarize,
-                     logger=logger,
-                     chkpt_file='NN0_step%s.h5' % step)
+    target_size = 1  # Initial target is the scalar reward
+    nn = ConvNet(mdp.state_shape,
+                 target_size,
+                 nb_actions=nb_actions,
+                 l1_alpha=args.nn0l1,
+                 nb_epochs=nn_nb_epochs,
+                 binarize=args.binarize,
+                 logger=logger,
+                 chkpt_file='NN0_step%s.h5' % step)
 
     # Fit NN0
     tic('Fitting NN0 (target: R)')
@@ -257,8 +240,7 @@ for step in range(algorithm_steps):
     nn.fit_generator(sar_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
-                     validation_data=([test_S, test_A], test_R),
-                     clip_val=args.clip_nn0)
+                     validation_data=([test_S, test_A], test_R))
     nn.load(logger.path + 'NN0_step%s.h5' % step)
     toc()
 
@@ -338,13 +320,6 @@ for step in range(algorithm_steps):
                      logger=logger,
                      chkpt_file='NN%s_step%s.h5' % (i, step))
 
-        log('Fitting scaler for residuals')
-        scaler = fit_res_scaler(StandardScaler(),
-                                F,
-                                D,
-                                model,
-                                no_residuals=args.no_residuals)
-
         # Generator
         sares_generator = sares_generator_from_disk(model,
                                                     nn_stack,
@@ -352,18 +327,15 @@ for step in range(algorithm_steps):
                                                     nn_stack.get_support(-1),
                                                     sars_path,
                                                     batch_size=nn_batch_size,
-                                                    scaler=scaler,
                                                     binarize=args.binarize,
                                                     no_residuals=args.no_residuals,
-                                                    use_sample_weights=True,
+                                                    use_sample_weights=False,
                                                     balanced=args.balanced_weights,
                                                     class_weight=class_weight,
-                                                    round_target=True,
-                                                    clip=False)
+                                                    round_target=True)
 
         # Fit NNi (target: RES)
         tic('Fitting NN%s' % i)
-        test_RES = scaler.transform(test_RES)  # Scale validation target
         nn.fit_generator(sares_generator,
                          samples_in_dataset / nn_batch_size,
                          nn_nb_epochs,

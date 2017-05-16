@@ -13,7 +13,7 @@ class ConvNet:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
                  nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
-                 scaler=None, logger=None, chkpt_file=None):
+                 logger=None, chkpt_file=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
@@ -25,7 +25,6 @@ class ConvNet:
         self.binarize = binarize
         self.class_weight = class_weight
         self.sample_weight = sample_weight
-        self.scaler = scaler
         self.logger = logger
 
         if chkpt_file is not None:
@@ -76,6 +75,15 @@ class ConvNet:
         self.model.compile(optimizer=self.optimizer, loss='mse',
                            metrics=['mse'])
 
+    @staticmethod
+    def preprocess_state(x, binarize=False):
+        x = np.asarray(x).astype('float32') / 255  # To 0-1 range
+        if binarize:
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
+
+        return x
+
     def fit(self, x, u, y, validation_data=None):
         """
         Trains the model on a set of batches.
@@ -90,29 +98,16 @@ class ConvNet:
                 etc.)
         """
         # Preprocess training data
-        x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
+        x_train = self.preprocess_state(np.asarray(x), binarize=self.binarize)
         u_train = np.asarray(u)
         y_train = np.asarray(y)
-        if self.scaler is not None:
-            y_train = self.scaler.fit_transform(y_train)
-            if np.any(np.isnan(y_train)) or np.any(np.isinf(y_train)):
-                print('WARNING: nan in y_train.')
-        if self.binarize:
-            x_train[x_train < 0.1] = 0
-            x_train[x_train >= 0.1] = 1
 
         # Preprocess validation data
         if validation_data is not None:
-            val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
+            val_x = self.preprocess_state(validation_data[0][0],
+                                          binarize=self.binarize)
             val_u = np.asarray(validation_data[0][1])
             val_y = np.asarray(validation_data[1])
-            if self.scaler is not None:
-                val_y = self.scaler.transform(val_y)
-            if np.any(np.isnan(val_y)) or np.any(np.isinf(val_y)):
-                print('WARNING: nan in val_y.')
-            if self.binarize:
-                val_x[val_x < 0.1] = 0
-                val_x[val_x >= 0.1] = 1
             validation_data = ([val_x, val_u], val_y)
 
         return self.model.fit([x_train, u_train], y_train,
@@ -123,19 +118,13 @@ class ConvNet:
                               callbacks=[self.es, self.mc])
 
     def fit_generator(self, generator, steps_per_epoch, nb_epochs,
-                      validation_data=None, clip_val=False):
+                      validation_data=None):
         # Preprocess validation data
         if validation_data is not None:
-            val_x = np.asarray(validation_data[0][0]).astype('float32') / 255
+            val_x = self.preprocess_state(validation_data[0][0],
+                                          binarize=self.binarize)
             val_u = np.asarray(validation_data[0][1])
             val_y = np.asarray(validation_data[1])
-            if self.scaler is not None:
-                val_y = self.scaler.transform(val_y)
-            if self.binarize:
-                val_x[val_x < 0.1] = 0
-                val_x[val_x >= 0.1] = 1
-            if clip_val:
-                val_y = np.clip(val_y, -1, 1)
             validation_data = ([val_x, val_u], val_y)
 
         return self.model.fit_generator(generator,
@@ -144,35 +133,6 @@ class ConvNet:
                                         max_q_size=20,
                                         callbacks=[self.es, self.mc],
                                         validation_data=validation_data)
-
-    def train_on_batch(self, x, u, y):
-        """
-        Trains the model on a batch.
-
-        Args
-            x: batch of samples on which to train.
-            u: actions associated to the samples.
-            y: targets for the batch.
-        Returns
-            The metrics of interest as defined in the model (loss, accuracy,
-                etc.)
-        """
-        x_train = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
-        u_train = np.asarray(u)
-        y_train = np.asarray(y)
-
-        if self.scaler is not None:
-            try:
-                y_train = self.scaler.transform(y_train)
-            except NotFittedError:
-                y_train = self.scaler.fit_transform(y_train)
-
-        if self.binarize:
-            x_train[x_train < 0.1] = 0
-            x_train[x_train >= 0.1] = 1
-        return self.model.train_on_batch([x_train, u_train], y_train,
-                                         class_weight=self.class_weight,
-                                         sample_weight=self.sample_weight)
 
     def predict(self, x, u):
         """
@@ -185,42 +145,11 @@ class ConvNet:
             The predictions of the batch.
         """
         # Feed input to the model, return encoded and re-decoded images
-        x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
-        if self.binarize:
-            x_test[x_test < 0.1] = 0
-            x_test[x_test >= 0.1] = 1
+        x_test = self.preprocess_state(x, binarize=self.binarize)
         u_test = np.asarray(u)
         pred = self.model.predict([x_test, u_test])
 
-        if self.scaler is not None:
-            pred = self.scaler.inverse_transform(pred)
-
         return pred
-
-    def test(self, x, y):
-        """
-        Tests the model on a batch.
-
-        Args
-            x: batch of samples on which to test.
-            y: real targets for the batch.
-        Returns
-            The metrics of interest as defined in the model (loss, accuracy,
-                etc.)
-        """
-        x_test = np.asarray(x).astype('float32') / 255  # Convert to 0-1 range
-        y_test = np.asarray(y)
-
-        if self.scaler is not None:
-            try:
-                y_test = self.scaler.transform(y_test)
-            except NotFittedError:
-                y_test = self.scaler.fit_transform(y_test)
-
-        if self.binarize:
-            x_test[x_test < 0.1] = 0
-            x_test[x_test >= 0.1] = 1
-        return self.model.test_on_batch(x_test, y_test)
 
     def all_features(self, x):
         """
@@ -233,10 +162,7 @@ class ConvNet:
             The encoded sample.
         """
         # Feed input to the model, return encoded images flattened
-        x = np.asarray(x).astype('float32') / 255  # To 0-1 range
-        if self.binarize:
-            x[x < 0.1] = 0
-            x[x >= 0.1] = 1
+        x = self.preprocess_state(x, binarize=self.binarize)
 
         if x.shape[0] == 1:
             # x is a singe sample
