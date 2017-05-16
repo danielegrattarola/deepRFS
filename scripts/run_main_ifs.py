@@ -160,12 +160,6 @@ fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
 fqi_patience = fqi_iter  # Number of FQI iterations w/o improvement after which to stop
 fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
-class_weight = {-100: 100,
-                -1: 100,
-                0: 1,
-                1: 100,
-                4: 100,
-                7: 100}
 
 # SETUP
 logger = Logger(output_folder='../output/',
@@ -278,6 +272,12 @@ for step in range(algorithm_steps):
     test_R = pds_to_npa(test_sars[:, 2])
     if args.clip_nn0:
         test_R = np.clip(test_R, -1, 1)
+
+    # Compute class weights to account for dataset unbalancing
+    class_weight = {0: 1}
+    reward_classes = np.unique(test_R)
+    for r in reward_classes:
+        class_weight[r] = test_R.size / np.argwhere(test_R == r).size
 
     test_sars_sample_weight = get_sample_weight(test_R,
                                                 balanced=args.balanced_weights,
