@@ -42,14 +42,15 @@ class Atari(gym.Env):
     def step(self, action):
         current_state = self.get_state()
         obs, reward, done, info = self.env.step(int(action))
+        reward = np.round(reward)
 
         # Negative reward when a life is lost
         if not info['ale.lives'] == self.lives:
             self.lives = info['ale.lives']
-            reward = self.final_reward
+            # reward = self.final_reward
 
         if self.clip_reward:
-            reward = np.clip(reward, 0, 1)
+            reward = np.clip(reward, -1, 1)
 
         obs = self._preprocess_observation(obs)
         self.env.state = self._get_next_state(current_state, obs)

@@ -282,8 +282,7 @@ for step in range(algorithm_steps):
 
     test_sars_sample_weight = get_sample_weight(test_R,
                                                 balanced=args.balanced_weights,
-                                                class_weight=class_weight,
-                                                round_target=True)
+                                                class_weight=class_weight)
 
     toc('Got %s test SARS\' samples' % len(test_sars))
 
@@ -311,7 +310,6 @@ for step in range(algorithm_steps):
                                             batch_size=nn_batch_size,
                                             balanced=args.balanced_weights,
                                             class_weight=class_weight,
-                                            round_target=True,
                                             binarize=args.binarize,
                                             clip=args.clip_nn0)
     nn.fit_generator(sar_generator,
@@ -439,8 +437,7 @@ for step in range(algorithm_steps):
                                                     no_residuals=args.no_residuals,
                                                     use_sample_weights=False,
                                                     balanced=args.balanced_weights,
-                                                    class_weight=class_weight,
-                                                    round_target=True)
+                                                    class_weight=class_weight)
 
         # Fit NNi (target: RES)
         tic('Fitting NN%s' % i)

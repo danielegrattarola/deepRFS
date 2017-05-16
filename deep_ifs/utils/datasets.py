@@ -206,8 +206,7 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
 
 
 def sar_generator_from_disk(path, batch_size=32, balanced=False,
-                            class_weight=None, round_target=False,
-                            binarize=False, clip=False):
+                            class_weight=None, binarize=False, clip=False):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
     
@@ -227,9 +226,7 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
 
     # If balanced, compute class weight on all rewards
     if class_weight is None or balanced:
-        class_weight = get_class_weight_from_disk(path,
-                                                  clip_target=clip,
-                                                  round_target=round_target)
+        class_weight = get_class_weight_from_disk(path, clip_target=clip)
 
     while True:
         for idx, f in enumerate(files):
@@ -250,8 +247,7 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
 
             sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
                                               balanced=False,  # Dealt with manually
-                                              class_weight=class_weight,
-                                              round_target=round_target)
+                                              class_weight=class_weight)
 
             for i in range(nb_batches):
                 start = i * batch_size
@@ -401,7 +397,7 @@ def build_res(model, F, D, no_residuals=False):
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                               binarize=False, no_residuals=False,
                               use_sample_weights=True, balanced=False,
-                              class_weight=None, round_target=False):
+                              class_weight=None):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -426,8 +422,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
 
     # If balanced, compute class weight on all rewards
     if use_sample_weights and (class_weight is None or balanced):
-        class_weight = get_class_weight_from_disk(path,
-                                                  round_target=round_target)
+        class_weight = get_class_weight_from_disk(path)
 
     while True:
         for idx, f in enumerate(files):
@@ -448,8 +443,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
             if use_sample_weights:
                 sample_weight = get_sample_weight(sars[:, 2],
                                                   balanced=False,  # Dealt with manually
-                                                  class_weight=class_weight,
-                                                  round_target=round_target)
+                                                  class_weight=class_weight)
 
             for i in range(nb_batches):
                 start = i * batch_size
@@ -508,7 +502,7 @@ def build_fart_r_from_disk(nn_stack, path):
 
 
 # DATASET HELPERS
-def get_class_weight(target, round_target=False):
+def get_class_weight(target):
     """
     Returns a dictionary with classes (reward values) as keys and weights as
     values.
@@ -523,15 +517,12 @@ def get_class_weight(target, round_target=False):
     else:
         target = pds_to_npa(target)
 
-    if round_target:
-        target = np.round(target)
-
     classes = np.unique(target)
     weights = compute_class_weight('balanced', classes, target)
     return dict(zip(classes, weights))
 
 
-def get_class_weight_from_disk(path, clip_target=False, round_target=False):
+def get_class_weight_from_disk(path, clip_target=False):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -559,9 +550,6 @@ def get_class_weight_from_disk(path, clip_target=False, round_target=False):
         else:
             target = np.append(target, pds_to_npa(sars[:, 2]))
 
-    if round_target:
-        target = np.round(target)
-
     if clip_target:
         target = np.clip(target, -1, 1)
 
@@ -570,8 +558,7 @@ def get_class_weight_from_disk(path, clip_target=False, round_target=False):
     return dict(zip(classes, weights))
 
 
-def get_sample_weight(target, balanced=False, class_weight=None,
-                      round_target=False):
+def get_sample_weight(target, balanced=False, class_weight=None):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -593,11 +580,8 @@ def get_sample_weight(target, balanced=False, class_weight=None,
     else:
         target = pds_to_npa(target)
 
-    if round_target:
-        target = np.round(target)
-
     if class_weight is None or balanced:
-        class_weight = get_class_weight(target, round_target=round_target)
+        class_weight = get_class_weight(target)
 
     sample_weight = [class_weight[r] for r in target]
     return np.array(sample_weight)
