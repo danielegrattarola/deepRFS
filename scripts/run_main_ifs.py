@@ -274,8 +274,7 @@ for step in range(algorithm_steps):
         test_R = np.clip(test_R, -1, 1)
 
     # Compute class weights to account for dataset unbalancing
-    class_weight = {0: 1}
-    reward_classes = set(np.unique(test_R)) - {0}
+    reward_classes = np.unique(test_R)
     for r in reward_classes:
         class_weight[r] = test_R.size / np.argwhere(test_R == r).size
     print('Class weights: ' + str(class_weight))
