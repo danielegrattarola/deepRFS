@@ -234,8 +234,6 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
     while True:
         for idx, f in enumerate(files):
             sars = np.load(f)
-            if clip:
-                sars = np.clip(sars[:, 2], -1, 1)
             if idx > 0:
                 sars = np.append(excess_sars, sars, axis=0)
 
@@ -262,6 +260,8 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
 
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
+                if clip:
+                    R = np.clip(R, -1, 1)
 
                 yield ([S, A], R, sample_weight[start:stop])
 
@@ -312,8 +312,6 @@ def build_far_from_disk(nn, path, clip=False):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
-        if clip:
-            sars = np.clip(sars[:, 2], -1, 1)
         if idx == 0:
             F = nn.all_features(pds_to_npa(sars[:, 0]))
             A = pds_to_npa(sars[:, 1])
@@ -330,6 +328,8 @@ def build_far_from_disk(nn, path, clip=False):
     FA = np.concatenate((F, A), axis=1)
 
     # Post processing
+    if clip:
+        R = np.clip(R, -1, 1)
     R = R.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
     return FA, R
 
