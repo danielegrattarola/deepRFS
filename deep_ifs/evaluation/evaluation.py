@@ -73,7 +73,8 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
 
     # Force start
     if initial_actions is not None:
-        state, _, _, info = mdp.step(np.random.choice(initial_actions))
+        state, _, _, info = mdp.step(np.random.choice(initial_actions),
+                                     evaluation=True)
         lives_count = info['ale.lives']
 
     if save_video:
@@ -89,13 +90,14 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         if initial_actions is not None:
             if info['ale.lives'] < lives_count:
                 lives_count = info['ale.lives']
-                state, _, _, _ = mdp.step(np.random.choice(initial_actions))
+                state, _, _, _ = mdp.step(np.random.choice(initial_actions),
+                                          evaluation=True)
 
         # Select and execute the action, get next state and reward
         action = policy.draw_action(np.expand_dims(state, 0), done,
                                     evaluation=True)
         action = int(action)
-        next_state, reward, done, info = mdp.step(action)
+        next_state, reward, done, info = mdp.step(action, evaluation=True)
 
         # Update figures of merit
         ep_performance += df * np.clip(reward, -1, 1)  # Update performance
