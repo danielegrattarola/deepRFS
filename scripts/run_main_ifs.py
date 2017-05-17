@@ -127,8 +127,6 @@ parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
 parser.add_argument('--nn0l1', type=float, default=0.001,
                     help='l1 normalization for NN0')
-parser.add_argument('--balanced-weights', action='store_true',
-                    help='Use balanced weights instead of the custom ones')
 parser.add_argument('--fqi-iter', type=int, default=300,
                     help='Number of FQI iterations to run')
 parser.add_argument('--fqi-eval-period', type=int, default=1,
@@ -277,7 +275,6 @@ for step in range(algorithm_steps):
     print('Class weights: ' + str(class_weight))
 
     test_sars_sample_weight = get_sample_weight(test_R,
-                                                balanced=args.balanced_weights,
                                                 class_weight=class_weight)
 
     toc('Got %s test SARS\' samples' % len(test_sars))
@@ -304,7 +301,6 @@ for step in range(algorithm_steps):
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
                                             batch_size=nn_batch_size,
-                                            balanced=args.balanced_weights,
                                             class_weight=class_weight,
                                             binarize=args.binarize)
     nn.fit_generator(sar_generator,
@@ -429,7 +425,6 @@ for step in range(algorithm_steps):
                                                     binarize=args.binarize,
                                                     no_residuals=args.no_residuals,
                                                     use_sample_weights=False,
-                                                    balanced=args.balanced_weights,
                                                     class_weight=class_weight)
 
         # Fit NNi (target: RES)
