@@ -111,8 +111,6 @@ parser.add_argument('--nn-stack', type=str, default=None,
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
-parser.add_argument('--clip-nn0', action='store_true',
-                    help='Clip reward for NN0 only')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--load-sars', type=str, default=None,
@@ -270,8 +268,6 @@ for step in range(algorithm_steps):
     test_S = pds_to_npa(test_sars[:, 0])
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])
-    if args.clip_nn0:
-        test_R = np.clip(test_R, -1, 1)
 
     # Compute class weights to account for dataset unbalancing
     class_weight = dict()
@@ -310,8 +306,7 @@ for step in range(algorithm_steps):
                                             batch_size=nn_batch_size,
                                             balanced=args.balanced_weights,
                                             class_weight=class_weight,
-                                            binarize=args.binarize,
-                                            clip=args.clip_nn0)
+                                            binarize=args.binarize)
     nn.fit_generator(sar_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
@@ -336,9 +331,7 @@ for step in range(algorithm_steps):
 
     # ITERATIVE FEATURE SELECTION 0
     tic('Building dataset for IFS 0')
-    FA, R = build_far_from_disk(nn,
-                                sars_path,
-                                clip=args.clip_nn0)  # Features, action, reward, next_features
+    FA, R = build_far_from_disk(nn, sars_path)  # Features, action, reward, next_features
 
     # Print the number of nonzero features
     toc('Number of non-zero feature: %s' %
