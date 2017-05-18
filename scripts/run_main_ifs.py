@@ -298,6 +298,7 @@ for step in range(algorithm_steps):
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
                                             batch_size=nn_batch_size,
+                                            use_sample_weights=True,
                                             class_weight=class_weight,
                                             binarize=args.binarize)
     nn.fit_generator(sar_generator,

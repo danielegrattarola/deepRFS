@@ -205,8 +205,8 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     return samples_in_dataset
 
 
-def sar_generator_from_disk(path, batch_size=32, class_weight=None,
-                            binarize=False):
+def sar_generator_from_disk(path, batch_size=32, use_sample_weights=True,
+                            class_weight=None, binarize=False):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
     
@@ -239,8 +239,9 @@ def sar_generator_from_disk(path, batch_size=32, class_weight=None,
 
             nb_batches = len(sars) / batch_size
 
-            sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
-                                              class_weight=class_weight)
+            if use_sample_weights:
+                sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
+                                                  class_weight=class_weight)
 
             for i in range(nb_batches):
                 start = i * batch_size
@@ -252,7 +253,10 @@ def sar_generator_from_disk(path, batch_size=32, class_weight=None,
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
 
-                yield ([S, A], R, sample_weight[start:stop])
+                if use_sample_weights:
+                    yield ([S, A], R, sample_weight[start:stop])
+                else:
+                    yield ([S, A], R)
 
 
 def build_farf(nn, sars):
