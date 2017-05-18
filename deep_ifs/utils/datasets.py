@@ -387,7 +387,7 @@ def build_res(model, F, D, no_residuals=False):
 # NNi
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                               binarize=False, no_residuals=False,
-                              use_sample_weights=True, class_weight=None):
+                              use_sample_weights=False, class_weight=None):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
