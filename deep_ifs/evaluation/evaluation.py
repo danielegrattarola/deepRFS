@@ -59,9 +59,8 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
            steps.mean(), 2 * steps.std() / np.sqrt(n_episodes)
 
 
-def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
-          save_video=False, save_path='', append_filename='',
-          initial_actions=None):
+def _eval(mdp, policy, metric='cumulative', video=False, save_video=False,
+          save_path='', append_filename='', initial_actions=None):
     frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
@@ -100,7 +99,7 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         next_state, reward, done, info = mdp.step(action, evaluation=True)
 
         # Update figures of merit
-        ep_performance += df * np.clip(reward, -1, 1)  # Update performance
+        ep_performance += df * reward  # Update performance
         df *= gamma  # Update discount factor
 
         # Render environment
@@ -111,10 +110,6 @@ def _eval(mdp, policy, metric='cumulative', max_ep_len=np.inf, video=False,
         state = next_state
         if save_video:
             frames.append(state[-1])
-
-        if frame_counter >= max_ep_len:
-            ep_performance += df * np.clip(mdp.final_reward, -1, 1)
-            break
 
     if metric == 'average':
         ep_performance /= frame_counter
