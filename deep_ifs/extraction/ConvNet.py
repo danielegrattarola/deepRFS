@@ -77,7 +77,7 @@ class ConvNet:
 
     @staticmethod
     def preprocess_state(x, binarize=False):
-        x = np.asarray(x).astype('float32') / 255  # To 0-1 range
+        x = np.asarray(x).astype('float32') / 255.  # To 0-1 range
         if binarize:
             x[x < 0.1] = 0
             x[x >= 0.1] = 1

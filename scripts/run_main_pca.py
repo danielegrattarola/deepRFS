@@ -9,6 +9,7 @@ import gc
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
+from deep_ifs.extraction.GenericEncoder import GenericEncoder
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.utils.datasets import *
 from deep_ifs.utils.Logger import Logger
@@ -55,13 +56,15 @@ parser.add_argument('--clip-nn0', action='store_true',
                     help='Clip reward for NN0 only')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
-parser.add_argument('--sars-episodes', type=int, default=500,
+parser.add_argument('--load-sars', type=str, default=None,
+                    help='Path to dataset folder to use instead of collecting')
+parser.add_argument('--sars-episodes', type=int, default=100,
                     help='Number of SARS episodes to collect')
-parser.add_argument('--sars-test-episodes', type=int, default=100,
+parser.add_argument('--sars-test-episodes', type=int, default=250,
                     help='Number of SARS test episodes to collect')
-parser.add_argument('--sars-to-disk', type=int, default=1,
+parser.add_argument('--sars-to-disk', type=int, default=25,
                     help='Number of SARS episodes to collect to disk')
-parser.add_argument('--control-freq', type=int, default=2,
+parser.add_argument('--control-freq', type=int, default=1,
                     help='Control frequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
@@ -69,7 +72,7 @@ parser.add_argument('--nn0l1', type=float, default=0.001,
                     help='l1 normalization for NN0')
 parser.add_argument('--balanced-weights', action='store_true',
                     help='Use balanced weights instead of the custom ones')
-parser.add_argument('--fqi-iter', type=int, default=60,
+parser.add_argument('--fqi-iter', type=int, default=300,
                     help='Number of FQI iterations to run')
 parser.add_argument('--fqi-eval-period', type=int, default=1,
                     help='Number of FQI iterations between evaluations')
@@ -96,12 +99,6 @@ fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
 fqi_patience = fqi_iter  # Number of FQI iterations w/o improvement after which to stop
 fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
-class_weight = {-100: 100,
-                -1: 100,
-                0: 1,
-                1: 100,
-                4: 100,
-                7: 100}
 
 # SETUP
 logger = Logger(output_folder='../output/',
@@ -115,7 +112,7 @@ log('\n')
 
 evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
-mdp = Atari(args.env, clip_reward=args.classify or args.clip)
+mdp = Atari(args.env, clip_reward=args.clip)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 
@@ -125,7 +122,7 @@ if args.fqi_model_type == 'extra':
                             'n_jobs': -1}
     fqi_regressor_class = ExtraTreesRegressor
 elif args.fqi_model_type == 'xgb':
-    fqi_regressor_params = {}
+    fqi_regressor_params = {'max_depth': 10}
     fqi_regressor_class = XGBRegressor
 elif args.fqi_model_type == 'linear':
     fqi_regressor_params = {'n_jobs': -1}
@@ -177,41 +174,57 @@ for step in range(algorithm_steps):
     log('######## STEP %s ########' % step)
 
     tic('Collecting SARS dataset')
-    # 4 frames, action, reward, 4 frames
-    sars_path = logger.path + 'sars_%s/' % step
-    samples_in_dataset = collect_sars_to_disk(mdp,
-                                              policy,
-                                              sars_path,
-                                              datasets=args.sars_to_disk,
-                                              episodes=sars_episodes,
-                                              debug=args.debug,
-                                              random_greedy_split=random_greedy_split,
-                                              initial_actions=initial_actions,
-                                              repeat=args.control_freq,
-                                              batch_size=nn_batch_size)
+    if args.load_sars is None:
+        # 4 frames, action, reward, 4 frames
+        sars_path = logger.path + 'sars_%s/' % step
+        samples_in_dataset = collect_sars_to_disk(mdp,
+                                                  policy,
+                                                  sars_path,
+                                                  datasets=args.sars_to_disk,
+                                                  episodes=sars_episodes,
+                                                  debug=args.debug,
+                                                  random_greedy_split=random_greedy_split,
+                                                  initial_actions=initial_actions,
+                                                  repeat=args.control_freq,
+                                                  batch_size=nn_batch_size)
+    else:
+        sars_path = args.load_sars
+        samples_in_dataset = get_nb_samples_from_disk(sars_path)
+
     toc('Got %s SARS\' samples' % samples_in_dataset)
 
     # Collect test dataset
     tic('Collecting test SARS dataset')
-    test_sars = collect_sars(mdp,
-                             policy,
-                             episodes=sars_test_episodes,
-                             debug=args.debug,
-                             random_greedy_split=random_greedy_split,
-                             initial_actions=initial_actions,
-                             repeat=args.control_freq)
+    if args.load_sars is None:
+        test_sars = collect_sars(mdp,
+                                 policy,
+                                 episodes=sars_test_episodes,
+                                 debug=args.debug,
+                                 random_greedy_split=random_greedy_split,
+                                 initial_actions=initial_actions,
+                                 repeat=args.control_freq)
+    else:
+        test_sars = np.load(sars_path + '/valid_sars.npy')
+
     test_S = pds_to_npa(test_sars[:, 0])
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])
 
+    # Compute class weights to account for dataset unbalancing
+    class_weight = dict()
+    reward_classes = np.unique(test_R)
+    for r in reward_classes:
+        class_weight[r] = test_R.size / np.argwhere(test_R == r).size
+    print('Class weights: ' + str(class_weight))
+
     test_sars_sample_weight = get_sample_weight(test_R,
                                                 balanced=args.balanced_weights,
-                                                class_weight=class_weight,
-                                                round_target=True)
+                                                class_weight=class_weight)
 
     toc('Got %s test SARS\' samples' % len(test_sars))
 
-    log('Memory usage: %s MB\n' % get_size([test_sars, test_S, test_A, test_R], 'MB'))
+    log('Memory usage (test_sars, test_S, test_A, test_R): %s MB\n' %
+        get_size([test_sars, test_S, test_A, test_R], 'MB'))
 
     log('Resetting NN stack')
     nn_stack.reset()  # Clear the stack after collecting SARS' with last policy
@@ -234,9 +247,7 @@ for step in range(algorithm_steps):
                                             batch_size=nn_batch_size,
                                             balanced=args.balanced_weights,
                                             class_weight=class_weight,
-                                            round_target=True,
-                                            binarize=args.binarize,
-                                            clip=args.clip_nn0)
+                                            binarize=args.binarize)
     nn.fit_generator(sar_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
@@ -253,6 +264,11 @@ for step in range(algorithm_steps):
         plt.scatter(test_R, pred, alpha=0.3)
         plt.savefig(logger.path + 'NN0_step%s_R.png' % step)
         plt.close()
+
+    # Use encoder only to free memory
+    nn.save_encoder(logger.path + 'NN0_encoder_step%s.h5' % step)
+    del nn
+    nn = GenericEncoder(logger.path + 'NN0_encoder_step%s.h5' % step)
 
     # FEATURE SELECTION 0 #
     tic('Building F dataset for PCA')
@@ -308,6 +324,8 @@ for step in range(algorithm_steps):
         test_F, test_D = build_fd(nn_stack, nn, support, test_sars)
         test_RES = build_res(model, test_F, test_D, no_residuals=args.no_residuals)
 
+        log('Memory usage (F, D): %s MB\n' % get_size([F, D], 'MB'))
+
         # Neural network
         image_shape = mdp.state_shape
         target_size = support.sum().astype('int32')
@@ -331,8 +349,7 @@ for step in range(algorithm_steps):
                                                     no_residuals=args.no_residuals,
                                                     use_sample_weights=False,
                                                     balanced=args.balanced_weights,
-                                                    class_weight=class_weight,
-                                                    round_target=True)
+                                                    class_weight=class_weight)
 
         # Fit NNi (target: RES)
         tic('Fitting NN%s' % i)
@@ -359,7 +376,11 @@ for step in range(algorithm_steps):
                 plt.savefig(logger.path + 'NN%s_step%s_res%s.png' % (i, step, f))
                 plt.close()
 
-        del test_A, test_S, test_RES
+        # Use encoder only to free memory
+        nn.save_encoder(logger.path + 'NN%s_encoder_step%s.h5' % (i, step))
+        del nn
+        gc.collect()
+        nn = GenericEncoder(logger.path + 'NN%s_encoder_step%s.h5' % (i, step))
 
         # FEATURE SELECTION i #
         tic('Building F dataset for PCA %s' % i)
@@ -403,7 +424,7 @@ for step in range(algorithm_steps):
     all_features_dim = nn_stack.get_support_dim()  # Pass new dimension of states to create ActionRegressor
     toc('Got %s samples' % len(faft))
 
-    log('Memory usage: %s MB\n' % get_size([faft, r], 'MB'))
+    log('Memory usage (faft, r): %s MB\n' % get_size([faft, r], 'MB'))
 
     # Save dataset
     tic('Saving global FARF and NNStack')
