@@ -132,7 +132,6 @@ for i in tqdm(range(args.iter)):
     if i % args.eval_freq == 0 or i == (args.iter-1):
         evaluation_metrics = evaluate_policy(mdp,
                                              policy,
-                                             max_ep_len=max_eval_steps,
                                              n_episodes=args.episodes,
                                              save_video=args.save_video,
                                              save_path=logger.path,
