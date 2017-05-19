@@ -55,10 +55,12 @@ class ConvNet:
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
         self.output = Dense(self.target_size * self.nb_actions,
                             activation='linear')(self.features)
-        self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
+        if self.nb_actions > 1:
+            self.output = GatherLayer(self.target_size,
+                                      self.nb_actions)([self.output, self.u])
 
         # Models
-        self.model = Model(outputs=[self.output_u], inputs=[self.input, self.u])
+        self.model = Model(outputs=[self.output], inputs=[self.input, self.u])
         self.encoder = Model(outputs=[self.features], inputs=[self.input])
 
         # Optimization algorithm
