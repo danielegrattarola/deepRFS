@@ -1,17 +1,15 @@
 import numpy as np
 from keras.models import Model
-from keras.layers import Input, Convolution2D, Flatten, Dense, BatchNormalization
+from keras.layers import Input, Convolution2D, Flatten, Dense
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ModelCheckpoint
-from keras.regularizers import l1
-from sklearn.exceptions import NotFittedError
 
 from deep_ifs.extraction.GatherLayer import GatherLayer
 
 
 class ConvNet:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
-                 nb_epochs=10, dropout_prob=0.5, l1_alpha=0.01, binarize=False,
+                 nb_epochs=10, dropout_prob=0.5, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
                  logger=None, chkpt_file=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
@@ -21,7 +19,6 @@ class ConvNet:
         self.encoding_dim = encoding_dim
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
-        self.l1_alpha = l1_alpha
         self.binarize = binarize
         self.class_weight = class_weight
         self.sample_weight = sample_weight
@@ -32,7 +29,7 @@ class ConvNet:
         else:
             self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
-        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-3, patience=5)
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=5)
 
         self.mc = ModelCheckpoint(self.chkpt_file, monitor='val_loss',
                                   save_best_only=True, save_weights_only=True,
@@ -57,8 +54,7 @@ class ConvNet:
         self.hidden = Flatten()(self.hidden)
         self.features = Dense(self.encoding_dim, activation='relu')(self.hidden)
         self.output = Dense(self.target_size * self.nb_actions,
-                            activation='linear',
-                            activity_regularizer=l1(self.l1_alpha))(self.features)
+                            activation='linear')(self.features)
         self.output_u = GatherLayer(self.target_size, self.nb_actions)([self.output, self.u])
 
         # Models

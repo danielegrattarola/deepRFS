@@ -205,7 +205,7 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     return samples_in_dataset
 
 
-def sar_generator_from_disk(path, batch_size=32, balanced=False,
+def sar_generator_from_disk(path, batch_size=32, use_sample_weights=True,
                             class_weight=None, binarize=False):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
@@ -224,10 +224,6 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
     files = glob.glob(path + 'sars_*.npy')
     print 'Got %s files' % len(files)
 
-    # If balanced, compute class weight on all rewards
-    if class_weight is None or balanced:
-        class_weight = get_class_weight_from_disk(path)
-
     while True:
         for idx, f in enumerate(files):
             sars = np.load(f)
@@ -243,9 +239,9 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
 
             nb_batches = len(sars) / batch_size
 
-            sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
-                                              balanced=False,  # Dealt with manually
-                                              class_weight=class_weight)
+            if use_sample_weights:
+                sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
+                                                  class_weight=class_weight)
 
             for i in range(nb_batches):
                 start = i * batch_size
@@ -257,7 +253,10 @@ def sar_generator_from_disk(path, batch_size=32, balanced=False,
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
 
-                yield ([S, A], R, sample_weight[start:stop])
+                if use_sample_weights:
+                    yield ([S, A], R, sample_weight[start:stop])
+                else:
+                    yield ([S, A], R)
 
 
 def build_farf(nn, sars):
@@ -392,8 +391,7 @@ def build_res(model, F, D, no_residuals=False):
 # NNi
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                               binarize=False, no_residuals=False,
-                              use_sample_weights=True, balanced=False,
-                              class_weight=None):
+                              use_sample_weights=False, class_weight=None):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -406,7 +404,6 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
             with collect_sars_to_disk)
         no_residuals (bool, False): whether to return residuals or dynamics in 
             the RES column of the sares dataset.
-        balanced (bool, False): passed to the get_sample_weight method 
         class_weigth (dict, None): passed to the get_sample_weight method 
         test_sfadf (pd.DataFrame, None): compute the test SARES dataset from 
             this dataset.
@@ -415,10 +412,6 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
     print 'Got %s files' % len(files)
-
-    # If balanced, compute class weight on all rewards
-    if use_sample_weights and (class_weight is None or balanced):
-        class_weight = get_class_weight_from_disk(path)
 
     while True:
         for idx, f in enumerate(files):
@@ -438,7 +431,6 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
             # Compute sample_weights over reward
             if use_sample_weights:
                 sample_weight = get_sample_weight(sars[:, 2],
-                                                  balanced=False,  # Dealt with manually
                                                   class_weight=class_weight)
 
             for i in range(nb_batches):
@@ -497,28 +489,7 @@ def build_fart_r_from_disk(nn_stack, path):
     return faft, R, action_values
 
 
-# DATASET HELPERS
-def get_class_weight(target):
-    """
-    Returns a dictionary with classes (reward values) as keys and weights as
-    values.
-    The return value can be passed directly to Keras's class_weight parameter
-    in model.fit.
-
-    Args
-        sars (pd.DataFrame): a SARS' dataset in pandas format.
-    """
-    if isinstance(target, pd.DataFrame):
-        target = pds_to_npa(target.R)
-    else:
-        target = pds_to_npa(target)
-
-    classes = np.unique(target)
-    weights = compute_class_weight('balanced', classes, target)
-    return dict(zip(classes, weights))
-
-
-def get_class_weight_from_disk(path):
+def get_sample_weight(target, class_weight=None):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
@@ -527,41 +498,6 @@ def get_class_weight_from_disk(path):
     Args
         target (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
             pd.Series with rewards.
-        balanced (bool, False): override class weights and use scikit-learn's 
-            weight method
-        class_weight (dict, None): dictionary with classes as key and weights as
-            values. If None, the dictionary will be computed using sklearn's
-            method.
-        round (bool, False): round the rewards to the nearest integer before
-            applying the class weights.
-    """
-    if not path.endswith('/'):
-        path += '/'
-    files = glob.glob(path + 'sars_*.npy')
-    print 'Got %s files' % len(files)
-    for idx, f in enumerate(files):
-        sars = np.load(f)
-        if idx == 0:
-            target = pds_to_npa(sars[:, 2])
-        else:
-            target = np.append(target, pds_to_npa(sars[:, 2]))
-
-    classes = np.unique(target)
-    weights = compute_class_weight('balanced', classes, target)
-    return dict(zip(classes, weights))
-
-
-def get_sample_weight(target, balanced=False, class_weight=None):
-    """
-    Returns a list with the class weight of each sample.
-    The return value can be passed directly to Keras's sample_weight parameter
-    in model.fit
-
-    Args
-        target (pd.DataFrame or pd.Series): a SARS' dataset in pandas format or a
-            pd.Series with rewards.
-        balanced (bool, False): override class weights and use scikit-learn's 
-            weight method
         class_weight (dict, None): dictionary with classes as key and weights as
             values. If None, the dictionary will be computed using sklearn's
             method.
@@ -572,9 +508,6 @@ def get_sample_weight(target, balanced=False, class_weight=None):
         target = pds_to_npa(target.R)
     else:
         target = pds_to_npa(target)
-
-    if class_weight is None or balanced:
-        class_weight = get_class_weight(target)
 
     sample_weight = [class_weight[r] for r in target]
     return np.array(sample_weight)

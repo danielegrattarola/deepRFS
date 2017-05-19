@@ -39,7 +39,6 @@ parser.add_argument('--save-video', action='store_true',
                     help='Save the gifs of the evaluation episodes')
 parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
                     help='Atari environment on which to run the algorithm')
-parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
 parser.add_argument('--iter', type=int, default=100,
                     help='Number of fqi iterations to run')
 parser.add_argument('--episodes', type=int, default=10,
@@ -50,7 +49,7 @@ parser.add_argument('--eval-freq', type=int, default=5,
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
                          '\'extra\', \'xgb\')')
-parser.add_argument('--clip-r', action='store_true',
+parser.add_argument('--clip', action='store_true',
                     help='Clip reward')
 args = parser.parse_args()
 
@@ -67,7 +66,7 @@ nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
 faft, r, action_values = joblib.load(data_path)
 
-if args.clip_r:
+if args.clip:
     r = np.clip(r, -1, 1)
 
 # if args.use_sw and args.fqi_model_type != 'xgb':
@@ -82,7 +81,7 @@ log('Got %s samples' % len(faft))
 log('Setup')
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 evaluation_results = []
-mdp = Atari(args.env, clip_reward=args.clip)
+mdp = Atari(args.env)
 nb_actions = mdp.action_space.n
 
 log('Creating policy')
