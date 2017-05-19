@@ -525,7 +525,6 @@ for step in range(algorithm_steps):
         if partial_iter % fqi_eval_period == 0 or partial_iter == (fqi_iter - 1):
             es_evaluation = evaluate_policy(mdp,
                                             policy,
-                                            max_ep_len=max_eval_steps,
                                             n_episodes=3,
                                             initial_actions=initial_actions,
                                             save_video=args.save_video,

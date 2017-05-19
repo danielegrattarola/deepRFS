@@ -5,7 +5,7 @@ from deep_ifs.utils.helpers import is_stuck
 
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
-                    max_ep_len=np.inf, video=False, save_video=False,
+                    video=False, save_video=False,
                     save_path='', append_filename='', n_jobs=1,
                     initial_actions=None):
     """
@@ -21,8 +21,6 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
             metric (string, 'cumulative'): the evaluation metric
                 ['discounted', 'average', 'cumulative']
             n_episodes (int, 1): the number of episodes to run.
-            max_ep_len (int, inf): allow evaluation episodes to run at most
-                this number of frames.
             video (bool, False): whether to render the environment.
             save_video (bool, False): whether to save the video of the
                 evaluation episodes.
@@ -46,7 +44,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
         "Unsupported metric"
     out = Parallel(n_jobs=n_jobs)(
         delayed(_eval)(
-            mdp, policy, metric=metric, max_ep_len=max_ep_len, video=video,
+            mdp, policy, metric=metric, video=video,
             save_video=save_video, save_path=save_path,
             append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
             initial_actions=initial_actions
