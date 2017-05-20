@@ -525,3 +525,23 @@ def get_nb_samples_from_disk(path):
         result += len(sars)
 
     return result
+
+
+def get_class_weight_from_disk(path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            target = pds_to_npa(sars[:, 2])
+        else:
+            target = np.append(target, pds_to_npa(sars[:, 2]))
+
+    class_weight = dict()
+    reward_classes = np.unique(target)
+    for r in reward_classes:
+        class_weight[r] = target.size / np.argwhere(target == r).size
+
+    return class_weight

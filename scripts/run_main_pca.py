@@ -218,7 +218,6 @@ for step in range(algorithm_steps):
     print('Class weights: ' + str(class_weight))
 
     test_sars_sample_weight = get_sample_weight(test_R,
-                                                balanced=args.balanced_weights,
                                                 class_weight=class_weight)
 
     toc('Got %s test SARS\' samples' % len(test_sars))
@@ -245,7 +244,7 @@ for step in range(algorithm_steps):
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
                                             batch_size=nn_batch_size,
-                                            balanced=args.balanced_weights,
+                                            use_sample_weights=True,
                                             class_weight=class_weight,
                                             binarize=args.binarize)
     nn.fit_generator(sar_generator,
@@ -332,7 +331,6 @@ for step in range(algorithm_steps):
         nn = ConvNet(image_shape,
                      target_size,
                      nb_actions=nb_actions,
-                     l1_alpha=0.0,
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
                      logger=logger,
@@ -348,7 +346,6 @@ for step in range(algorithm_steps):
                                                     binarize=args.binarize,
                                                     no_residuals=args.no_residuals,
                                                     use_sample_weights=False,
-                                                    balanced=args.balanced_weights,
                                                     class_weight=class_weight)
 
         # Fit NNi (target: RES)

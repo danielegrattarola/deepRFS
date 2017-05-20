@@ -266,10 +266,7 @@ for step in range(algorithm_steps):
     test_R = pds_to_npa(test_sars[:, 2])
 
     # Compute class weights to account for dataset unbalancing
-    class_weight = dict()
-    reward_classes = np.unique(test_R)
-    for r in reward_classes:
-        class_weight[r] = test_R.size / np.argwhere(test_R == r).size
+    class_weight = get_class_weight_from_disk(sars_path)
     print('Class weights: ' + str(class_weight))
 
     test_sars_sample_weight = get_sample_weight(test_R,
