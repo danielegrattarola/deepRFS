@@ -559,7 +559,6 @@ for step in range(algorithm_steps):
     tic('Evaluating best policy after update')
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
-                                         max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,
