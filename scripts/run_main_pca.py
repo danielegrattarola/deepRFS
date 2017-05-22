@@ -49,11 +49,7 @@ parser.add_argument('--nn-stack', type=str, default=None,
                          'extractor in the first iteration')
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
-parser.add_argument('--classify', action='store_true',
-                    help='Use a classifier for NN0')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
-parser.add_argument('--clip-nn0', action='store_true',
-                    help='Clip reward for NN0 only')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--load-sars', type=str, default=None,
@@ -68,10 +64,6 @@ parser.add_argument('--control-freq', type=int, default=1,
                     help='Control frequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
-parser.add_argument('--nn0l1', type=float, default=0.001,
-                    help='l1 normalization for NN0')
-parser.add_argument('--balanced-weights', action='store_true',
-                    help='Use balanced weights instead of the custom ones')
 parser.add_argument('--fqi-iter', type=int, default=300,
                     help='Number of FQI iterations to run')
 parser.add_argument('--fqi-eval-period', type=int, default=1,
@@ -92,7 +84,7 @@ rec_steps = 1 if args.debug else 2  # Number of recursive steps to make
 variance_pctg = 0.5  # Remove this many % of non-zero feature during FS (kinda)
 eval_episodes = 1 if args.debug else 4  # Number of evaluation episodes to run
 max_eval_steps = 2 if args.debug else 500  # Maximum length of eval episodes
-random_greedy_step = 0.2  # Decrease R/G split by this much at each step
+random_greedy_step = 0.2  # Decrease R/# Add network to supportG split by this much at each step
 final_random_greedy_split = 0.1
 random_greedy_split = args.initial_rg
 fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
@@ -154,7 +146,6 @@ if args.fqi_model is not None and args.nn_stack is not None:
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
-                                         max_ep_len=max_eval_steps,
                                          n_episodes=3,
                                          initial_actions=initial_actions)
     toc('Loaded policy - evaluation: %s' % str(evaluation_metrics))
@@ -211,10 +202,7 @@ for step in range(algorithm_steps):
     test_R = pds_to_npa(test_sars[:, 2])
 
     # Compute class weights to account for dataset unbalancing
-    class_weight = dict()
-    reward_classes = np.unique(test_R)
-    for r in reward_classes:
-        class_weight[r] = test_R.size / np.argwhere(test_R == r).size
+    class_weight = get_class_weight_from_disk(sars_path)
     print('Class weights: ' + str(class_weight))
 
     test_sars_sample_weight = get_sample_weight(test_R,
@@ -234,7 +222,6 @@ for step in range(algorithm_steps):
     nn = ConvNet(mdp.state_shape,
                  target_size,
                  nb_actions=nb_actions,
-                 l1_alpha=args.nn0l1,
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize,
                  logger=logger,
@@ -301,6 +288,7 @@ for step in range(algorithm_steps):
     if args.debug:
         support = np.array([True, True] + [False] * 510)
 
+    # Add network to support
     nn_stack.add(nn, support)
 
     for i in range(1, rec_steps + 1):
@@ -455,7 +443,6 @@ for step in range(algorithm_steps):
         if partial_iter % fqi_eval_period == 0 or partial_iter == (fqi_iter - 1):
             es_evaluation = evaluate_policy(mdp,
                                             policy,
-                                            max_ep_len=max_eval_steps,
                                             n_episodes=3,
                                             initial_actions=initial_actions,
                                             save_video=args.save_video,
@@ -493,7 +480,6 @@ for step in range(algorithm_steps):
     tic('Evaluating best policy after update')
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
-                                         max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,

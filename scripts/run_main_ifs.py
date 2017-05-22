@@ -209,7 +209,6 @@ if args.fqi_model is not None and args.nn_stack is not None:
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
-                                         max_ep_len=max_eval_steps,
                                          n_episodes=3,
                                          initial_actions=initial_actions)
     toc('Loaded policy - evaluation: %s' % str(evaluation_metrics))
@@ -559,7 +558,6 @@ for step in range(algorithm_steps):
     tic('Evaluating best policy after update')
     evaluation_metrics = evaluate_policy(mdp,
                                          policy,
-                                         max_ep_len=max_eval_steps,
                                          n_episodes=eval_episodes,
                                          save_video=args.save_video,
                                          save_path=logger.path,
