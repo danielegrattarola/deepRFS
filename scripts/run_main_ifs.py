@@ -294,8 +294,7 @@ for step in range(algorithm_steps):
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
                                             batch_size=nn_batch_size,
-                                            use_sample_weights=True,
-                                            class_weight=class_weight,
+                                            weights=class_weight,
                                             binarize=args.binarize)
     nn.fit_generator(sar_generator,
                      samples_in_dataset / nn_batch_size,
@@ -408,6 +407,18 @@ for step in range(algorithm_steps):
                      logger=logger,
                      chkpt_file='NN%s_step%s.h5' % (i, step))
 
+        # Compute dynamics weights
+        from scipy.stats.kde import gaussian_kde
+        RES = build_res(model, F, D, no_residuals=args.no_residuals)
+        pdf = gaussian_kde(RES.T)
+        sample_weight = 1. / pdf(RES.T)
+        scale_coeff = np.min(sample_weight)
+        print('Min weight: %f' % np.min(sample_weight))
+        print('Max weight: %f' % np.max(sample_weight))
+        print('Mean weight: %f' % np.mean(sample_weight))
+
+        del RES, sample_weight
+
         # Generator
         sares_generator = sares_generator_from_disk(model,
                                                     nn_stack,
@@ -417,8 +428,8 @@ for step in range(algorithm_steps):
                                                     batch_size=nn_batch_size,
                                                     binarize=args.binarize,
                                                     no_residuals=args.no_residuals,
-                                                    use_sample_weights=False,
-                                                    class_weight=class_weight)
+                                                    weights=pdf,
+                                                    scale_coeff=scale_coeff)
 
         # Fit NNi (target: RES)
         tic('Fitting NN%s' % i)

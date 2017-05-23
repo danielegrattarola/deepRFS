@@ -205,8 +205,8 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     return samples_in_dataset
 
 
-def sar_generator_from_disk(path, batch_size=32, use_sample_weights=True,
-                            class_weight=None, binarize=False):
+def sar_generator_from_disk(path, batch_size=32, weights=None,
+                            binarize=False):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
     
@@ -239,9 +239,9 @@ def sar_generator_from_disk(path, batch_size=32, use_sample_weights=True,
 
             nb_batches = len(sars) / batch_size
 
-            if use_sample_weights:
+            if weights is not None:
                 sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
-                                                  class_weight=class_weight)
+                                                  class_weight=weights)
 
             for i in range(nb_batches):
                 start = i * batch_size
@@ -253,7 +253,7 @@ def sar_generator_from_disk(path, batch_size=32, use_sample_weights=True,
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
 
-                if use_sample_weights:
+                if weights is not None:
                     yield ([S, A], R, sample_weight[start:stop])
                 else:
                     yield ([S, A], R)
@@ -390,8 +390,8 @@ def build_res(model, F, D, no_residuals=False):
 
 # NNi
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
-                              binarize=False, no_residuals=False,
-                              use_sample_weights=False, class_weight=None):
+                              binarize=False, no_residuals=False, weights=None,
+                              scale_coeff=1):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -428,11 +428,6 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
 
             nb_batches = len(sars) / batch_size
 
-            # Compute sample_weights over reward
-            if use_sample_weights:
-                sample_weight = get_sample_weight(sars[:, 2],
-                                                  class_weight=class_weight)
-
             for i in range(nb_batches):
                 start = i * batch_size
                 stop = (i + 1) * batch_size
@@ -441,11 +436,15 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                 F, D = build_fd(nn_stack, nn, support, sars[start:stop])
                 RES = build_res(model, F, D, no_residuals=no_residuals)
 
+                if weights is not None:
+                    sample_weight = 1. / weights(RES.T)
+                    sample_weight /= scale_coeff
+
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
 
-                if use_sample_weights:
-                    yield ([S, A], RES, sample_weight[start:stop])
+                if weights is not None:
+                    yield ([S, A], RES, sample_weight)
                 else:
                     yield ([S, A], RES)
 
