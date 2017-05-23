@@ -541,6 +541,6 @@ def get_class_weight_from_disk(path):
     class_weight = dict()
     reward_classes = np.unique(target)
     for r in reward_classes:
-        class_weight[r] = target.size / np.argwhere(target == r).size
+        class_weight[r] = target.size / float(np.argwhere(target == r).size)
 
     return class_weight
