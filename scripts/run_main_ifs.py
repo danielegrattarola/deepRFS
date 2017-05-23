@@ -289,9 +289,9 @@ for step in range(algorithm_steps):
     pdf = gaussian_kde(R.T)
     sample_weight = 1. / pdf(R.T)
     scale_coeff = np.min(sample_weight)
-    print('Min weight: %f' % np.min(sample_weight))
-    print('Max weight: %f' % np.max(sample_weight))
-    print('Mean weight: %f' % np.mean(sample_weight))
+    print('Min weight: %f' % np.min(sample_weight / scale_coeff))
+    print('Max weight: %f' % np.max(sample_weight / scale_coeff))
+    print('Mean weight: %f' % np.mean(sample_weight / scale_coeff))
 
     del R, sample_weight
 
@@ -418,9 +418,9 @@ for step in range(algorithm_steps):
         pdf = gaussian_kde(RES.T)
         sample_weight = 1. / pdf(RES.T)
         scale_coeff = np.min(sample_weight)
-        print('Min weight: %f' % np.min(sample_weight))
-        print('Max weight: %f' % np.max(sample_weight))
-        print('Mean weight: %f' % np.mean(sample_weight))
+        print('Min weight: %f' % np.min(sample_weight / scale_coeff))
+        print('Max weight: %f' % np.max(sample_weight / scale_coeff))
+        print('Mean weight: %f' % np.mean(sample_weight / scale_coeff))
 
         del RES, sample_weight
 
