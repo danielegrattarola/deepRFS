@@ -66,6 +66,12 @@ import matplotlib
 matplotlib.use('Agg')
 import argparse
 import gc
+from matplotlib import pyplot as plt
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.linear_model import LinearRegression, Ridge
+from xgboost import XGBRegressor
+from scipy.stats.kde import gaussian_kde
+
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
@@ -77,11 +83,6 @@ from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import *
 from deep_ifs.utils.helpers import get_size
 from ifqi.models import Regressor, ActionRegressor
-from matplotlib import pyplot as plt
-from sklearn.ensemble import ExtraTreesRegressor
-from sklearn.linear_model import LinearRegression, Ridge
-from xgboost import XGBRegressor
-
 
 # ARGS
 parser = argparse.ArgumentParser()
@@ -264,13 +265,6 @@ for step in range(algorithm_steps):
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])
 
-    # Compute class weights to account for dataset unbalancing
-    class_weight = get_class_weight_from_disk(sars_path)
-    print('Class weights: ' + str(class_weight))
-
-    test_sars_sample_weight = get_sample_weight(test_R,
-                                                class_weight=class_weight)
-
     toc('Got %s test SARS\' samples' % len(test_sars))
 
     log('Memory usage (test_sars, test_S, test_A, test_R): %s MB\n' %
@@ -290,12 +284,24 @@ for step in range(algorithm_steps):
                  logger=logger,
                  chkpt_file='NN0_step%s.h5' % step)
 
+    # Compute class weights to account for dataset unbalancing
+    R = build_r(sars_path)
+    pdf = gaussian_kde(R.T)
+    sample_weight = 1. / pdf(R.T)
+    scale_coeff = np.min(sample_weight)
+    print('Min weight: %f' % np.min(sample_weight))
+    print('Max weight: %f' % np.max(sample_weight))
+    print('Mean weight: %f' % np.mean(sample_weight))
+
+    del R, sample_weight
+
     # Fit NN0
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
                                             batch_size=nn_batch_size,
-                                            weights=class_weight,
-                                            binarize=args.binarize)
+                                            binarize=args.binarize,
+                                            weights=pdf,
+                                            scale_coeff=scale_coeff)
     nn.fit_generator(sar_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
@@ -408,7 +414,6 @@ for step in range(algorithm_steps):
                      chkpt_file='NN%s_step%s.h5' % (i, step))
 
         # Compute dynamics weights
-        from scipy.stats.kde import gaussian_kde
         RES = build_res(model, F, D, no_residuals=args.no_residuals)
         pdf = gaussian_kde(RES.T)
         sample_weight = 1. / pdf(RES.T)
