@@ -265,6 +265,10 @@ for step in range(algorithm_steps):
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])
 
+    # Compute class weights to account for dataset unbalancing
+    class_weight = get_class_weight_from_disk(sars_path)
+    print('Class weights: ' + str(class_weight))
+
     toc('Got %s test SARS\' samples' % len(test_sars))
 
     log('Memory usage (test_sars, test_S, test_A, test_R): %s MB\n' %
@@ -284,24 +288,12 @@ for step in range(algorithm_steps):
                  logger=logger,
                  chkpt_file='NN0_step%s.h5' % step)
 
-    # Compute class weights to account for dataset unbalancing
-    R = build_r(sars_path)
-    pdf = gaussian_kde(R.T)
-    sample_weight = 1. / pdf(R.T)
-    scale_coeff = np.min(sample_weight)
-    print('Min weight: %f' % np.min(sample_weight / scale_coeff))
-    print('Max weight: %f' % np.max(sample_weight / scale_coeff))
-    print('Mean weight: %f' % np.mean(sample_weight / scale_coeff))
-
-    del R, sample_weight
-
     # Fit NN0
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
                                             batch_size=nn_batch_size,
                                             binarize=args.binarize,
-                                            weights=pdf,
-                                            scale_coeff=scale_coeff)
+                                            weights=class_weight)
     nn.fit_generator(sar_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,

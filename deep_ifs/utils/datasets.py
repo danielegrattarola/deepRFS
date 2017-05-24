@@ -205,8 +205,7 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     return samples_in_dataset
 
 
-def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None,
-                            scale_coeff=1):
+def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
     
@@ -239,6 +238,10 @@ def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None,
 
             nb_batches = len(sars) / batch_size
 
+            if weights is not None:
+                sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
+                                                  class_weight=weights)
+
             for i in range(nb_batches):
                 start = i * batch_size
                 stop = (i + 1) * batch_size
@@ -246,15 +249,11 @@ def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None,
                 A = pds_to_npa(sars[start:stop, 1])
                 R = pds_to_npa(sars[start:stop, 2])
 
-                if weights is not None:
-                    sample_weight = 1. / weights(R.T)
-                    sample_weight /= scale_coeff
-
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
 
                 if weights is not None:
-                    yield ([S, A], R, sample_weight)
+                    yield ([S, A], R, sample_weight[start:stop])
                 else:
                     yield ([S, A], R)
 
@@ -539,3 +538,23 @@ def get_nb_samples_from_disk(path):
         result += len(sars)
 
     return result
+
+
+def get_class_weight_from_disk(path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            target = pds_to_npa(sars[:, 2])
+        else:
+            target = np.append(target, pds_to_npa(sars[:, 2]))
+
+    class_weight = dict()
+    reward_classes = np.unique(target)
+    for r in reward_classes:
+        class_weight[r] = target.size / float(np.argwhere(target == r).size)
+
+    return class_weight
