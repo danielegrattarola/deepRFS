@@ -123,7 +123,7 @@ parser.add_argument('--sars-test-episodes', type=int, default=250,
 parser.add_argument('--sars-to-disk', type=int, default=25,
                     help='Number of SARS episodes to collect to disk')
 parser.add_argument('--control-freq', type=int, default=1,
-                    help='Control frequency (1 action every n steps)')
+                    help='Control refrequency (1 action every n steps)')
 parser.add_argument('--initial-rg', type=float, default=1.,
                     help='Initial random/greedy split for collecting SARS\'')
 parser.add_argument('--fqi-iter', type=int, default=300,
