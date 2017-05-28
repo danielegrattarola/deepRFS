@@ -244,7 +244,7 @@ def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None):
             for i in range(nb_batches):
                 start = i * batch_size
                 stop = (i + 1) * batch_size
-                S = pds_to_npa(sars[start:stop, 0])
+                S = pds_to_npa(sars[start:stop, 3])  # S'
                 A = pds_to_npa(sars[start:stop, 1])
                 R = pds_to_npa(sars[start:stop, 2])
 
@@ -255,23 +255,6 @@ def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None):
                     yield ([S, A], R, sample_weight[start:stop])
                 else:
                     yield ([S, A], R)
-
-
-def build_farf(nn, sars):
-    """
-    Builds FARF' dataset using SARS' dataset:
-        F = NN[i].features(S)
-        A = A
-        R = R
-        F' = NN[i].features(S')
-    """
-    header = ['F', 'A', 'R', 'FF']
-    df = pd.DataFrame(columns=header)
-    df['F'] = nn.all_features(pds_to_npa(sars.S)).tolist()
-    df['A'] = sars.A
-    df['R'] = sars.R
-    df['FF'] = nn.all_features(pds_to_npa(sars.SS)).tolist()
-    return df
 
 
 def build_f_from_disk(nn, path):
@@ -287,9 +270,9 @@ def build_f_from_disk(nn, path):
     for idx, f in enumerate(files):
         sars = np.load(f)
         if idx == 0:
-            F = nn.all_features(pds_to_npa(sars[:, 0]))
+            F = nn.all_features(pds_to_npa(sars[:, 3]))  # Uses S'
         else:
-            new_F = nn.all_features(pds_to_npa(sars[:, 0]))
+            new_F = nn.all_features(pds_to_npa(sars[:, 3]))  # Uses S'
             F = np.append(F, new_F, axis=0)
 
     return F
@@ -304,11 +287,11 @@ def build_far_from_disk(nn, path):
     for idx, f in enumerate(files):
         sars = np.load(f)
         if idx == 0:
-            F = nn.all_features(pds_to_npa(sars[:, 0]))
+            F = nn.all_features(pds_to_npa(sars[:, 3]))  # Uses S'
             A = pds_to_npa(sars[:, 1])
             R = pds_to_npa(sars[:, 2])
         else:
-            new_F = nn.all_features(pds_to_npa(sars[:, 0]))
+            new_F = nn.all_features(pds_to_npa(sars[:, 3]))  # Uses S'
             new_A = pds_to_npa(sars[:, 1])
             new_R = pds_to_npa(sars[:, 2])
             F = np.append(F, new_F, axis=0)
@@ -324,7 +307,7 @@ def build_far_from_disk(nn, path):
 
 
 def build_fd(nn_stack, nn, support, sars):
-    F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+    F = nn_stack.s_features(pds_to_npa(sars[:, 3]))  # Uses S'
     D = nn.s_features(pds_to_npa(sars[:, 0]), support) - \
         nn.s_features(pds_to_npa(sars[:, 3]), support)
     return F, D
@@ -339,11 +322,11 @@ def build_fd_from_disk(nn_stack, nn, support, path):
     for idx, f in enumerate(files):
         sars = np.load(f)
         if idx == 0:
-            F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+            F = nn_stack.s_features(pds_to_npa(sars[:, 3]))  # Uses S'
             D = nn.s_features(pds_to_npa(sars[:, 0]), support) - \
                 nn.s_features(pds_to_npa(sars[:, 3]), support)
         else:
-            new_F = nn_stack.s_features(pds_to_npa(sars[:, 0]))
+            new_F = nn_stack.s_features(pds_to_npa(sars[:, 3]))  # Uses S'
             new_D = nn.s_features(pds_to_npa(sars[:, 0]), support) - \
                     nn.s_features(pds_to_npa(sars[:, 3]), support)
             F = np.append(F, new_F, axis=0)
@@ -362,12 +345,12 @@ def build_fa_from_disk(nn_stack, nn, path):
     for idx, f in enumerate(files):
         sars = np.load(f)
         if idx == 0:
-            F = np.column_stack((nn_stack.s_features(pds_to_npa(sars[:, 0])),
-                                nn.all_features(pds_to_npa(sars[:, 0]))))
+            F = np.column_stack((nn_stack.s_features(pds_to_npa(sars[:, 3])),
+                                nn.all_features(pds_to_npa(sars[:, 3]))))  # Uses S'
             A = pds_to_npa(sars[:, 1])
         else:
-            new_F = np.column_stack((nn_stack.s_features(pds_to_npa(sars[:, 0])),
-                                    nn.all_features(pds_to_npa(sars[:, 0]))))
+            new_F = np.column_stack((nn_stack.s_features(pds_to_npa(sars[:, 3])),
+                                    nn.all_features(pds_to_npa(sars[:, 3]))))  # Uses S'
             new_A = pds_to_npa(sars[:, 1])
             F = np.append(F, new_F, axis=0)
             A = np.append(A, new_A, axis=0)
@@ -447,7 +430,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
             for i in range(nb_batches):
                 start = i * batch_size
                 stop = (i + 1) * batch_size
-                S = pds_to_npa(sars[start:stop, 0])
+                S = pds_to_npa(sars[start:stop, 3])  # Uses S'
                 A = pds_to_npa(sars[start:stop, 1])
                 F, D = build_fd(nn_stack, nn, support, sars[start:stop])
                 RES = build_res(model, F, D, no_residuals=no_residuals)
@@ -465,7 +448,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                     yield ([S, A], RES)
 
 
-def build_fart_r_from_disk(nn_stack, path):
+def build_faft_r_from_disk(nn_stack, path):
     """
     Builds FARF' dataset using all SARS' datasets saved in path:
         F = NN_stack.s_features(S)

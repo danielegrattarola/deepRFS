@@ -405,7 +405,7 @@ for step in range(algorithm_steps):
 
     # FITTED Q-ITERATION
     tic('Building dataset for FQI')
-    faft, r, action_values = build_fart_r_from_disk(nn_stack, sars_path)
+    faft, r, action_values = build_faft_r_from_disk(nn_stack, sars_path)
     all_features_dim = nn_stack.get_support_dim()  # Pass new dimension of states to create ActionRegressor
     toc('Got %s samples' % len(faft))
 

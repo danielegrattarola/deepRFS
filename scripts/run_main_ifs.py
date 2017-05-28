@@ -263,7 +263,7 @@ for step in range(algorithm_steps):
     else:
         test_sars = np.load(sars_path + '/valid_sars.npy')
 
-    test_S = pds_to_npa(test_sars[:, 0])
+    test_S = pds_to_npa(test_sars[:, 3])  # S'
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])
 
@@ -493,7 +493,7 @@ for step in range(algorithm_steps):
 
     # FITTED Q-ITERATION
     tic('Building dataset for FQI')
-    faft, r, action_values = build_fart_r_from_disk(nn_stack, sars_path)
+    faft, r, action_values = build_faft_r_from_disk(nn_stack, sars_path)
     all_features_dim = nn_stack.get_support_dim()  # Pass new dimension of states to create ActionRegressor
     toc('Got %s samples' % len(faft))
 
