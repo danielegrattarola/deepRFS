@@ -4,7 +4,6 @@ import os
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
-from sklearn.utils.class_weight import compute_class_weight
 from tqdm import tqdm
 
 from deep_ifs.extraction.ConvNet import ConvNet

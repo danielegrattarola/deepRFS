@@ -211,7 +211,7 @@ if args.fqi_model is not None and args.nn_stack is not None:
                   'verbose': True}
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
     evaluation_metrics = evaluate_policy(mdp,
-                                            policy,
+                                         policy,
                                          n_episodes=3,
                                          initial_actions=initial_actions)
     toc('Loaded policy - evaluation: %s' % str(evaluation_metrics))
