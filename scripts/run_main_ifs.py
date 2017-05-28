@@ -112,6 +112,8 @@ parser.add_argument('--nn-stack', type=str, default=None,
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
+parser.add_argument('--use-actions', action='store_true',
+                    help='Use actions to train the networks')
 parser.add_argument('--no-residuals', action='store_true',
                     help='Ignore residuals model and use directly the dynamics')
 parser.add_argument('--load-sars', type=str, default=None,
@@ -170,7 +172,7 @@ evaluation_results = []
 nn_stack = NNStack()  # To store all neural networks and FS supports
 mdp = Atari(args.env, clip_reward=args.clip)
 action_values = mdp.action_space.values
-nb_actions = mdp.action_space.n
+nb_actions = mdp.action_space.n if args.use_actions else 1
 
 # Create ActionRegressor
 if args.fqi_model_type == 'extra':
@@ -209,7 +211,7 @@ if args.fqi_model is not None and args.nn_stack is not None:
                   'verbose': True}
     policy = EpsilonFQI(fqi_params, nn_stack, fqi=args.fqi_model)
     evaluation_metrics = evaluate_policy(mdp,
-                                         policy,
+                                            policy,
                                          n_episodes=3,
                                          initial_actions=initial_actions)
     toc('Loaded policy - evaluation: %s' % str(evaluation_metrics))

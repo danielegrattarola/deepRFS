@@ -142,7 +142,6 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
     if debug:
         dataset = dataset[:7]
         dataset[:2, 2] = 1.0
-        dataset[6, 2] = -1.0
 
     if return_dataframe:
         header = ['S', 'A', 'R', 'SS', 'DONE']
