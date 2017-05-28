@@ -427,23 +427,25 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
 
             nb_batches = len(sars) / batch_size
 
+            # Compute residuals
+            F, D = build_fd(nn_stack, nn, support, sars)
+            RES = build_res(model, F, D, no_residuals=no_residuals)
+
             for i in range(nb_batches):
                 start = i * batch_size
                 stop = (i + 1) * batch_size
                 S = pds_to_npa(sars[start:stop, 3])  # Uses S'
                 A = pds_to_npa(sars[start:stop, 1])
-                F, D = build_fd(nn_stack, nn, support, sars[start:stop])
-                RES = build_res(model, F, D, no_residuals=no_residuals)
 
                 if weights is not None:
-                    sample_weight = 1. / weights(RES.T)
+                    sample_weight = 1. / weights(RES[start:stop].T)
                     sample_weight /= scale_coeff
 
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
 
                 if weights is not None:
-                    yield ([S, A], RES, sample_weight)
+                    yield ([S, A], RES[start:stop], sample_weight)
                 else:
                     yield ([S, A], RES)
 
