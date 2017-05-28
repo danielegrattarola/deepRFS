@@ -398,7 +398,10 @@ def build_res(model, F, D, no_residuals=False):
         RES = D
     else:
         predictions = model.predict(F)
-        RES = D - predictions
+        if predictions.ndim == 1:
+            RES = D - predictions.reshape(-1, 1)
+        else:
+            RES = D - predictions
     return RES
 
 
