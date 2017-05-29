@@ -446,7 +446,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                 if weights is not None:
                     yield ([S, A], RES[start:stop], sample_weight)
                 else:
-                    yield ([S, A], RES)
+                    yield ([S, A], RES[start:stop])
 
 
 def build_faft_r_from_disk(nn_stack, path):
