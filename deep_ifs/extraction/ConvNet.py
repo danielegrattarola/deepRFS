@@ -128,7 +128,7 @@ class ConvNet:
         return self.model.fit_generator(generator,
                                         steps_per_epoch,
                                         epochs=nb_epochs,
-                                        max_q_size=20,
+                                        max_q_size=250,
                                         callbacks=[self.es, self.mc],
                                         validation_data=validation_data)
 
