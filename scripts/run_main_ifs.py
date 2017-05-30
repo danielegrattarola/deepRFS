@@ -408,15 +408,30 @@ for step in range(algorithm_steps):
                      chkpt_file='NN%s_step%s.h5' % (i, step))
 
         # Compute dynamics weights
+        tic('Computing class weights...')
         RES = build_res(model, F, D, no_residuals=args.no_residuals)
-        pdf = gaussian_kde(RES.T)
-        sample_weight = 1. / pdf(RES.T)
-        scale_coeff = np.min(sample_weight)
-        print('Min weight: %f' % np.min(sample_weight / scale_coeff))
-        print('Max weight: %f' % np.max(sample_weight / scale_coeff))
-        print('Mean weight: %f' % np.mean(sample_weight / scale_coeff))
-
-        del RES, sample_weight
+        RES = np.round(RES, 3)
+        target_classes = np.unique(RES)
+        if target_classes.shape[0] <= 5:
+            log('Computing fast class weights (%s target classes)' %
+                target_classes.shape[0])
+            weights = dict()
+            for r in target_classes:
+                weights[r] = RES.shape[0] / float(np.argwhere(RES == r).shape[0])
+            scale_coeff = 1  # Not used
+            log('Class weights: %s' % weights)
+        else:
+            log('Computing PDF of targets (%s target classes)' %
+                target_classes.shape[0])
+            weights = gaussian_kde(RES.T)
+            sw = 1. / weights(RES.T)
+            scale_coeff = np.min(sw)
+            log('Min weight: %f' % np.min(sw / scale_coeff))
+            log('Max weight: %f' % np.max(sw / scale_coeff))
+            log('Mean weight: %f' % np.mean(sw / scale_coeff))
+            del sw
+        del RES
+        toc()
 
         # Generator
         sares_generator = sares_generator_from_disk(model,
@@ -427,7 +442,7 @@ for step in range(algorithm_steps):
                                                     batch_size=nn_batch_size,
                                                     binarize=args.binarize,
                                                     no_residuals=args.no_residuals,
-                                                    weights=pdf,
+                                                    weights=weights,
                                                     scale_coeff=scale_coeff)
 
         # Fit NNi (target: RES)
