@@ -437,8 +437,11 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                 A = pds_to_npa(sars[start:stop, 1])
 
                 if weights is not None:
-                    sample_weight = 1. / weights(RES[start:stop].T)
-                    sample_weight /= scale_coeff
+                    if callable(weights):  # it's a PDF function
+                        sample_weight = 1. / weights(RES[start:stop].T)
+                        sample_weight /= scale_coeff
+                    else:  # it's a class weight dict
+                        sample_weight = get_sample_weight(RES[start:stop], weights)
 
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
@@ -488,7 +491,7 @@ def build_faft_r_from_disk(nn_stack, path):
     return faft, R, action_values
 
 
-def get_sample_weight(target, class_weight=None):
+def get_sample_weight(target, class_weight):
     """
     Returns a list with the class weight of each sample.
     The return value can be passed directly to Keras's sample_weight parameter
