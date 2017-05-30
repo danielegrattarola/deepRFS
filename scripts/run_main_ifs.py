@@ -410,7 +410,7 @@ for step in range(algorithm_steps):
         # Compute dynamics weights
         tic('Computing class weights...')
         RES = build_res(model, F, D, no_residuals=args.no_residuals)
-        RES = np.round(RES, 3)
+        RES = np.round(RES, 2)
         target_classes = np.unique(RES)
         if target_classes.shape[0] <= 5:
             log('Computing fast class weights (%s target classes)' %
