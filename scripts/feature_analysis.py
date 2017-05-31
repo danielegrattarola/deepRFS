@@ -25,8 +25,7 @@ np.random.shuffle(idx)
 sars = sars[idx]
 
 en = GenericEncoder(args.path + 'NN0_encoder_step0.h5')
-# s = np.load(args.path + 'nn_stack_0/support_0.npy')
-s = np.array([138])
+s = np.load(args.path + 'nn_stack_0/support_0.npy')
 
 f = en.s_features(pds_to_npa(sars[:, 0]), s)
 ff = en.s_features(pds_to_npa(sars[:, 3]), s)
