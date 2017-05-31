@@ -511,6 +511,9 @@ def get_sample_weight(target, class_weight):
     else:
         target = pds_to_npa(target)
 
+    if target.ndim == 2 and target.shape[1] == 1:
+        target = target.ravel()
+
     sample_weight = [class_weight[r] for r in target]
     return np.array(sample_weight)
 
