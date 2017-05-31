@@ -412,7 +412,7 @@ for step in range(algorithm_steps):
         RES = build_res(model, F, D, no_residuals=args.no_residuals)
         RES = np.round(RES, 1)
         target_classes = np.unique(RES)
-        if target_classes.shape[0] <= 5 and target_classes.shape[1] == 1:
+        if target_classes.shape[0] <= 5 and RES.shape[1] == 1:
             log('Computing fast class weights (%s target classes)' %
                 target_classes.shape[0])
             weights = dict()
