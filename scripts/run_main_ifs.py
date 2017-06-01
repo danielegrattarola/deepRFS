@@ -331,37 +331,37 @@ for step in range(algorithm_steps):
 
     log('Memory usage (FA, R): %s MB\n' % get_size([FA, R], 'MB'))
 
-    tic('Running IFS (target: R)')
-    ifs_estimator_params = {'n_estimators': ifs_nb_trees,
-                            'n_jobs': -1}
-    ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
-                  'n_features_step': 1,
-                  'cv': None,
-                  'scale': True,
-                  'verbose': 1,
-                  'significance': ifs_significance}
-    ifs = IFS(**ifs_params)
+    if args.no_ifs:
+        support = np.var(FA[:, :-1], axis=0) == 0  # Keep only features with nonzero variance
+    else:
+        tic('Running IFS (target: R)')
+        ifs_estimator_params = {'n_estimators': ifs_nb_trees,
+                                'n_jobs': -1}
+        ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
+                      'n_features_step': 1,
+                      'cv': None,
+                      'scale': True,
+                      'verbose': 1,
+                      'significance': ifs_significance}
+        ifs = IFS(**ifs_params)
 
-    # Fit IFS0
-    ifs.fit(FA, R)
+        # Fit IFS0
+        ifs.fit(FA, R)
 
-    # Process support
-    support = ifs.get_support()
-    got_action = support[-1]  # Action is the last feature
-    support = support[:-1]  # Remove action from support
-    nb_new_features = np.array(support).sum()
-    r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
-    log('Features: %s' % np.array(support).nonzero())
-    log('IFS - New features: %s' % nb_new_features)
-    log('Action was%s selected' % ('' if got_action else ' NOT'))
-    toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+        # Process support
+        support = ifs.get_support()
+        got_action = support[-1]  # Action is the last feature
+        support = support[:-1]  # Remove action from support
+        nb_new_features = np.array(support).sum()
+        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
+        log('Features: %s' % np.array(support).nonzero())
+        log('IFS - New features: %s' % nb_new_features)
+        log('Action was%s selected' % ('' if got_action else ' NOT'))
+        toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
 
     # TODO Debug
     if args.debug:
         support = np.array([True, True] + [False] * 510)
-
-    if args.no_ifs:
-        support = np.var(FA[:, :-1], axis=0) == 0  # Keep only features with nonzero variance
 
     # TODO farf analysis
     if args.farf_analysis:
@@ -377,7 +377,7 @@ for step in range(algorithm_steps):
 
     del FA, R
 
-    # Add network to support
+    # Add network and support to stack
     nn_stack.add(nn, support)
 
     for i in range(1, rec_steps + 1):
@@ -493,24 +493,25 @@ for step in range(algorithm_steps):
 
         log('Memory usage (FA, D): %s MB\n' % get_size([FA, D], 'MB'))
 
-        tic('Running IFS %s with target D' % i)
-        ifs = IFS(**ifs_params)
-        preload_features = range(nn_stack.get_support_dim())
-        ifs.fit(FA, D, preload_features=preload_features)
+        if args.no_ifs:
+            support = np.var(FA[:, :-1], axis=0) == 0  # Keep only features with nonzero variance
+        else:
+            tic('Running IFS %s with target D' % i)
+            ifs = IFS(**ifs_params)
+            preload_features = range(nn_stack.get_support_dim())
+            ifs.fit(FA, D, preload_features=preload_features)
+
+            support = ifs.get_support()
+            got_action = support[-1]
+            support = support[len(preload_features):-1]  # Remove already selected features and action from support
+            nb_new_features = np.array(support).sum()
+            r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
+            log('IFS - New features: %s' % nb_new_features)
+            log('Action was%s selected' % ('' if got_action else ' NOT'))
+            toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
         del FA, D
 
-        support = ifs.get_support()
-        got_action = support[-1]
-        support = support[len(preload_features):-1]  # Remove already selected features and action from support
-        nb_new_features = np.array(support).sum()
-        r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
-        log('IFS - New features: %s' % nb_new_features)
-        log('Action was%s selected' % ('' if got_action else ' NOT'))
-        toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
-
-        if args.no_ifs:
-            support[:] = True
-
+        # Add network and support to stack
         nn_stack.add(nn, support)
 
         if nb_new_features == 0 or r2_change < r2_change_threshold:
