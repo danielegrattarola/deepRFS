@@ -415,7 +415,8 @@ for step in range(algorithm_steps):
         # Compute dynamics weights
         tic('Computing class weights...')
         RES = build_res(model, F, D, no_residuals=args.no_residuals)
-        RES = np.round(RES, 1)
+        round_decimal = 1
+        RES = np.round(RES, round_decimal)
         target_classes = np.unique(RES)
         if target_classes.shape[0] <= 5 and RES.shape[1] == 1:
             log('Computing fast class weights (%s target classes)' %
@@ -448,7 +449,8 @@ for step in range(algorithm_steps):
                                                     binarize=args.binarize,
                                                     no_residuals=args.no_residuals,
                                                     weights=weights,
-                                                    scale_coeff=scale_coeff)
+                                                    scale_coeff=scale_coeff,
+                                                    round_decimal=round_decimal)
 
         # Fit NNi (target: RES)
         tic('Fitting NN%s' % i)

@@ -389,7 +389,7 @@ def build_res(model, F, D, no_residuals=False):
 # NNi
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                               binarize=False, no_residuals=False, weights=None,
-                              scale_coeff=1):
+                              scale_coeff=1, round_decimal=1):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -438,10 +438,10 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
 
                 if weights is not None:
                     if callable(weights):  # it's a PDF function
-                        sample_weight = 1. / weights(RES[start:stop].T)
+                        sample_weight = 1. / weights(np.round(RES[start:stop], round_decimal).T)
                         sample_weight /= scale_coeff
                     else:  # it's a class weight dict
-                        sample_weight = get_sample_weight(RES[start:stop], weights)
+                        sample_weight = get_sample_weight(np.round(RES[start:stop], round_decimal), weights)
 
                 # Preprocess data
                 S = ConvNet.preprocess_state(S, binarize=binarize)
