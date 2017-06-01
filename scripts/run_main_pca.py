@@ -258,7 +258,7 @@ for step in range(algorithm_steps):
 
     # FEATURE SELECTION 0 #
     tic('Building F dataset for PCA')
-    F = build_f_from_disk(nn, sars_path)  # Features
+    F = build_f_from_disk(nn, sars_path, use_ss=True)  # Features
 
     log('Number of non-zero feature: %s' %
         np.count_nonzero(np.mean(F, axis=0)))

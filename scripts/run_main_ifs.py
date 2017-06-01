@@ -265,18 +265,19 @@ for step in range(algorithm_steps):
     else:
         test_sars = np.load(sars_path + '/valid_sars.npy')
 
-    test_S = pds_to_npa(test_sars[:, 3])  # S'
+    test_S = pds_to_npa(test_sars[:, 0])
     test_A = pds_to_npa(test_sars[:, 1])
     test_R = pds_to_npa(test_sars[:, 2])
-
-    # Compute class weights to account for dataset unbalancing
-    class_weight = get_class_weight_from_disk(sars_path)
-    print('Class weights: ' + str(class_weight))
-
+    test_SS = pds_to_npa(test_sars[:, 3])  # S'
     toc('Got %s test SARS\' samples' % len(test_sars))
 
-    log('Memory usage (test_sars, test_S, test_A, test_R): %s MB\n' %
-        get_size([test_sars, test_S, test_A, test_R], 'MB'))
+    # Compute class weights to account for dataset unbalancing
+    tic('Computing class weights')
+    class_weight = get_class_weight_from_disk(sars_path)
+    toc('Class weights: ' + str(class_weight))
+
+    log('Memory usage (test_sars, test_S, test_A, test_R, test_SS): %s MB\n' %
+        get_size([test_sars, test_S, test_A, test_R, test_SS], 'MB'))
 
     log('Resetting NN stack')
     nn_stack.reset()  # Clear the stack after collecting SARS' with last policy
@@ -301,13 +302,13 @@ for step in range(algorithm_steps):
     nn.fit_generator(sar_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
-                     validation_data=([test_S, test_A], test_R))
+                     validation_data=([test_SS, test_A], test_R))
     nn.load(logger.path + 'NN0_step%s.h5' % step)
     toc()
 
     # TODO NN analysis
     if args.nn_analysis:
-        pred = nn.predict(test_S, test_A)
+        pred = nn.predict(test_SS, test_A)
         plt.suptitle('NN0 step %s' % step)
         plt.xlabel('Reward')
         plt.ylabel('NN prediction')
@@ -322,7 +323,7 @@ for step in range(algorithm_steps):
 
     # ITERATIVE FEATURE SELECTION 0
     tic('Building dataset for IFS 0')
-    FA, R = build_far_from_disk(nn, sars_path)  # Features, action, reward, next_features
+    FA, R = build_far_from_disk(nn, sars_path, use_ss=True)  # Features, action, reward, next_features
 
     # Print the number of nonzero features
     toc('Number of non-zero feature: %s' %
@@ -360,7 +361,7 @@ for step in range(algorithm_steps):
         support = np.array([True, True] + [False] * 510)
 
     if args.no_ifs:
-        support[:] = True
+        support = np.var(FA[:, :-1], axis=0) == 0  # Keep only features with nonzero variance
 
     # TODO farf analysis
     if args.farf_analysis:
