@@ -132,6 +132,8 @@ parser.add_argument('--fqi-iter', type=int, default=300,
                     help='Number of FQI iterations to run')
 parser.add_argument('--fqi-eval-period', type=int, default=1,
                     help='Number of FQI iterations between evaluations')
+parser.add_argument('--no-ifs', action='store_true',
+                    help='IFS has no effect and all features are selected')
 args = parser.parse_args()
 # fqi-model and nn-stack must be both None or both set
 assert not ((args.fqi_model is not None) ^ (args.nn_stack is not None)), \
@@ -357,6 +359,9 @@ for step in range(algorithm_steps):
     if args.debug:
         support = np.array([True, True] + [False] * 510)
 
+    if args.no_ifs:
+        support[:] = True
+
     # TODO farf analysis
     if args.farf_analysis:
         feature_idxs = np.argwhere(support).reshape(-1)
@@ -499,6 +504,9 @@ for step in range(algorithm_steps):
         log('IFS - New features: %s' % nb_new_features)
         log('Action was%s selected' % ('' if got_action else ' NOT'))
         toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+
+        if args.no_ifs:
+            support[:] = True
 
         nn_stack.add(nn, support)
 
