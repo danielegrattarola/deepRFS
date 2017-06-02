@@ -332,7 +332,7 @@ for step in range(algorithm_steps):
     log('Memory usage (FA, R): %s MB\n' % get_size([FA, R], 'MB'))
 
     if args.no_ifs:
-        support = np.var(FA[:, :-1], axis=0) == 0  # Keep only features with nonzero variance
+        support = np.var(FA[:, :-1], axis=0) != 0  # Keep only features with nonzero variance
     else:
         tic('Running IFS (target: R)')
         ifs_estimator_params = {'n_estimators': ifs_nb_trees,
@@ -494,7 +494,7 @@ for step in range(algorithm_steps):
         log('Memory usage (FA, D): %s MB\n' % get_size([FA, D], 'MB'))
 
         if args.no_ifs:
-            support = np.var(FA[:, :-1], axis=0) == 0  # Keep only features with nonzero variance
+            support = np.var(FA[:, :-1], axis=0) != 0  # Keep only features with nonzero variance
         else:
             tic('Running IFS %s with target D' % i)
             ifs = IFS(**ifs_params)
