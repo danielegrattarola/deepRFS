@@ -1,5 +1,8 @@
 # TODO Documentation
 import matplotlib
+
+from deep_ifs.utils.datasets import build_faft_r_from_disk
+
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import argparse
 import atexit
@@ -15,6 +18,7 @@ from deep_ifs.utils.timer import tic, toc, log
 from ifqi.models import Regressor, ActionRegressor
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.neural_network import MLPRegressor
 from tqdm import tqdm
 from xgboost import XGBRegressor
 
@@ -27,9 +31,10 @@ atexit.register(exit_callback)
 
 # ARGS
 parser = argparse.ArgumentParser()
-parser.add_argument('base_folder', type=str,
-                    help='Path to run folder with global_farf dataset and '
-                         'nn_stack_X/ folder')
+parser.add_argument('nn_stack', type=str,
+                    help='Path to nn_stack folder')
+parser.add_argument('sars', type=str,
+                    help='Path to sars folder')
 parser.add_argument('iteration_id', type=int,
                     help='Index of run_main step saved in the base folder that '
                          'you want to use')
@@ -48,7 +53,7 @@ parser.add_argument('--eval-freq', type=int, default=5,
                          ' steps')
 parser.add_argument('--fqi-model-type', type=str, default='extra',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
-                         '\'extra\', \'xgb\')')
+                         '\'extra\', \'xgb\', \'mlp\')')
 parser.add_argument('--clip', action='store_true',
                     help='Clip reward')
 args = parser.parse_args()
@@ -63,8 +68,7 @@ nn_stack = NNStack()  # To store all neural networks and IFS support
 nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
 
 # Load dataset for FQI
-data_path = args.base_folder + 'global_farf_%s.pickle' % args.iteration_id
-faft, r, action_values = joblib.load(data_path)
+faft, r, action_values = build_faft_r_from_disk(nn_stack, args.sars)
 
 if args.clip:
     r = np.clip(r, -1, 1)
@@ -102,9 +106,13 @@ elif args.fqi_model_type == 'linear':
 elif args.fqi_model_type == 'ridge':
     fqi_regressor_params = {}
     fqi_regressor_class = Ridge
+elif args.fqi_model_type == 'mlp':
+    fqi_regressor_params = {'hidden_layer_sizes': (128, 128),
+                            'early_stopping': True}
+    fqi_regressor_class = MLPRegressor
 else:
     raise NotImplementedError('Allowed models: \'extra\', \'linear\', '
-                              '\'ridge\', \'xgb\'.')
+                              '\'ridge\', \'xgb\', \'mlp\'.')
 
 regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
                                       **fqi_regressor_params),

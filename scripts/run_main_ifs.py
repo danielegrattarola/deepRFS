@@ -416,6 +416,7 @@ for step in range(algorithm_steps):
         # Compute dynamics weights
         tic('Computing class weights...')
         RES = build_res(model, F, D, no_residuals=args.no_residuals)
+        del F
         round_decimal = 1
         RES = np.round(RES, round_decimal)
         target_classes = np.unique(RES)

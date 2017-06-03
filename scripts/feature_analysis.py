@@ -39,7 +39,7 @@ for model in models:
         m = model()
     m.fit(f, dyn)
     p = m.predict(f)
-    res = p.ravel() - dyn.ravel()
+    res = p - dyn
     pdf = gaussian_kde(res.T)
     w = 1. / pdf(res.T)
 
