@@ -35,9 +35,6 @@ parser.add_argument('nn_stack', type=str,
                     help='Path to nn_stack folder')
 parser.add_argument('sars', type=str,
                     help='Path to sars folder')
-parser.add_argument('iteration_id', type=int,
-                    help='Index of run_main step saved in the base folder that '
-                         'you want to use')
 parser.add_argument('-d', '--debug', action='store_true',
                     help='Run in debug mode')
 parser.add_argument('--save-video', action='store_true',
@@ -65,7 +62,7 @@ initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 log('Reading data')
 # Load NNStack
 nn_stack = NNStack()  # To store all neural networks and IFS support
-nn_stack.load(args.base_folder + 'nn_stack_%s/' % args.iteration_id)
+nn_stack.load(args.nn_stack)
 
 # Load dataset for FQI
 faft, r, action_values = build_faft_r_from_disk(nn_stack, args.sars)
