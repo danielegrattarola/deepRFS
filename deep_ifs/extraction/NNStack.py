@@ -84,8 +84,8 @@ class NNStack:
         if not folder.endswith('/'):
             folder += '/'
         for idx, d in enumerate(self.stack):
-            d['model'].save_encoder(folder + 'encoder_%d.h5' % idx)  # Save network
-            np.save(folder + 'support_%d.npy' % idx, d['support'])  # Save support array
+            d['model'].save_encoder(folder + 'encoder_%d.h5' % idx)
+            np.save(folder + 'support_%d.npy' % idx, d['support'])
 
     def load(self, folder):
         """
