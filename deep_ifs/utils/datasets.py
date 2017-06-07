@@ -6,7 +6,6 @@ import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.utils.helpers import flat2list, pds_to_npa
 from deep_ifs.utils.timer import log
 
@@ -203,7 +202,7 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     return samples_in_dataset
 
 
-def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None):
+def sar_generator_from_disk(path, model, batch_size=32, binarize=False, weights=None):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
     
@@ -248,7 +247,7 @@ def sar_generator_from_disk(path, batch_size=32, binarize=False, weights=None):
                 R = pds_to_npa(sars[start:stop, 2])
 
                 # Preprocess data
-                S = ConvNet.preprocess_state(S, binarize=binarize)
+                S = model.preprocess_state(S, binarize=binarize)
 
                 if weights is not None:
                     yield ([S, A], R, sample_weight[start:stop])
@@ -449,7 +448,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                         sample_weight = get_sample_weight(np.round(RES[start:stop], round_decimal), weights)
 
                 # Preprocess data
-                S = ConvNet.preprocess_state(S, binarize=binarize)
+                S = model.preprocess_state(S, binarize=binarize)
 
                 if weights is not None:
                     yield ([S, A], RES[start:stop], sample_weight)
@@ -557,3 +556,76 @@ def get_class_weight_from_disk(path):
         class_weight[r] = target.size / float(np.argwhere(target == r).size)
 
     return class_weight
+
+
+# FOR AUTOENCODER
+def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
+                           weights=None):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+
+    while True:
+        for idx, f in enumerate(files):
+            sars = np.load(f)
+            if idx > 0:
+                sars = np.append(excess_sars, sars, axis=0)
+
+            excess = len(sars) % batch_size
+            if excess > 0:
+                excess_sars = sars[-excess:]
+                sars = sars[:-excess]
+            else:
+                excess_sars = sars[0:0]  # just to preserve shapes
+
+            nb_batches = len(sars) / batch_size
+
+            if weights is not None:
+                sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
+                                                  class_weight=weights)
+
+            for i in range(nb_batches):
+                start = i * batch_size
+                stop = (i + 1) * batch_size
+                S = pds_to_npa(sars[start:stop, 0])
+                SS = pds_to_npa(sars[start:stop, 3])
+
+                # Preprocess data
+                S = model.preprocess_state(S, binarize=binarize)
+                SS = model.preprocess_state(SS, binarize=binarize)
+
+                if weights is not None:
+                    yield (S, SS, sample_weight[start:stop])
+                else:
+                    yield (S, SS)
+
+
+def build_farf_from_disk(model, path):
+    if not path.endswith('/'):
+        path += '/'
+    files = glob.glob(path + 'sars_*.npy')
+    print 'Got %s files' % len(files)
+
+    for idx, f in enumerate(files):
+        sars = np.load(f)
+        if idx == 0:
+            F = model.all_features(pds_to_npa(sars[:, 0]))
+            A = pds_to_npa(sars[:, 1])
+            R = pds_to_npa(sars[:, 2])
+            FF = model.all_features(pds_to_npa(sars[:, 3]))
+        else:
+            new_F = model.all_features(pds_to_npa(sars[:, 0]))
+            new_A = pds_to_npa(sars[:, 1])
+            new_R = pds_to_npa(sars[:, 2])
+            new_FF = model.all_features(pds_to_npa(sars[:, 3]))
+            F = np.append(F, new_F, axis=0)
+            A = np.append(A, new_A, axis=0)
+            R = np.append(R, new_R, axis=0)
+            FF = np.append(FF, new_FF, axis=0)
+
+    A = A.reshape(-1, 1)
+
+    # Post processing
+    R = R.reshape(-1, 1)  # Sklearn version < 0.19 will throw a warning
+    return F, A, R, FF

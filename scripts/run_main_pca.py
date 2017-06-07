@@ -225,11 +225,12 @@ for step in range(algorithm_steps):
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize,
                  logger=logger,
-                 chkpt_file='NN0_step%s.h5' % step)
+                 ckpt_file='NN0_step%s.h5' % step)
 
     # Fit NN0
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
+                                            nn,
                                             batch_size=nn_batch_size,
                                             use_sample_weights=True,
                                             class_weight=class_weight,
@@ -322,7 +323,7 @@ for step in range(algorithm_steps):
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
                      logger=logger,
-                     chkpt_file='NN%s_step%s.h5' % (i, step))
+                     ckpt_file='NN%s_step%s.h5' % (i, step))
 
         # Generator
         sares_generator = sares_generator_from_disk(model,

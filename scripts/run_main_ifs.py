@@ -75,6 +75,7 @@ from scipy.stats.kde import gaussian_kde
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import *
 from deep_ifs.extraction.NNStack import NNStack
+from deep_ifs.extraction.ConvNet import ConvNet
 from deep_ifs.extraction.GenericEncoder import GenericEncoder
 from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.selection.ifs import IFS
@@ -291,11 +292,12 @@ for step in range(algorithm_steps):
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize,
                  logger=logger,
-                 chkpt_file='NN0_step%s.h5' % step)
+                 ckpt_file='NN0_step%s.h5' % step)
 
     # Fit NN0
     tic('Fitting NN0 (target: R)')
     sar_generator = sar_generator_from_disk(sars_path,
+                                            nn,
                                             batch_size=nn_batch_size,
                                             binarize=args.binarize,
                                             weights=class_weight)
@@ -411,7 +413,7 @@ for step in range(algorithm_steps):
                      nb_epochs=nn_nb_epochs,
                      binarize=args.binarize,
                      logger=logger,
-                     chkpt_file='NN%s_step%s.h5' % (i, step))
+                     ckpt_file='NN%s_step%s.h5' % (i, step))
 
         # Compute dynamics weights
         tic('Computing class weights...')

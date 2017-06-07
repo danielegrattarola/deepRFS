@@ -11,7 +11,7 @@ class ConvNet:
     def __init__(self, input_shape, target_size, nb_actions=1, encoding_dim=512,
                  nb_epochs=10, dropout_prob=0.5, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
-                 logger=None, chkpt_file=None):
+                 logger=None, ckpt_file=None):
         self.dim_ordering = 'th'  # (samples, filters, rows, cols)
         self.input_shape = input_shape
         self.target_size = target_size
@@ -24,8 +24,8 @@ class ConvNet:
         self.sample_weight = sample_weight
         self.logger = logger
 
-        if chkpt_file is not None:
-            self.chkpt_file = chkpt_file if logger is None else (logger.path + chkpt_file)
+        if ckpt_file is not None:
+            self.chkpt_file = ckpt_file if logger is None else (logger.path + ckpt_file)
         else:
             self.chkpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
@@ -73,8 +73,7 @@ class ConvNet:
         self.model.compile(optimizer=self.optimizer, loss='mse',
                            metrics=['mse'])
 
-    @staticmethod
-    def preprocess_state(x, binarize=False):
+    def preprocess_state(self, x, binarize=False):
         x = np.asarray(x).astype('float32') / 255.  # To 0-1 range
         if binarize:
             x[x < 0.1] = 0

@@ -1,223 +1,278 @@
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
-from keras.regularizers import activity_l1, l2
+from keras.regularizers import l2
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 import numpy as np
-import keras.backend.tensorflow_backend as b
 
 
 class Autoencoder:
-    def __init__(self, input_shape, encoding_dim=49, load_path=None, logger=None):
-        b.clear_session()  # To avoid memory leaks when instantiating the network in a loop
-        self.dim_ordering = 'th'  # (samples, filters, rows, cols)
+    def __init__(self, input_shape, encoding_dim=512, nb_epochs=10,
+                 dropout_prob=0.5, binarize=False, class_weight=None,
+                 sample_weight=None, load_path=None, logger=None,
+                 ckpt_file=None):
         self.input_shape = input_shape
         self.encoding_dim = encoding_dim
-        self.decoding_available = False
-        self.dropout_prob = 0.5
+        self.nb_epochs = nb_epochs
+        self.dropout_prob = dropout_prob
+        self.binarize = binarize
+        self.class_weight = class_weight
+        self.sample_weight = sample_weight
         self.logger = logger
+        self.decoding_available = False
+        self.use_contractive_loss = False
+        self.support = None
+
+        if ckpt_file is not None:
+            self.ckpt_file = ckpt_file if logger is None else (logger.path + ckpt_file)
+        else:
+            self.ckpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
+
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-7, patience=5)
+
+        self.mc = ModelCheckpoint(self.ckpt_file, monitor='val_loss',
+                                  save_best_only=True, save_weights_only=True,
+                                  verbose=0)
 
         # Build network
-        """
-        self.inputs = Input(shape=self.input_shape)
+        self.input = Input(shape=(4, 108, 84))
 
-        # Encoding layers
-        self.encoded = Convolution2D(32, 3, 3, subsample=(3, 3), border_mode='valid', activation='relu', dim_ordering=self.dim_ordering)(self.inputs)
-        self.encoded = Dropout(self.dropout_prob)(self.encoded)
-        self.encoded = Convolution2D(16, 2, 2, subsample=(2, 2), border_mode='valid', activation='relu', dim_ordering=self.dim_ordering)(self.encoded)
-        self.encoded = Dropout(self.dropout_prob)(self.encoded)
-        self.encoded = Convolution2D(1, 2, 2, subsample=(2, 2), border_mode='valid', activation='relu', dim_ordering=self.dim_ordering)(self.encoded)
-        self.encoded = Dropout(self.dropout_prob)(self.encoded)
+        self.encoded = Conv2D(32, (8, 8), padding='valid',
+                              activation='relu', strides=(4, 4),
+                              data_format='channels_first')(self.input)
 
-        # self.encoded = Flatten()(self.encoded)
-        # self.encoded = Dense(7 * 7, activation='tanh', W_regularizer=l2(), name='encoded')(self.encoded)
-        #
-        # # Decoding layers
-        # self.decoded = Reshape((1, 14, 14))(self.encoded)
+        self.encoded = Conv2D(64, (4, 4), padding='valid',
+                              activation='relu', strides=(2, 2),
+                              data_format='channels_first')(self.encoded)
 
-        self.decoded = Convolution2D(1, 2, 2, border_mode='same', activation='relu', dim_ordering=self.dim_ordering)(self.encoded)
-        self.decoded = UpSampling2D(size=(2, 2), dim_ordering=self.dim_ordering)(self.decoded)
-        self.decoded = Convolution2D(16, 2, 2, border_mode='same', activation='relu', dim_ordering=self.dim_ordering)(self.decoded)
-        self.decoded = UpSampling2D(size=(2, 2), dim_ordering=self.dim_ordering)(self.decoded)
-        self.decoded = Convolution2D(32, 3, 3, border_mode='same', activation='relu', dim_ordering=self.dim_ordering)(self.decoded)
-        self.decoded = UpSampling2D(size=(3, 3), dim_ordering=self.dim_ordering)(self.decoded)
-        self.decoded = Convolution2D(self.input_shape[0], 2, 2, border_mode='same', activation='sigmoid', dim_ordering=self.dim_ordering)(self.decoded)
-        """
+        self.encoded = Conv2D(64, (3, 3), padding='valid',
+                              activation='relu', strides=(1, 1),
+                              data_format='channels_first',
+                              name='encoded')(self.encoded)
 
-        self.inputs = Input(shape=self.input_shape)
-        self.encoded_input = Input(shape=(self.encoding_dim,))
+        # Features
+        self.features = Flatten()(self.encoded)
+        self.features = Dense(self.encoding_dim, activation='relu')(self.features)
 
-        self.encoded = Dense(self.input_shape[0] / 16)(self.inputs)
-        self.encoded = LeakyReLU(alpha=0.01)(self.encoded)
-        self.encoded = Dropout(self.dropout_prob)(self.encoded)
+        # Decoder
+        self.decoded = Dense(4480, activation='relu')(self.features)
 
-        self.encoded = Dense(self.input_shape[0] / 32)(self.encoded)
-        self.encoded = LeakyReLU(alpha=0.01)(self.encoded)
-        self.encoded = Dropout(self.dropout_prob)(self.encoded)
+        self.decoded = Reshape((64, 10, 7))(self.decoded)
 
-        self.encoded = Dense(self.input_shape[0] / 64)(self.encoded)
-        self.encoded = LeakyReLU(alpha=0.01)(self.encoded)
-        self.encoded = Dropout(self.dropout_prob)(self.encoded)
+        self.decoded = Conv2DTranspose(64, (3, 3), padding='valid',
+                                       activation='relu', strides=(1, 1),
+                                       data_format='channels_first')(self.decoded)
 
-        self.encoded = Dense(self.input_shape[0] / 128)(self.encoded)
-        self.encoded = LeakyReLU(alpha=0.01)(self.encoded)
-        self.encoded = Dropout(self.dropout_prob)(self.encoded)
+        self.decoded = Conv2DTranspose(64, (4, 4), padding='valid',
+                                       activation='relu', strides=(2, 2),
+                                       data_format='channels_first')(self.decoded)
 
-        self.encoded = Dense(self.encoding_dim, name='encoded', W_regularizer=l2())(self.encoded)
-        self.encoded = LeakyReLU(alpha=0.01)(self.encoded)
+        self.decoded = Conv2DTranspose(64, (8, 8), padding='valid',
+                                       activation='relu', strides=(4, 4),
+                                       data_format='channels_first')(self.decoded)
 
-        self.decoded = Dense(self.input_shape[0] / 128)(self.encoded)
-        self.decoded = LeakyReLU(alpha=0.01)(self.decoded)
-
-        self.decoded = Dense(self.input_shape[0] / 64)(self.decoded)
-        self.decoded = LeakyReLU(alpha=0.01)(self.decoded)
-
-        self.decoded = Dense(self.input_shape[0] / 32)(self.decoded)
-        self.decoded = LeakyReLU(alpha=0.01)(self.decoded)
-
-        self.decoded = Dense(self.input_shape[0] / 16)(self.decoded)
-        self.decoded = LeakyReLU(alpha=0.01)(self.decoded)
-
-        self.decoded = Dense(self.input_shape[0], activation='sigmoid')(self.decoded)
+        self.decoded = Conv2DTranspose(4, (1, 1), padding='valid',
+                                       activation='sigmoid', strides=(1, 1),
+                                       data_format='channels_first')(self.decoded)
 
         # Models
-        self.autoencoder = Model(input=self.inputs, output=self.decoded)
-        self.encoder = Model(input=self.inputs, output=self.encoded)
+        self.model = Model(inputs=self.input, outputs=self.decoded)
+        self.encoder = Model(inputs=self.input, outputs=self.features)
 
         # Build decoder model
         if self.decoding_available:
-            self.decoding_intermediate = self.autoencoder.layers[-6](self.encoded_input)
-            self.decoding_intermediate = self.autoencoder.layers[-5](self.decoding_intermediate)
-            self.decoding_intermediate = self.autoencoder.layers[-4](self.decoding_intermediate)
-            self.decoding_intermediate = self.autoencoder.layers[-3](self.decoding_intermediate)
-            self.decoding_intermediate = self.autoencoder.layers[-2](self.decoding_intermediate)
-            self.decoding_output = self.autoencoder.layers[-1](self.decoding_intermediate)
+            self.decoding_intermediate = self.model.layers[-6](self.encoded_input)
+            self.decoding_intermediate = self.model.layers[-5](self.decoding_intermediate)
+            self.decoding_intermediate = self.model.layers[-4](self.decoding_intermediate)
+            self.decoding_intermediate = self.model.layers[-3](self.decoding_intermediate)
+            self.decoding_intermediate = self.model.layers[-2](self.decoding_intermediate)
+            self.decoding_output = self.model.layers[-1](self.decoding_intermediate)
             self.decoder = Model(input=self.encoded_input, output=self.decoding_output)
 
         # Optimization algorithm
-        try:
-            self.optimizer = Adam()
-        except NameError:
-            self.optimizer = RMSprop()
+        self.optimizer = Adam()
 
         # Load the network from saved model
         if load_path is not None:
             self.load(load_path)
 
-        self.autoencoder.compile(optimizer=self.optimizer, loss=self.contractive_loss, metrics=['accuracy'])
+        if self.use_contractive_loss:
+            self.loss = self.contractive_loss
+        else:
+            self.loss = 'binary_crossentropy'
 
-        # Save the architecture
-        if self.logger is not None:
-            with open(self.logger.path + 'architecture.json', 'w') as f:
-                f.write(self.autoencoder.to_json())
-                f.close()
+        self.model.compile(optimizer=self.optimizer, loss=self.loss,
+                           metrics=['accuracy'])
 
-    def train(self, x):
+    def preprocess_state(self, x, binarize=False):
+        if not x.shape[1:] == (4, 108, 84):
+            x = x[:, :, 2:, :]
+            assert x.shape[1:] == (4, 108, 84)
+        x = np.asarray(x).astype('float32') / 255.  # To 0-1 range
+        if binarize:
+            x[x < 0.1] = 0
+            x[x >= 0.1] = 1
+
+        return x
+
+    def fit(self, x, y, validation_data=None):
         """
-        Trains the model on a batch.
-        :param x: batch of samples on which to train.
-        :return: the metrics of interest as defined in the model (loss, accuracy, etc.)
+        Trains the model on a set of batches.
+
+        Args
+            x: samples on which to train.
+            u: actions associated to the samples.
+            y: targets on which to train.
+            validation_data: tuple (X, Y) to use as validation data
+        Returns
+            The metrics of interest as defined in the model (loss, accuracy,
+                etc.)
         """
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
-        x = x.reshape(x.shape[0], self.input_shape[0]) # Flatten tensor for dense network
-        return self.autoencoder.train_on_batch(x, x)
+        # Preprocess training data
+        x_train = self.preprocess_state(np.asarray(x), binarize=self.binarize)
+        y_train = self.preprocess_state(np.asarray(y), binarize=self.binarize)
+
+        # Preprocess validation data
+        if validation_data is not None:
+            val_x = self.preprocess_state(validation_data[0], binarize=self.binarize)
+            val_y = self.preprocess_state(validation_data[1], binarize=self.binarize)
+            validation_data = (val_x, val_y)
+
+        return self.model.fit(x_train, y_train,
+                              class_weight=self.class_weight,
+                              sample_weight=self.sample_weight,
+                              epochs=self.nb_epochs,
+                              validation_data=validation_data,
+                              callbacks=[self.es, self.mc])
+
+    def fit_generator(self, generator, steps_per_epoch, nb_epochs,
+                      validation_data=None):
+        # Preprocess validation data
+        if validation_data is not None:
+            val_x = self.preprocess_state(validation_data[0], binarize=self.binarize)
+            val_y = self.preprocess_state(validation_data[1], binarize=self.binarize)
+            validation_data = (val_x, val_y)
+
+        return self.model.fit_generator(generator,
+                                        steps_per_epoch,
+                                        epochs=nb_epochs,
+                                        max_q_size=250,
+                                        callbacks=[self.es, self.mc],
+                                        validation_data=validation_data)
 
     def predict(self, x):
         """
-        Runs the given images through the autoencoder and returns the reconstructed images.
-        :param x: a batch of samples on which to predict.
-        :return: the encoded and decoded batch.
+        Runs the given images through the model and returns the predictions.
+
+        Args
+            x: a batch of samples on which to predict.
+            u: actions associated to the samples.
+        Returns
+            The predictions of the batch.
         """
         # Feed input to the model, return encoded and re-decoded images
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
-        x = x.reshape(x.shape[0], self.input_shape[0]) # Flatten tensor for dense network
-        return self.autoencoder.predict_on_batch(x) * 255  # Restore original scale
+        x_test = self.preprocess_state(x, binarize=self.binarize)
+        pred = self.model.predict(x_test)
 
-    def test(self, x):
-        """
-        Tests the model on a batch.
-        :param x: batch of samples on which to train.
-        :return: the metrics of interest as defined in the model (loss, accuracy, etc.)
-        """
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
-        x = x.reshape(x.shape[0], self.input_shape[0]) # Flatten tensor for dense network
-        return self.autoencoder.test_on_batch(x, x)
+        return pred
 
-    def encode(self, x):
+    def all_features(self, x):
         """
-        Runs the given images through the first half of the autoencoder and returns the encoded features.
-        :param x: a batch of samples to encode.
-        :return: the encoded batch.
-        """
-        # Feed input to the model, return encoded images
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
-        x = x.reshape(x.shape[0], self.input_shape[0]) # Flatten tensor for dense network
-        return self.encoder.predict_on_batch(x)
+        Runs the given samples on the model and returns the features of the last
+        dense layer in an array.
 
-    def flat_encode(self, x):
-        """
-        Runs the given images through the first half of the autoencoder and returns the encoded features in a 1d array.
-        :param x: a batch of samples to encode.
-        :return: the encoded batch (with flattened features).
+        Args
+            x: samples to encode.
+        Returns
+            The encoded sample.
         """
         # Feed input to the model, return encoded images flattened
-        x = np.asarray(x).astype('float32') / 255  # Normalize pixels in 0-1 range
-        x[x < 0.1] = 0
-        x[x >= 0.1] = 1
-        x = x.reshape(x.shape[0], self.input_shape[0]) # Flatten tensor for dense network
-        return np.asarray(self.encoder.predict_on_batch(x)).flatten()
+        x = self.preprocess_state(x, binarize=self.binarize)
 
-    def decode(self, x):
-        """
-        Runs the given features through the second half of the autoencoder and returns the reconstructed images.
-        :param x: a batch of encoded samples.
-        :return: the encoded batch.
-        """
-        # Feed encoding to the model, return reconstructed images
-        if self.decoding_available:
-            x = np.asarray(x).astype('float32')
-            assert x.shape[1] == self.encoding_dim, \
-                'The number of features passed is different from the dimension of the encoding of the network'
-            return self.decoder.predict_on_batch(x) * 255
+        if x.shape[0] == 1:
+            # x is a singe sample
+            return np.asarray(self.encoder.predict_on_batch(x)).flatten()
         else:
-            print 'Decoding not yet available with this type of network'
+            return np.asarray(self.encoder.predict(x))
+
+    def s_features(self, x, support=None):
+        """
+        Runs the given samples on the model and returns the features of the last
+        dense layer filtered by the support mask.
+
+        Args
+            x: samples to encode.
+            support: a boolean mask with which to filter the output.
+        Returns
+            The encoded sample.
+        """
+        if support is None:
+            support = self.support
+
+        prediction = self.all_features(x)
+        if x.shape[0] == 1:
+            # x is a singe sample
+            prediction = prediction[support]  # Keep only support features
+        else:
+            prediction = prediction[:, support]  # Keep only support features
+        return prediction
 
     def save(self, filename=None, append=''):
         """
-        Saves the autoencoder weights to disk (in the run folder if a logger was given, otherwise in the current folder)
-        :param filename: custom filename for the hdf5 file.
-        :param append: the model will be saved as model_append.h5 if a value is provided.
+        Saves the model weights to disk (in the run folder if a logger was
+        given, otherwise in the current folder)
+
+        Args
+            filename: custom filename for the hdf5 file.
+            append: the model will be saved as model_append.h5 if a value is
+                provided.
         """
         # Save the DQN weights to disk
         f = ('model%s.h5' % append) if filename is None else filename
+        if not f.endswith('.h5'):
+            f += '.h5'
+        a = 'architecture_' + f.lstrip('.h5') + '.json'
         if self.logger is not None:
             self.logger.log('Saving model as %s' % self.logger.path + f)
-            self.autoencoder.save_weights(self.logger.path + f)
+            self.model.save_weights(self.logger.path + f)
+            with open(self.logger.path + a, 'w') as a_file:
+                a_file.write(self.model.to_json())
+                a_file.close()
         else:
-            self.autoencoder.save_weights(f)
+            self.model.save_weights(f)
+            with open(a, 'w') as a_file:
+                a_file.write(self.model.to_json())
+                a_file.close()
+
+    def save_encoder(self, filepath):
+        """
+        Save the encoder weights at filepath.
+
+        Args
+            filepath: path to an hdf5 file to store weights for the model.
+        """
+        self.encoder.save(filepath)
 
     def load(self, path):
         """
         Load the model and its weights from path.
-        :param path: path to an hdf5 file that stores weights for the model.
+
+        Args
+            path: path to an hdf5 file that stores weights for the model.
         """
         if self.logger is not None:
             self.logger.log('Loading weights from file...')
-        self.autoencoder.load_weights(path)
+        self.model.load_weights(path)
+
+    def set_support(self, support):
+        self.support = support
 
     def contractive_loss(self, y_pred, y_true):
         mse = K.mean(K.square(y_true - y_pred), axis=-1)
 
-        W = K.variable(value=self.autoencoder.get_layer('encoded').get_weights()[0])  # N x N_hidden
+        W = K.variable(value=self.model.get_layer('encoded').get_weights()[0])  # N x N_hidden
         W = K.transpose(W)  # N_hidden x N
-        h = self.autoencoder.get_layer('encoded').output
+        h = self.model.get_layer('encoded').output
         dh = h * (1 - h)  # N_batch x N_hidden
 
         # N_batch x N_hidden * N_hidden x 1 = N_batch x 1
