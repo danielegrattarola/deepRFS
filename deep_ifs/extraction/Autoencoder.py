@@ -47,17 +47,21 @@ class Autoencoder:
 
         self.encoded = Conv2D(64, (3, 3), padding='valid',
                               activation='relu', strides=(1, 1),
-                              data_format='channels_first',
-                              name='encoded')(self.encoded)
+                              data_format='channels_first')(self.encoded)
+
+        self.encoded = Conv2D(64, (2, 2), padding='valid',
+                              activation='relu', strides=(1, 1),
+                              data_format='channels_first')(self.encoded)
 
         # Features
         self.features = Flatten()(self.encoded)
-        self.features = Dense(self.encoding_dim, activation='relu')(self.features)
 
-        # Decoder
-        self.decoded = Dense(4480, activation='relu')(self.features)
+        # Decoded
+        self.decoded = Reshape((64, 9, 6))(self.features)
 
-        self.decoded = Reshape((64, 10, 7))(self.decoded)
+        self.decoded = Conv2DTranspose(64, (2, 2), padding='valid',
+                                       activation='relu', strides=(1, 1),
+                                       data_format='channels_first')(self.decoded)
 
         self.decoded = Conv2DTranspose(64, (3, 3), padding='valid',
                                        activation='relu', strides=(1, 1),
@@ -270,9 +274,9 @@ class Autoencoder:
     def contractive_loss(self, y_pred, y_true):
         mse = K.mean(K.square(y_true - y_pred), axis=-1)
 
-        W = K.variable(value=self.model.get_layer('encoded').get_weights()[0])  # N x N_hidden
+        W = K.variable(value=self.model.get_layer('features').get_weights()[0])  # N x N_hidden
         W = K.transpose(W)  # N_hidden x N
-        h = self.model.get_layer('encoded').output
+        h = self.model.get_layer('features').output
         dh = h * (1 - h)  # N_batch x N_hidden
 
         # N_batch x N_hidden * N_hidden x 1 = N_batch x 1
