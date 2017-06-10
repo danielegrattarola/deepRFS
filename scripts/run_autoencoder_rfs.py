@@ -61,6 +61,7 @@ Main loop:
 # TODO Documentation
 import joblib
 import matplotlib
+import gc
 
 # Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
@@ -88,6 +89,8 @@ parser.add_argument('--save-video', action='store_true',
                     help='Save the gifs of the evaluation episodes')
 parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
                     help='Atari environment on which to run the algorithm')
+parser.add_argument('--load-ae', type=str, default=None,
+                    help='Path to h5 weights file to load into AE')
 parser.add_argument('--fqi-model-type', type=str, default='xgb',
                     help='Type of model to use for fqi (\'linear\', \'ridge\', '
                          '\'extra\', \'xgb\')')
@@ -236,16 +239,24 @@ log('Memory usage (test_sars, test_S, test_A, test_R, test_SS): %s MB\n' %
     get_size([test_sars, test_S, test_A, test_R, test_SS], 'MB'))
 
 # Fit AE
-tic('Fitting Autoencoder')
-ss_generator = ss_generator_from_disk(sars_path,
-                                      ae,
-                                      batch_size=nn_batch_size,
-                                      binarize=args.binarize)
-ae.fit_generator(ss_generator,
-                 samples_in_dataset / nn_batch_size,
-                 nn_nb_epochs,
-                 validation_data=(test_S, test_SS))
-ae.load(logger.path + 'autoencoder_ckpt.h5')
+if args.load_ae is None:
+    tic('Fitting Autoencoder')
+    ss_generator = ss_generator_from_disk(sars_path,
+                                          ae,
+                                          batch_size=nn_batch_size,
+                                          binarize=args.binarize)
+    ae.fit_generator(ss_generator,
+                     samples_in_dataset / nn_batch_size,
+                     nn_nb_epochs,
+                     validation_data=(test_S, test_SS))
+    ae.load(logger.path + 'autoencoder_ckpt.h5')
+else:
+    tic('Loading AE from %s' % args.load_ae)
+    ae.load(args.load_ae)
+
+del test_sars, test_S, test_A, test_R
+gc.collect()
+
 toc()
 
 # RFS
@@ -274,6 +285,9 @@ else:
                   'verbose': 1}
     rfs = RFS(**rfs_params)
     rfs.fit(F, A, FF, R)
+
+    del F, A, FF, R
+    gc.collect()
 
     # Process support
     support = rfs.get_support()
