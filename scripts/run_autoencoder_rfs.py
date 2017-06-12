@@ -58,7 +58,12 @@ Main loop:
     Update policy with FQI (using support features of all steps), decrease randomicity
 """
 
-# TODO Documentation
+import matplotlib
+
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
+
 import joblib
 import matplotlib
 import gc
@@ -97,6 +102,9 @@ parser.add_argument('--fqi-model-type', type=str, default='xgb',
 parser.add_argument('--fqi-model', type=str, default=None,
                     help='Path to a saved FQI pickle file to load as policy in '
                          'the first iteration')
+parser.add_argument('--farf-analysis', action='store_true',
+                    help='Plot and save info about each FARF dataset generated '
+                         'during the run')
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
@@ -288,7 +296,6 @@ else:
     rfs = RFS(**rfs_params)
     rfs.fit(F, A, FF, R)
 
-    del F, A, FF, R
     gc.collect()
 
     # Process support
@@ -305,6 +312,19 @@ else:
     tree.save()  # Save GV source
     tree.format = 'pdf'
     tree.render()  # Save PDF
+
+    if args.farf_analysis:
+        feature_idxs = np.argwhere(support).reshape(-1)
+        log('Mean feature values\n%s\n' % np.mean(F[:, feature_idxs], axis=0))
+        for f in feature_idxs:
+            np.save(logger.path + 'farf_feature_%s.npy' % f,
+                    F[:, f].reshape(-1))
+            plt.figure()
+            plt.scatter(R.reshape(-1), F[:, f].reshape(-1), alpha=0.3)
+            plt.savefig(logger.path + 'farf_scatter_%s_v_reward.png' % f)
+            plt.close()
+
+    del F, A, FF, R
 
 ae.set_support(support)
 
