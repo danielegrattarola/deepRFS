@@ -254,7 +254,9 @@ log('Memory usage (test_sars, test_S, test_A, test_R, test_SS): %s MB\n' %
 if args.load_ae is None:
     tic('Fitting Autoencoder')
     if args.use_sw:
+        tic('Getting class weights')
         cw = get_class_weight_from_disk(sars_path)
+        toc(cw)
     else:
         cw = None
     ss_generator = ss_generator_from_disk(sars_path,
