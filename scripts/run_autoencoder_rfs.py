@@ -126,6 +126,8 @@ parser.add_argument('--fqi-eval-period', type=int, default=1,
                     help='Number of FQI iterations between evaluations')
 parser.add_argument('--no-fs', action='store_true',
                     help='RFS has no effect and all features are selected')
+parser.add_argument('--use-sw', action='store_true',
+                    help='Use sample weights when training AE')
 args = parser.parse_args()
 # END ARGS
 
@@ -251,10 +253,15 @@ log('Memory usage (test_sars, test_S, test_A, test_R, test_SS): %s MB\n' %
 # Fit AE
 if args.load_ae is None:
     tic('Fitting Autoencoder')
+    if args.use_sw:
+        cw = get_class_weight_from_disk(sars_path)
+    else:
+        cw = None
     ss_generator = ss_generator_from_disk(sars_path,
                                           ae,
                                           batch_size=nn_batch_size,
-                                          binarize=args.binarize)
+                                          binarize=args.binarize,
+                                          weights=cw)
     ae.fit_generator(ss_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
