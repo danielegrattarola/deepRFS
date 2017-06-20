@@ -55,7 +55,7 @@ if args.load_FAR is None:
     log('Building dataset')
     FA, R = build_far_from_disk(ae, sars_path)  # Features, action, reward, next_features
     if args.save_FAR:
-        joblib.dump((FA, R), logger.path + 'FA_R.npy')
+        joblib.dump((FA, R), logger.path + 'FA_R.pkl')
 else:
     log('Loading FA, R from %s' % args.load_FAR)
     FA, R = joblib.load(args.load_FAR)

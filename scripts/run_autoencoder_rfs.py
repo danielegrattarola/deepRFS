@@ -279,8 +279,14 @@ gc.collect()
 toc()
 
 # RFS
-tic('Building dataset for RFS')
-F, A, R, FF = build_farf_from_disk(ae, sars_path)
+if args.load_FAR is None:
+    log('Building dataset')
+    F, A, R, FF = build_farf_from_disk(ae, sars_path)
+    if args.save_FAR:
+        joblib.dump((F, A, R, FF), logger.path + 'F_A_R_FF.pkl')
+else:
+    log('Loading F, A, R, FF from %s' % args.load_FARFF)
+    F, A, R, FF = joblib.load(args.load_FARFF)
 
 # Print the number of nonzero features
 toc('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
