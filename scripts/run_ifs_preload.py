@@ -14,6 +14,8 @@ parser.add_argument('--load-ae', type=str, default=None,
                     help='Path to h5 weights file to load into AE')
 parser.add_argument('--load-sars', type=str, default=None,
                     help='Path to dataset folder to use instead of collecting')
+parser.add_argument('--binarize', action='store_true',
+                    help='Binarize input to the neural networks')
 args = parser.parse_args()
 # END ARGS
 nn_nb_epochs = 5 if args.debug else 300  # Number of training epochs for NNs
