@@ -1,4 +1,5 @@
 import argparse
+import joblib
 from deep_ifs.utils.datasets import *
 from sklearn.ensemble import ExtraTreesRegressor
 from deep_ifs.utils.Logger import Logger
@@ -54,10 +55,10 @@ if args.load_FAR is None:
     log('Building dataset')
     FA, R = build_far_from_disk(ae, sars_path)  # Features, action, reward, next_features
     if args.save_FAR:
-        np.save(logger.path + 'FA_R.npy', (FA, R))
+        joblib.dump((FA, R), logger.path + 'FA_R.npy')
 else:
     log('Loading FA, R from %s' % args.load_FAR)
-    FA, R = np.load(args.load_FAR)
+    FA, R = joblib.load(args.load_FAR)
 
 # Run IFS
 log('Running IFS')
