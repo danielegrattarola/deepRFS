@@ -16,6 +16,10 @@ parser.add_argument('--load-sars', type=str, default=None,
                     help='Path to dataset folder to use instead of collecting')
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
+parser.add_argument('--save-FAR', action='store_true',
+                    help='Save the FA, R arrays')
+parser.add_argument('--load-FAR', type=str, default=None,
+                    help='Load the FA, R arrays')
 args = parser.parse_args()
 # END ARGS
 nn_nb_epochs = 5 if args.debug else 300  # Number of training epochs for NNs
@@ -34,7 +38,7 @@ sars_path = args.load_sars
 samples_in_dataset = get_nb_samples_from_disk(sars_path)
 
 # Autoencoder
-toc('Loading AE from %s' % args.load_ae)
+log('Loading AE from %s' % args.load_ae)
 target_size = 1  # Initial target is the scalar reward
 ae = Autoencoder((4, 108, 84),
                  nb_epochs=nn_nb_epochs,
@@ -43,12 +47,20 @@ ae = Autoencoder((4, 108, 84),
                  logger=logger,
                  ckpt_file='autoencoder_ckpt.h5')
 ae.load(args.load_ae)
-log(ae.model.summary())  # TODO this doesn't work -.-
+ae.model.summary()
 
 # Build dataset
-FA, R = build_far_from_disk(ae, sars_path)  # Features, action, reward, next_features
+if args.load_FAR is None:
+    log('Building dataset')
+    FA, R = build_far_from_disk(ae, sars_path)  # Features, action, reward, next_features
+    if args.save_FAR:
+        np.save(logger.path + 'FA_R.npy', (FA, R))
+else:
+    log('Loading FA, R from %s' % args.load_FAR)
+    FA, R = np.load(args.load_FAR)
 
 # Run IFS
+log('Running IFS')
 ifs_estimator_params = {'n_estimators': ifs_nb_trees,
                         'n_jobs': -1}
 ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
@@ -60,7 +72,7 @@ ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
 ifs = IFS(**ifs_params)
 ifs.fit(FA, R, preload_features=range(FA.shape[1]))
 
-# Process support
+# Get support
 support = ifs.get_support()
 got_action = support[-1]  # Action is the last feature
 support = support[:-1]  # Remove action from support
@@ -69,4 +81,4 @@ r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
 log('Features: %s' % np.array(support).nonzero())
 log('IFS - New features: %s' % nb_new_features)
 log('Action was%s selected' % ('' if got_action else ' NOT'))
-toc('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
