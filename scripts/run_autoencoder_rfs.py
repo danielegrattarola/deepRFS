@@ -128,6 +128,10 @@ parser.add_argument('--no-fs', action='store_true',
                     help='RFS has no effect and all features are selected')
 parser.add_argument('--use-sw', action='store_true',
                     help='Use sample weights when training AE')
+parser.add_argument('--save-FARF', action='store_true',
+                    help='Save the F, A, R, FF arrays')
+parser.add_argument('--load-FARF', type=str, default=None,
+                    help='Load the F, A, R, FF arrays')
 args = parser.parse_args()
 # END ARGS
 
@@ -279,14 +283,14 @@ gc.collect()
 toc()
 
 # RFS
-if args.load_FAR is None:
+if args.load_FARF is None:
     log('Building dataset')
     F, A, R, FF = build_farf_from_disk(ae, sars_path)
     if args.save_FAR:
         joblib.dump((F, A, R, FF), logger.path + 'F_A_R_FF.pkl')
 else:
-    log('Loading F, A, R, FF from %s' % args.load_FARFF)
-    F, A, R, FF = joblib.load(args.load_FARFF)
+    log('Loading F, A, R, FF from %s' % args.load_FARF)
+    F, A, R, FF = joblib.load(args.load_FARF)
 
 # Print the number of nonzero features
 toc('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
