@@ -193,7 +193,7 @@ ae = Autoencoder((4, 108, 84),
                  logger=logger,
                  ckpt_file='autoencoder_ckpt.h5')
 
-log(ae.model.summary())
+log(ae.model.summary())  # TODO this doesn't work -.-
 
 # Create EpsilonFQI
 fqi_params = {'estimator': regressor,
