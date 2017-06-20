@@ -286,7 +286,7 @@ toc()
 if args.load_FARF is None:
     log('Building dataset')
     F, A, R, FF = build_farf_from_disk(ae, sars_path)
-    if args.save_FAR:
+    if args.save_FARF:
         joblib.dump((F, A, R, FF), logger.path + 'F_A_R_FF.pkl')
 else:
     log('Loading F, A, R, FF from %s' % args.load_FARF)
