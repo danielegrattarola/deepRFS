@@ -49,14 +49,19 @@ class Autoencoder:
                               activation='relu', strides=(1, 1),
                               data_format='channels_first')(self.encoded)
 
+        self.encoded = Conv2D(16, (3, 3), padding='valid',
+                              activation='relu', strides=(1, 1),
+                              data_format='channels_first')(self.encoded)
+
         # Features
         self.features = Flatten()(self.encoded)
 
-        self.features = Dense(512, activation='relu')(self.features)
-
         # Decoded
-        self.decoded = Dense(64 * 10 * 7, activation='relu')(self.features)
-        self.decoded = Reshape((64, 10, 7))(self.decoded)
+        self.decoded = Reshape((16, 8, 5))(self.features)
+
+        self.decoded = Conv2DTranspose(16, (3, 3), padding='valid',
+                                       activation='relu', strides=(1, 1),
+                                       data_format='channels_first')(self.decoded)
 
         self.decoded = Conv2DTranspose(64, (3, 3), padding='valid',
                                        activation='relu', strides=(1, 1),
