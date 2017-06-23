@@ -16,6 +16,8 @@ data/
 *.pkl
 *.pickle
 
+typescript
+
 .ipynb_checkpoints
 .python-version
 

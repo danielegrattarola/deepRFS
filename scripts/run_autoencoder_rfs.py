@@ -1,75 +1,9 @@
-"""
-Algorithm pseudo-code
-
-Definitions:
-    NN[i]: is the i-th neural network and provides the features(S) method that
-        returns all 512 features produced when state S is given as input to the
-        network and the the s_features(S) method that returns all **selected**
-        features
-        produced when state S is given as input to each network.
-
-    NN_stack: contains all trained neural networks so far, provides the
-    s_features(S) method that returns all **selected** features produced when
-    state S is given as input to each network.
-
-
-Policy = fully random
-
-Main loop:
-    Collect SARS' samples with policy
-    Fix dataset to account for imbalance (proportional to the number of
-    transitions for each reward class)
-
-    Fit neural network NN[0]: S -> R, using SARS' dataset
-
-    Build FARF' dataset using SARS' dataset:
-        F = NN[0].features(S)
-        A = A
-        R = R
-        F' = NN[0].features(S')
-    Select support features of NN[0] with IFS using FARF' dataset (target = R)
-
-    For i in range(1, N):
-        Build SFADF' dataset using SARS' dataset:
-            S = S
-            F = NN_stack.s_features(S)
-            A = A
-            D = NN[i-1].s_features(S) - NN[i-1].s_features(S')
-            F' = NN_stack.s_features(S')
-
-        Fit model M: F -> D, using SFADF' dataset
-
-        Build SARes dataset from SFADF':
-            S = S
-            A = A
-            Res = D - M(F)
-        Fit neural network NNi: S -> Res, using SARes dataset
-
-        Build new FADF' dataset from SARS' and SFADF':
-            F = NN_stack.s_features(S) + NN[i].features(S)
-            A = A
-            D = SFADF'.D
-            F' = NN_stack.s_features(S') + NN[i].features(S')
-        Select support features of NNi with IFS using new FADF' dataset
-
-        If (no new feature is selected) or (R2 of added features is below a threshold):
-            Break
-
-    Update policy with FQI (using support features of all steps), decrease randomicity
-"""
-
 import matplotlib
-
-# Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
 import joblib
-import matplotlib
 import gc
-
-# Force matplotlib to not use any Xwindows backend.
-matplotlib.use('Agg')
 import argparse
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
@@ -86,7 +20,7 @@ from deep_ifs.utils.timer import *
 from deep_ifs.utils.helpers import get_size
 from ifqi.models import Regressor, ActionRegressor
 
-# ARGS
+# Args
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--debug', action='store_true',
                     help='Run in debug mode')
@@ -133,9 +67,8 @@ parser.add_argument('--save-FARF', action='store_true',
 parser.add_argument('--load-FARF', type=str, default=None,
                     help='Load the F, A, R, FF arrays')
 args = parser.parse_args()
-# END ARGS
 
-# HYPERPARAMETERS
+# Parameters
 sars_episodes = 10 if args.debug else args.sars_episodes  # Number of SARS episodes to collect
 sars_test_episodes = 10 if args.debug else args.sars_test_episodes  # Number of SARS test episodes to collect
 nn_nb_epochs = 5 if args.debug else 300  # Number of training epochs for NNs
@@ -150,17 +83,16 @@ fqi_patience = fqi_iter  # Number of FQI iterations w/o improvement after which 
 fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
-# SETUP
+# Setup
 logger = Logger(output_folder='../output/',
                 custom_run_name='ae_rfs%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 log('LOCALS')
 loc = locals().copy()
 log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
-               if not str(v).startswith('<')]))
-log('\n')
+               if not str(v).startswith('<')]) + '\n')
 
-evaluation_results = []
+# Environment
 mdp = Atari(args.env, clip_reward=args.clip)
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n if args.use_actions else 1
@@ -182,14 +114,13 @@ elif args.fqi_model_type == 'ridge':
 else:
     raise NotImplementedError('Allowed models: \'extra\', \'linear\', '
                               '\'ridge\', \'xgb\'.')
-
 regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
                                       **fqi_regressor_params),
                             discrete_actions=action_values,
                             tol=0.5)
 
-# NN: S -> R
-target_size = 1  # Initial target is the scalar reward
+# Autoencoder
+target_size = 1  # Target is the scalar reward
 ae = Autoencoder((4, 108, 84),
                  nb_epochs=nn_nb_epochs,
                  encoding_dim=nn_encoding_dim,
@@ -229,7 +160,6 @@ if args.load_sars is None:
 else:
     sars_path = args.load_sars
     samples_in_dataset = get_nb_samples_from_disk(sars_path)
-
 toc('Got %s SARS\' samples' % samples_in_dataset)
 
 # Collect test dataset
@@ -282,7 +212,7 @@ gc.collect()
 
 toc()
 
-# RFS
+# Feature selection
 if args.load_FARF is None:
     log('Building dataset')
     F, A, R, FF = build_farf_from_disk(ae, sars_path)
@@ -293,7 +223,7 @@ else:
     F, A, R, FF = joblib.load(args.load_FARF)
 
 # Print the number of nonzero features
-toc('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
+log('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
 
 if args.no_fs:
     support = np.var(F[:, :-1], axis=0) != 0  # Keep only features with nonzero variance
@@ -314,8 +244,6 @@ else:
                   'verbose': 1}
     rfs = RFS(**rfs_params)
     rfs.fit(F, A, FF, R)
-
-    gc.collect()
 
     # Process support
     support = rfs.get_support()
@@ -344,10 +272,14 @@ else:
             plt.close()
 
     del F, A, FF, R
+    gc.collect()
+
+    toc()
 
 ae.set_support(support)
+joblib.dump(support, 'support.pkl')  # Save support
 
-# FITTED Q-ITERATION
+# Build dataset for FQI
 tic('Building dataset for FQI')
 faft, r, action_values = build_faft_r_from_disk(ae, sars_path)
 toc('Got %s samples' % len(faft))
@@ -372,7 +304,9 @@ fqi_params = {'estimator': regressor,
               'verbose': True}
 policy = EpsilonFQI(fqi_params, ae)  # Do not unpack the dict
 
-# Update policy using early stopping
+# Fit FQI
+tic('Running FQI')
+evaluation_results = []
 fqi_current_patience = fqi_patience
 fqi_best = (-np.inf, 0, -np.inf, 0)
 
@@ -404,11 +338,10 @@ for partial_iter in range(fqi_iter):
                 break
 
 # Restore best policy
-policy.load_fqi(logger.path + 'best_fqi_score_%s.pkl'
-                % round(fqi_best[0]))
-
+policy.load_fqi(logger.path + 'best_fqi_score_%s.pkl' % round(fqi_best[0]))
 toc()
 
+# Final evaluation
 tic('Evaluating best policy after update')
 evaluation_metrics = evaluate_policy(mdp,
                                      policy,
@@ -419,7 +352,7 @@ evaluation_metrics = evaluate_policy(mdp,
                                      initial_actions=initial_actions)
 toc(evaluation_metrics)
 
-# FINAL OUTPUT #
+# Final output
 tic('Plotting evaluation results')
 evaluation_results = pd.DataFrame(evaluation_results,
                                   columns=['score', 'confidence_score',
