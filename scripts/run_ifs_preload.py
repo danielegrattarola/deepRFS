@@ -68,7 +68,7 @@ ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
               'n_features_step': 1,
               'cv': None,
               'scale': True,
-              'verbose': 1,
+              'verbose': 2,
               'significance': ifs_significance}
 ifs = IFS(**ifs_params)
 ifs.fit(FA, R, preload_features=range(FA.shape[1]))
@@ -78,8 +78,8 @@ support = ifs.get_support()
 got_action = support[-1]  # Action is the last feature
 support = support[:-1]  # Remove action from support
 nb_new_features = np.array(support).sum()
-r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
+# r2_change = (ifs.scores_[-1] - ifs.scores_[0]) / abs(ifs.scores_[0])
 log('Features: %s' % np.array(support).nonzero())
 log('IFS - New features: %s' % nb_new_features)
 log('Action was%s selected' % ('' if got_action else ' NOT'))
-log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
+# log('R2 change %s (from %s to %s)' % (r2_change, ifs.scores_[0], ifs.scores_[-1]))
