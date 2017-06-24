@@ -321,7 +321,7 @@ for partial_iter in range(fqi_iter):
                                         save_video=args.save_video,
                                         save_path=logger.path,
                                         append_filename='fqi_iter_%03d' % partial_iter)
-        evaluation_results.append(es_evaluation )
+        evaluation_results.append(es_evaluation)
         policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl'
                         % (partial_iter, round(fqi_best[0])))
         log('Evaluation: %s' % str(es_evaluation))

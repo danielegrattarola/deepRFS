@@ -126,22 +126,34 @@ policy = EpsilonFQI(fqi_params, ae)  # Do not unpack the dict
 # Fit FQI
 log('Fitting FQI')
 evaluation_results = []
+fqi_patience = args.iter
+fqi_current_patience = fqi_patience
+fqi_best = (-np.inf, 0, -np.inf, 0)
+
 policy.partial_fit(faft, r)
-for i in tqdm(range(args.iter)):
+for partial_iter in tqdm(range(args.iter)):
     policy.partial_fit()
-    if i % args.eval_freq == 0 or i == (args.iter-1):
-        evaluation_metrics = evaluate_policy(mdp,
-                                             policy,
-                                             n_episodes=args.episodes,
-                                             save_video=args.save_video,
-                                             save_path=logger.path,
-                                             append_filename='fqi_iter_%03d' % i,
-                                             initial_actions=initial_actions)
-        evaluation_results.append(evaluation_metrics)
+    if partial_iter % args.eval_freq == 0 or partial_iter == (args.iter-1):
+        es_evaluation = evaluate_policy(mdp,
+                                        policy,
+                                        n_episodes=args.episodes,
+                                        initial_actions=initial_actions,
+                                        save_video=args.save_video,
+                                        save_path=logger.path,
+                                        append_filename='fqi_iter_%03d' % partial_iter)
+        evaluation_results.append(es_evaluation)
+        tqdm.write('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
         # Save fqi policy
-        policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl' %
-                        (i, int(evaluation_results[-1][0])))
-        tqdm.write('Iter %s: %s' % (i, evaluation_results[-1]))
+        if es_evaluation[0] > fqi_best[0]:
+            tqdm.write('Saving best policy')
+            fqi_best = es_evaluation
+            fqi_current_patience = fqi_patience
+            policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl' %
+                            (partial_iter, int(evaluation_results[-1][0])))
+        else:
+            fqi_current_patience -= 1
+            if fqi_current_patience == 0:
+                break
 
 # Final output
 evaluation_results = pd.DataFrame(evaluation_results,
