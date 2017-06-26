@@ -87,7 +87,8 @@ log('Creating policy')
 # Create ActionRegressor
 if args.fqi_model_type == 'extra':
     fqi_regressor_params = {'n_estimators': 50,
-                            'max_depth': 1 + len(support) / 2,
+                            'min_samples_split': 5,
+                            'min_samples_leaf': 2,
                             'n_jobs': -1}
     fqi_regressor_class = ExtraTreesRegressor
 elif args.fqi_model_type == 'xgb':
