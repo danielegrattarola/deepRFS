@@ -22,7 +22,6 @@ from xgboost import XGBRegressor
 parser = argparse.ArgumentParser()
 
 envarg = parser.add_argument_group('Environment')
-envarg.add_argument("env_id", help="Which atari game to test such as Breakout-v0")
 envarg.add_argument("--screen_width", type=int, default=84, help="Screen width after resize.")
 envarg.add_argument("--screen_height", type=int, default=110, help="Screen height after resize.")
 
@@ -67,7 +66,6 @@ mainarg.add_argument("--load_weights", type=str, help="Load network from file.")
 mainarg.add_argument("--save_weights_prefix", help="Save network to given file. Epoch and extension will be appended.")
 
 comarg = parser.add_argument_group('Common')
-comarg.add_argument("output_folder", help="Where to write results to.")
 comarg.add_argument("--num_episodes", type=int, default=100, help="Number of episodes to test.")
 comarg.add_argument("--random_seed", type=int, help="Random seed for repeatable experiments.")
 comarg.add_argument("--num_blocks", type=int, default=100, help="Number of episodes to test.")
@@ -101,6 +99,7 @@ parser.add_argument('--clip', action='store_true',
                     help='Clip reward')
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')
+parser.add_argument('--faft', type=str)
 args = parser.parse_args()
 
 # Params
@@ -136,7 +135,7 @@ ae.set_support(support)
 
 # Load dataset for FQI
 log('Building dataset for FQI')
-faft, r, action_values = build_faft_r_from_disk(ae, args.sars)
+faft, r, action_values = joblib.load(args.faft)
 if args.clip:
     r = np.clip(r, -1, 1)
 log('Got %s samples' % len(faft))
