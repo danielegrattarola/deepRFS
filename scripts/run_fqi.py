@@ -170,7 +170,7 @@ else:
 regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
                                       **fqi_regressor_params),
                             discrete_actions=action_values,
-                            tol=0.5)
+                            tol=0.5)  
 
 state_dim = len(support)
 fqi_params = {'estimator': regressor,
