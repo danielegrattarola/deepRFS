@@ -58,7 +58,7 @@ class DeepQNetwork:
       self.optimizer = Adadelta(decay = args.decay_rate, 
           stochastic_round = args.stochastic_round)
     else:
-      assert false, "Unknown optimizer"
+      assert False, "Unknown optimizer"
 
     # create target model
     self.train_iterations = 0
@@ -177,7 +177,7 @@ class DeepQNetwork:
     self._setInput(states)
     features = self.model.fprop(self.input, inference = True)
     if logger.isEnabledFor(logging.DEBUG):
-      logger.debug("Q-values: " + str(qvalues.asnumpyarray()[:,0]))
+      logger.debug("Q-values: " + str(features.asnumpyarray()[:,0]))
 
     # transpose the result, so that batch size is first dimension
     return features.T.asnumpyarray()

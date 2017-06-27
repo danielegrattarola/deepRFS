@@ -110,6 +110,10 @@ initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 
+# Environment
+mdp = Atari(args.env, clip_reward=args.clip)
+nb_actions = mdp.action_space.n
+
 # Feature extraction
 target_size = 1
 '''
@@ -121,11 +125,6 @@ ae = Autoencoder((4, 108, 84),
                  ckpt_file='autoencoder_ckpt.h5')
 ae.load(args.ae)
 '''
-# Environment
-mdp = Atari(args.env, clip_reward=args.clip)
-nb_actions = mdp.action_space.n
-
-# FE
 ae = DeepQNetwork(nb_actions, args)
 ae.load_weights(args.load_weights)
 
