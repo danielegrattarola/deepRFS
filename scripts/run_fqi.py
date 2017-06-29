@@ -55,6 +55,15 @@ antarg.add_argument("--train_frequency", type=int, default=4, help="Perform trai
 antarg.add_argument("--train_repeat", type=int, default=1, help="Number of times to sample minibatch during training.")
 antarg.add_argument("--random_starts", type=int, default=30, help="Perform max this number of dummy actions after game restart, to produce more random game dynamics.")
 
+mainarg = parser.add_argument_group('Main loop')
+mainarg.add_argument("--random_steps", type=int, default=50000, help="Populate replay memory with random steps before starting learning.")
+mainarg.add_argument("--train_steps", type=int, default=250000, help="How many training steps per epoch.")
+mainarg.add_argument("--test_steps", type=int, default=125000, help="How many testing steps after each epoch.")
+mainarg.add_argument("--epochs", type=int, default=200, help="How many epochs to run.")
+mainarg.add_argument("--start_epoch", type=int, default=0, help="Start from this epoch, affects exploration rate and names of saved snapshots.")
+mainarg.add_argument("--load_weights", type=str, help="Load network from file.")
+mainarg.add_argument("--save_weights_prefix", help="Save network to given file. Epoch and extension will be appended.")
+
 comarg = parser.add_argument_group('Common')
 comarg.add_argument("--num_episodes", type=int, default=100, help="Number of episodes to test.")
 comarg.add_argument("--random_seed", type=int, help="Random seed for repeatable experiments.")
