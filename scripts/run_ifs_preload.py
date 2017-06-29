@@ -9,18 +9,12 @@ from deep_ifs.selection.ifs import IFS
 
 # Args
 parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--debug', action='store_true',
-                    help='Run in debug mode')
-parser.add_argument('--load-ae', type=str, default=None,
-                    help='Path to h5 weights file to load into AE')
-parser.add_argument('--load-sars', type=str, default=None,
-                    help='Path to dataset folder to use instead of collecting')
-parser.add_argument('--binarize', action='store_true',
-                    help='Binarize input to the neural networks')
-parser.add_argument('--save-FAR', action='store_true',
-                    help='Save the FA, R arrays')
-parser.add_argument('--load-FAR', type=str, default=None,
-                    help='Load the FA, R arrays')
+parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
+parser.add_argument('--load-ae', type=str, default=None, help='Path to h5 weights file to load into AE')
+parser.add_argument('--load-sars', type=str, default=None, help='Path to dataset folder to use instead of collecting')
+parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
+parser.add_argument('--save-FAR', action='store_true', help='Save the FA, R arrays')
+parser.add_argument('--load-FAR', type=str, default=None, help='Load the FA, R arrays')
 args = parser.parse_args()
 
 # Parameters
@@ -31,8 +25,7 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
 
 # Setup
-logger = Logger(output_folder='../output/',
-                custom_run_name='ifs_pre%Y%m%d-%H%M%S')
+logger = Logger(output_folder='../output/', custom_run_name='ifs_pre%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 
 # Load SARS dataset
@@ -44,7 +37,6 @@ log('Loading AE from %s' % args.load_ae)
 target_size = 1  # Target is the scalar reward
 ae = Autoencoder((4, 108, 84),
                  nb_epochs=nn_nb_epochs,
-                 encoding_dim=nn_encoding_dim,
                  binarize=args.binarize,
                  logger=logger,
                  ckpt_file='autoencoder_ckpt.h5')
@@ -55,7 +47,7 @@ ae.model.summary()
 if args.load_FAR is None:
     log('Building dataset')
     assert sars_path is not None, 'Please provide a SARS dataset'
-    FA, R = build_far_from_disk(ae, sars_path)
+    FA, R = build_far_from_disk(ae, sars_path, shuffle=True)
     if args.save_FAR:
         joblib.dump((FA, R), logger.path + 'FA_R.pkl')
 else:

@@ -202,7 +202,7 @@ def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
     return samples_in_dataset
 
 
-def sar_generator_from_disk(path, model, batch_size=32, binarize=False, weights=None):
+def sar_generator_from_disk(path, model, batch_size=32, binarize=False, shuffle=False, weights=None):
     """
     Generator of S, A, R arrays from SARS datasets saved in path.
     
@@ -225,6 +225,9 @@ def sar_generator_from_disk(path, model, batch_size=32, binarize=False, weights=
             sars = np.load(f)
             if idx > 0:
                 sars = np.append(excess_sars, sars, axis=0)
+
+            if shuffle:
+                np.random.shuffle(sars)
 
             excess = len(sars) % batch_size
             if excess > 0:
@@ -255,7 +258,7 @@ def sar_generator_from_disk(path, model, batch_size=32, binarize=False, weights=
                     yield ([S, A], R)
 
 
-def build_f_from_disk(nn, path, use_ss=False):
+def build_f_from_disk(nn, path, use_ss=False, shuffle=False):
     """
     Builds F dataset using SARS' dataset:
         F = NN[i].features(S)
@@ -269,6 +272,8 @@ def build_f_from_disk(nn, path, use_ss=False):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if shuffle:
+            np.random.shuffle(sars)
         if idx == 0:
             F = nn.all_features(pds_to_npa(sars[:, state_idx]))
         else:
@@ -278,7 +283,7 @@ def build_f_from_disk(nn, path, use_ss=False):
     return F
 
 
-def build_far_from_disk(nn, path, use_ss=False):
+def build_far_from_disk(nn, path, use_ss=False, shuffle=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
@@ -288,6 +293,8 @@ def build_far_from_disk(nn, path, use_ss=False):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if shuffle:
+            np.random.shuffle(sars)
         if idx == 0:
             F = nn.all_features(pds_to_npa(sars[:, state_idx]))
             A = pds_to_npa(sars[:, 1])
@@ -308,7 +315,9 @@ def build_far_from_disk(nn, path, use_ss=False):
     return FA, R
 
 
-def build_fd(nn_stack, nn, support, sars):
+def build_fd(nn_stack, nn, support, sars, shuffle=False):
+    if shuffle:
+        np.random.shuffle(sars)
     S = pds_to_npa(sars[:, 0])
     SS = pds_to_npa(sars[:, 3])
     F = nn_stack.s_features(S, SS)
@@ -316,7 +325,7 @@ def build_fd(nn_stack, nn, support, sars):
     return F, D
 
 
-def build_fd_from_disk(nn_stack, nn, support, path):
+def build_fd_from_disk(nn_stack, nn, support, path, shuffle=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
@@ -324,6 +333,8 @@ def build_fd_from_disk(nn_stack, nn, support, path):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if shuffle:
+            np.random.shuffle(sars)
         S = pds_to_npa(sars[:, 0])
         SS = pds_to_npa(sars[:, 3])
         if idx == 0:
@@ -338,8 +349,7 @@ def build_fd_from_disk(nn_stack, nn, support, path):
     return F, D
 
 
-# IFS i
-def build_fa_from_disk(nn_stack, nn, path):
+def build_fa_from_disk(nn_stack, nn, path, shuffle=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
@@ -347,6 +357,8 @@ def build_fa_from_disk(nn_stack, nn, path):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if shuffle:
+            np.random.shuffle(sars)
         S = pds_to_npa(sars[:, 0])
         SS = pds_to_npa(sars[:, 3])
         if idx == 0:
@@ -363,13 +375,15 @@ def build_fa_from_disk(nn_stack, nn, path):
     return FA
 
 
-def build_r(path):
+def build_r(path, shuffle=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
     print 'Got %s files' % len(files)
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if shuffle:
+            np.random.shuffle(sars)
         if idx == 0:
             R = pds_to_npa(sars[:, 2])
         else:
@@ -390,10 +404,9 @@ def build_res(model, F, D, no_residuals=False):
     return RES
 
 
-# NNi
 def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                               binarize=False, no_residuals=False, weights=None,
-                              scale_coeff=1, round_decimal=1):
+                              scale_coeff=1, round_decimal=1, shuffle=False):
     """
     Generator of S, A, RES arrays from SARS datasets saved in path.
 
@@ -418,6 +431,8 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
     while True:
         for idx, f in enumerate(files):
             sars = np.load(f)
+            if shuffle:
+                np.random.shuffle(sars)
             if idx > 0:
                 sars = np.append(excess_sars, sars, axis=0)
 
@@ -456,7 +471,7 @@ def sares_generator_from_disk(model, nn_stack, nn, support, path, batch_size=32,
                     yield ([S, A], RES[start:stop])
 
 
-def build_faft_r_from_disk(nn_stack, path):
+def build_faft_r_from_disk(nn_stack, path, shuffle=False):
     """
     Builds FARF' dataset using all SARS' datasets saved in path:
         F = NN_stack.s_features(S)
@@ -472,6 +487,8 @@ def build_faft_r_from_disk(nn_stack, path):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if shuffle:
+            np.random.shuffle(sars)
         S = pds_to_npa(sars[:, 0])
         SS = pds_to_npa(sars[:, 3])
         if idx == 0:
@@ -558,9 +575,8 @@ def get_class_weight_from_disk(path):
     return class_weight
 
 
-# FOR AUTOENCODER
 def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
-                           weights=None):
+                           weights=None, shuffle=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
@@ -569,6 +585,8 @@ def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
     while True:
         for idx, f in enumerate(files):
             sars = np.load(f)
+            if shuffle:
+                np.random.shuffle(sars)
             if idx > 0:
                 sars = np.append(excess_sars, sars, axis=0)
 
@@ -601,7 +619,7 @@ def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
                     yield (S, SS)
 
 
-def build_farf_from_disk(model, path):
+def build_farf_from_disk(model, path, shuffle=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
@@ -609,6 +627,8 @@ def build_farf_from_disk(model, path):
 
     for idx, f in enumerate(files):
         sars = np.load(f)
+        if shuffle:
+            np.random.shuffle(sars)
         if idx == 0:
             F = model.all_features(pds_to_npa(sars[:, 0]))
             A = pds_to_npa(sars[:, 1])

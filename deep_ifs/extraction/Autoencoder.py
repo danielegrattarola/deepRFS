@@ -85,6 +85,7 @@ class Autoencoder:
 
         # Build decoder model
         if self.decoding_available:
+            self.encoded_input = Input(shape=(16 * 8 * 5,))
             self.decoding_intermediate = self.model.layers[-6](self.encoded_input)
             self.decoding_intermediate = self.model.layers[-5](self.decoding_intermediate)
             self.decoding_intermediate = self.model.layers[-4](self.decoding_intermediate)

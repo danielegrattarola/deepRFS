@@ -20,6 +20,7 @@ from xgboost import XGBRegressor
 
 parser = argparse.ArgumentParser()
 
+# DQN args
 envarg = parser.add_argument_group('Environment')
 envarg.add_argument("--screen_width", type=int, default=84, help="Screen width after resize.")
 envarg.add_argument("--screen_height", type=int, default=110, help="Screen height after resize.")
@@ -69,37 +70,21 @@ comarg.add_argument("--num_episodes", type=int, default=100, help="Number of epi
 comarg.add_argument("--random_seed", type=int, help="Random seed for repeatable experiments.")
 comarg.add_argument("--num_blocks", type=int, default=100, help="Number of episodes to test.")
 
-
-parser.add_argument('model', type=str,
-                    help='Path to feature extractor')
-parser.add_argument('support', type=str,
-                    help='Path to support')
-parser.add_argument('sars', type=str,
-                    help='Path to sars folder')
-parser.add_argument('-d', '--debug', action='store_true',
-                    help='Run in debug mode')
-parser.add_argument('--save-video', action='store_true',
-                    help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
-                    help='Atari environment on which to run the algorithm')
-parser.add_argument('--iter', type=int, default=100,
-                    help='Number of fqi iterations to run')
-parser.add_argument('--episodes', type=int, default=10,
-                    help='Number of episodes to run at each evaluation step')
-parser.add_argument('--eval-freq', type=int, default=5,
-                    help='Period (number of steps) with which to run evaluation'
-                         ' steps')
-parser.add_argument('--fqi-model-type', type=str, default='extra',
-                    help='Type of model to use for fqi (\'linear\', \'ridge\', '
-                         '\'extra\', \'xgb\', \'mlp\')')
-parser.add_argument('--clip', action='store_true',
-                    help='Clip reward')
-parser.add_argument('--binarize', action='store_true',
-                    help='Binarize input to the neural networks')
-parser.add_argument('--faft', type=str,
-                    help='Load FAFT, R and action values for FQI from file')
-parser.add_argument('--use-dqn', action='store_true',
-                    help='Use DQN instead of AE for feature extraction')
+# Args
+parser.add_argument('model', type=str, help='Path to feature extractor')
+parser.add_argument('support', type=str, help='Path to support')
+parser.add_argument('sars', type=str, help='Path to sars folder')
+parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
+parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
+parser.add_argument('--iter', type=int, default=100, help='Number of fqi iterations to run')
+parser.add_argument('--episodes', type=int, default=10, help='Number of episodes to run at each evaluation step')
+parser.add_argument('--eval-freq', type=int, default=5, help='Period (number of steps) with which to run evaluation steps')
+parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\', \'xgb\', \'mlp\')')
+parser.add_argument('--clip', action='store_true', help='Clip reward')
+parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
+parser.add_argument('--faft', type=str, help='Load FAFT, R and action values for FQI from file')
+parser.add_argument('--use-dqn', action='store_true', help='Use DQN instead of AE for feature extraction')
 args = parser.parse_args()
 
 # Params
@@ -137,8 +122,13 @@ fe.set_support(support)
 log('Building dataset for FQI')
 if args.faft is not None:
     faft, r, action_values = joblib.load(args.faft)
+    log('Shuffling data')
+    perm = np.random.permutation(len(faft))
+    faft = faft[perm]
+    r = r[perm]
+    del perm
 else:
-    faft, r, action_values = build_faft_r_from_disk(fe, args.sars)
+    faft, r, action_values = build_faft_r_from_disk(fe, args.sars, shuffle=True)
 if args.clip:
     r = np.clip(r, -1, 1)
 log('Got %s samples' % len(faft))

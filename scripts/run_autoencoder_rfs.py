@@ -22,50 +22,27 @@ from ifqi.models import Regressor, ActionRegressor
 
 # Args
 parser = argparse.ArgumentParser()
-parser.add_argument('-d', '--debug', action='store_true',
-                    help='Run in debug mode')
-parser.add_argument('--save-video', action='store_true',
-                    help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
-                    help='Atari environment on which to run the algorithm')
-parser.add_argument('--load-ae', type=str, default=None,
-                    help='Path to h5 weights file to load into AE')
-parser.add_argument('--fqi-model-type', type=str, default='xgb',
-                    help='Type of model to use for fqi (\'linear\', \'ridge\', '
-                         '\'extra\', \'xgb\')')
-parser.add_argument('--fqi-model', type=str, default=None,
-                    help='Path to a saved FQI pickle file to load as policy in '
-                         'the first iteration')
-parser.add_argument('--farf-analysis', action='store_true',
-                    help='Plot and save info about each FARF dataset generated '
-                         'during the run')
-parser.add_argument('--binarize', action='store_true',
-                    help='Binarize input to the neural networks')
+parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
+parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
+parser.add_argument('--load-ae', type=str, default=None, help='Path to h5 weights file to load into AE')
+parser.add_argument('--fqi-model-type', type=str, default='xgb', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\', \'xgb\')')
+parser.add_argument('--fqi-model', type=str, default=None, help='Path to a saved FQI pickle file to load as policy in the first iteration')
+parser.add_argument('--farf-analysis', action='store_true', help='Plot and save info about each FARF dataset generated during the run')
+parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
-parser.add_argument('--use-actions', action='store_true',
-                    help='Use actions to train the networks')
-parser.add_argument('--load-sars', type=str, default=None,
-                    help='Path to dataset folder to use instead of collecting')
-parser.add_argument('--sars-episodes', type=int, default=100,
-                    help='Number of SARS episodes to collect')
-parser.add_argument('--sars-test-episodes', type=int, default=250,
-                    help='Number of SARS test episodes to collect')
-parser.add_argument('--sars-to-disk', type=int, default=25,
-                    help='Number of SARS episodes to collect to disk')
-parser.add_argument('--control-freq', type=int, default=1,
-                    help='Control refrequency (1 action every n steps)')
-parser.add_argument('--fqi-iter', type=int, default=300,
-                    help='Number of FQI iterations to run')
-parser.add_argument('--fqi-eval-period', type=int, default=1,
-                    help='Number of FQI iterations between evaluations')
-parser.add_argument('--no-fs', action='store_true',
-                    help='RFS has no effect and all features are selected')
-parser.add_argument('--use-sw', action='store_true',
-                    help='Use sample weights when training AE')
-parser.add_argument('--save-FARF', action='store_true',
-                    help='Save the F, A, R, FF arrays')
-parser.add_argument('--load-FARF', type=str, default=None,
-                    help='Load the F, A, R, FF arrays')
+parser.add_argument('--use-actions', action='store_true', help='Use actions to train the networks')
+parser.add_argument('--load-sars', type=str, default=None, help='Path to dataset folder to use instead of collecting')
+parser.add_argument('--sars-episodes', type=int, default=100, help='Number of SARS episodes to collect')
+parser.add_argument('--sars-test-episodes', type=int, default=250, help='Number of SARS test episodes to collect')
+parser.add_argument('--sars-to-disk', type=int, default=25, help='Number of SARS episodes to collect to disk')
+parser.add_argument('--control-freq', type=int, default=1, help='Control refrequency (1 action every n steps)')
+parser.add_argument('--fqi-iter', type=int, default=300, help='Number of FQI iterations to run')
+parser.add_argument('--fqi-eval-period', type=int, default=1, help='Number of FQI iterations between evaluations')
+parser.add_argument('--no-fs', action='store_true', help='RFS has no effect and all features are selected')
+parser.add_argument('--use-sw', action='store_true', help='Use sample weights when training AE')
+parser.add_argument('--save-FARF', action='store_true', help='Save the F, A, R, FF arrays')
+parser.add_argument('--load-FARF', type=str, default=None, help='Load the F, A, R, FF arrays')
 args = parser.parse_args()
 
 # Parameters
@@ -84,8 +61,7 @@ fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which t
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # Setup
-logger = Logger(output_folder='../output/',
-                custom_run_name='ae_rfs%Y%m%d-%H%M%S')
+logger = Logger(output_folder='../output/', custom_run_name='ae_rfs%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 log('LOCALS')
 loc = locals().copy()
@@ -123,16 +99,14 @@ regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
 target_size = 1  # Target is the scalar reward
 ae = Autoencoder((4, 108, 84),
                  nb_epochs=nn_nb_epochs,
-                 encoding_dim=nn_encoding_dim,
                  binarize=args.binarize,
                  logger=logger,
                  ckpt_file='autoencoder_ckpt.h5')
-
-log(ae.model.summary())  # TODO this doesn't work -.-
+ae.model.summary()
 
 # Create EpsilonFQI
 fqi_params = {'estimator': regressor,
-              'state_dim': nn_encoding_dim,
+              'state_dim': 1,  # Don't care, will only be used fully random
               'action_dim': 1,  # Action is discrete monodimensional
               'discrete_actions': action_values,
               'gamma': mdp.gamma,
@@ -156,7 +130,8 @@ if args.load_sars is None:
                                               random_greedy_split=1.0,
                                               initial_actions=initial_actions,
                                               repeat=args.control_freq,
-                                              batch_size=nn_batch_size)
+                                              batch_size=nn_batch_size,
+                                              shuffle=True)
 else:
     sars_path = args.load_sars
     samples_in_dataset = get_nb_samples_from_disk(sars_path)
@@ -171,7 +146,8 @@ if args.load_sars is None:
                              debug=args.debug,
                              random_greedy_split=1.0,
                              initial_actions=initial_actions,
-                             repeat=args.control_freq)
+                             repeat=args.control_freq,
+                             shuffle=True)
 else:
     test_sars = np.load(sars_path + '/valid_sars.npy')
 
@@ -182,7 +158,7 @@ test_SS = pds_to_npa(test_sars[:, 3])
 toc('Got %s test SARS\' samples' % len(test_sars))
 
 log('Memory usage (test_sars, test_S, test_A, test_R, test_SS): %s MB\n' %
-    get_size([test_sars, test_S, test_A, test_R, test_SS], 'MB'))
+    get_size([test_sars, test_S, test_A, test_R, test_SS, ae], 'MB'))
 
 # Fit AE
 if args.load_ae is None:
@@ -197,7 +173,8 @@ if args.load_ae is None:
                                           ae,
                                           batch_size=nn_batch_size,
                                           binarize=args.binarize,
-                                          weights=cw)
+                                          weights=cw,
+                                          shuffle=args.load_sars is not None)  # Shuffle only when reading data from file
     ae.fit_generator(ss_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
@@ -215,7 +192,7 @@ toc()
 # Feature selection
 if args.load_FARF is None:
     log('Building dataset')
-    F, A, R, FF = build_farf_from_disk(ae, sars_path)
+    F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
     if args.save_FARF:
         joblib.dump((F, A, R, FF), logger.path + 'F_A_R_FF.pkl')
 else:
@@ -273,7 +250,6 @@ else:
 
     del F, A, FF, R
     gc.collect()
-
     toc()
 
 ae.set_support(support)
@@ -281,7 +257,7 @@ joblib.dump(support, 'support.pkl')  # Save support
 
 # Build dataset for FQI
 tic('Building dataset for FQI')
-faft, r, action_values = build_faft_r_from_disk(ae, sars_path)
+faft, r, action_values = build_faft_r_from_disk(ae, sars_path, shuffle=True)
 toc('Got %s samples' % len(faft))
 
 # Save dataset
@@ -325,6 +301,7 @@ for partial_iter in range(fqi_iter):
         policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl'
                         % (partial_iter, round(fqi_best[0])))
         log('Evaluation: %s' % str(es_evaluation))
+
         if es_evaluation[0] > fqi_best[0]:
             log('Saving best policy')
             fqi_best = es_evaluation
