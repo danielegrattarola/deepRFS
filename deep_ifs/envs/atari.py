@@ -49,7 +49,7 @@ class Atari(gym.Env):
             self.lives = info['ale.lives']
             # reward = self.final_reward
 
-        if self.clip_reward and not evaluation:
+        if self.clip_reward:
             reward = np.clip(reward, -1, 1)
 
         obs = self._preprocess_observation(obs)
