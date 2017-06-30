@@ -1,6 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import argparse
+import atexit
 import joblib
 import numpy as np
 import pandas as pd
@@ -18,6 +19,19 @@ from sklearn.neural_network import MLPRegressor
 from tqdm import tqdm
 from xgboost import XGBRegressor
 
+
+def final_output():
+    global evaluation_results
+    output = pd.DataFrame(evaluation_results,
+                          columns=['score', 'confidence_score',
+                                   'steps', 'confidence_steps'])
+    output.to_csv('evaluation.csv', index=False)
+    fig = output['score'].plot().get_figure()
+    fig.savefig(logger.path + 'evaluation_score.png')
+    fig = output['steps'].plot().get_figure()
+    fig.savefig(logger.path + 'evaluation_steps.png')
+
+atexit.register(final_output)
 parser = argparse.ArgumentParser()
 
 # DQN args
@@ -206,14 +220,4 @@ for partial_iter in tqdm(range(args.iter)):
             fqi_current_patience -= 1
             if fqi_current_patience == 0:
                 break
-
-# Final output
-evaluation_results = pd.DataFrame(evaluation_results,
-                                  columns=['score', 'confidence_score',
-                                           'steps', 'confidence_steps'])
-evaluation_results.to_csv('evaluation.csv', index=False)
-fig = evaluation_results['score'].plot().get_figure()
-fig.savefig(logger.path + 'evaluation_score.png')
-fig = evaluation_results['steps'].plot().get_figure()
-fig.savefig(logger.path + 'evaluation_steps.png')
 
