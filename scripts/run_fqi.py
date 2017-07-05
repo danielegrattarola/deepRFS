@@ -152,6 +152,8 @@ elif args.use_nnstack:
     ae.load(models[1])
     support = np.array([True] * 640)
     fe.add(ae, support)
+
+    log('Total features: %s' % fe.get_support_dim())
 else:
     fe = Autoencoder((4, 108, 84),
                      nb_epochs=300,
