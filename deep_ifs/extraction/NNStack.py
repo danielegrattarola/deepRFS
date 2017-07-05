@@ -23,7 +23,7 @@ class NNStack:
         self.stack.append(d)
         self.support_dim += d['support'].sum()
 
-    def s_features(self, s, ss=None):
+    def s_features(self, s):
         """
         Runs all neural networks on the given state, returns the selected
         features of each NN as a single array.
@@ -37,10 +37,7 @@ class NNStack:
             output = np.empty((s.shape[0], 0))
 
         for idx, d in enumerate(self.stack):
-            if idx == 0 and ss is not None:  # Feed SS to NN0
-                prediction = d['model'].s_features(ss, d['support'])
-            else:  # Feed S to all other networks
-                prediction = d['model'].s_features(s, d['support'])
+            prediction = d['model'].s_features(s, d['support'])
             if prediction.ndim == 1:
                 output = np.concatenate([output, prediction])
             else:
