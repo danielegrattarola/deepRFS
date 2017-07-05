@@ -140,7 +140,7 @@ elif args.use_nnstack:
     fe = NNStack()
     # Reward network
     nn = GenericEncoder(models[0], binarize=args.binarize)
-    support = np.array([True] * 512)
+    support = joblib.load(args.support)
     fe.add(nn, support)
     # Dynamics network
     ae = Autoencoder((4, 108, 84),
