@@ -12,6 +12,7 @@ class GenericEncoder:
 
         # Optimization algorithm
         self.optimizer = Adam()
+        print 'Compiling...'
         self.encoder.compile(optimizer=self.optimizer, loss='mse',
                              metrics=['accuracy'])
 

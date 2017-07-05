@@ -166,8 +166,6 @@ else:
     support = joblib.load(args.support)
     fe.set_support(support)
 
-
-
 # Load dataset for FQI
 log('Building dataset for FQI')
 if args.faft is not None:
@@ -179,6 +177,7 @@ if args.faft is not None:
     del perm
 else:
     faft, r, action_values = build_faft_r_from_disk(fe, args.sars, shuffle=True)
+    joblib.dump([faft, r, action_values], 'FAFT_R_av.pkl')
 if args.clip:
     r = np.clip(r, -1, 1)
 log('Got %s samples' % len(faft))
