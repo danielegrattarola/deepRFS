@@ -177,7 +177,7 @@ if args.faft is not None:
     del perm
 else:
     faft, r, action_values = build_faft_r_from_disk(fe, args.sars, shuffle=True)
-    joblib.dump([faft, r, action_values], 'FAFT_R_av.pkl')
+    joblib.dump([faft, r, action_values], logger.path + 'FAFT_R_av.pkl')
 if args.clip:
     r = np.clip(r, -1, 1)
 log('Got %s samples' % len(faft))
@@ -214,7 +214,11 @@ regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
                             discrete_actions=action_values,
                             tol=0.5)  
 
-state_dim = len(support)
+if args.use_nnstack:
+    state_dim = fe.get_support_dim()
+else:
+    state_dim = len(support)
+
 fqi_params = {'estimator': regressor,
               'state_dim': state_dim,
               'action_dim': 1,  # Action is discrete monodimensional
