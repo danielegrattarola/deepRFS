@@ -1,4 +1,9 @@
 import matplotlib
+
+from deep_ifs.extraction.ConvNet import ConvNet
+from deep_ifs.extraction.GenericEncoder import GenericEncoder
+from deep_ifs.extraction.NNStack import NNStack
+
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
 import argparse
 import atexit
@@ -99,6 +104,7 @@ parser.add_argument('--clip', action='store_true', help='Clip reward')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 parser.add_argument('--faft', type=str, help='Load FAFT, R and action values for FQI from file')
 parser.add_argument('--use-dqn', action='store_true', help='Use DQN instead of AE for feature extraction')
+parser.add_argument('--use-nnstack', action='store_true', help='Use AE and NN0 for feature extraction')
 args = parser.parse_args()
 
 # Params
@@ -108,6 +114,10 @@ initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 # Setup
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
+log('LOCALS')
+loc = locals().copy()
+log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
+               if not str(v).startswith('<')]) + '\n')
 
 # Environment
 mdp = Atari(args.env, clip_reward=args.clip)
@@ -118,8 +128,31 @@ if args.use_dqn:
     from deep_ifs.extraction.DeepQNetwork import DeepQNetwork
     fe = DeepQNetwork(nb_actions, args)
     fe.load_weights(args.model)
+    # Set support for feature extractor
+    support = joblib.load(args.support)
+    fe.set_support(support)
+elif args.use_nnstack:
+    models = args.model.strip().split(',')
+    log('Models:')
+    for m in models:
+        log(m)
+
+    fe = NNStack()
+    # Reward network
+    nn = GenericEncoder(models[0], binarize=args.binarize)
+    support = np.array([True] * 512)
+    fe.add(nn, support)
+    # Dynamics network
+    ae = Autoencoder((4, 108, 84),
+                     nb_epochs=300,
+                     encoding_dim=512,
+                     binarize=args.binarize,
+                     logger=logger,
+                     ckpt_file='autoencoder_ckpt.h5')
+    ae.load(models[1])
+    support = np.array([True] * 640)
+    fe.add(ae, support)
 else:
-    target_size = 1
     fe = Autoencoder((4, 108, 84),
                      nb_epochs=300,
                      encoding_dim=512,
@@ -127,10 +160,11 @@ else:
                      logger=logger,
                      ckpt_file='autoencoder_ckpt.h5')
     fe.load(args.model)
+    # Set support for feature extractor
+    support = joblib.load(args.support)
+    fe.set_support(support)
 
-# Set support for feature extractor
-support = joblib.load(args.support)
-fe.set_support(support)
+
 
 # Load dataset for FQI
 log('Building dataset for FQI')

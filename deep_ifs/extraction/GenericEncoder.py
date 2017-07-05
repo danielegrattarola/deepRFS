@@ -7,6 +7,7 @@ class GenericEncoder:
     def __init__(self, path, binarize=False):
         self.encoder = load_model(path)
 
+        self.support = None
         self.binarize = binarize
 
         # Optimization algorithm
@@ -36,7 +37,7 @@ class GenericEncoder:
         else:
             return np.asarray(self.encoder.predict(x))
 
-    def s_features(self, x, support):
+    def s_features(self, x, support=None):
         """
         Runs the given samples on the model and returns the features of the last
         dense layer filtered by the support mask.
@@ -47,6 +48,9 @@ class GenericEncoder:
         Returns
             The encoded sample.
         """
+        if support is None:
+            support = self.support
+
         prediction = self.all_features(x)
         if x.shape[0] == 1:
             # x is a singe sample
@@ -63,3 +67,6 @@ class GenericEncoder:
             filepath: path to an hdf5 file to store weights for the model.
         """
         self.encoder.save(filepath)
+
+    def set_support(self, support):
+        self.support = support
