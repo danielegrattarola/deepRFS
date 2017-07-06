@@ -195,7 +195,9 @@ class DeepQNetwork:
     def all_features(self, states):
         if states.shape[0] == 1:
             states = np.repeat(states, 32, axis=0)
-        return self.predict(states)[0]
+            return self.predict(states)[0]
+        else:
+            return self.predict(states)[0]
 
     def s_features(self, x, support=None):
         """
