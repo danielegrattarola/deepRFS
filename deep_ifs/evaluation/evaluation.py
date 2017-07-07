@@ -7,7 +7,7 @@ from deep_ifs.utils.helpers import is_stuck
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     video=False, save_video=False,
                     save_path='', append_filename='', n_jobs=1,
-                    initial_actions=None):
+                    initial_actions=None, fully_random=False):
     """
         This function evaluates a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
@@ -47,7 +47,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
             mdp, policy, metric=metric, video=video,
             save_video=save_video, save_path=save_path,
             append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
-            initial_actions=initial_actions
+            initial_actions=initial_actions, fully_random=fully_random
         )
         for eid in range(n_episodes)
     )
@@ -58,7 +58,8 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
 
 def _eval(mdp, policy, metric='cumulative', video=False, save_video=False,
-          save_path='', append_filename='', initial_actions=None):
+          save_path='', append_filename='', initial_actions=None,
+          fully_random=False):
     frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
@@ -88,13 +89,13 @@ def _eval(mdp, policy, metric='cumulative', video=False, save_video=False,
             if info['ale.lives'] < lives_count:
                 lives_count = info['ale.lives']
                 state, _, _, _ = mdp.step(np.random.choice(initial_actions),
-                                          evaluation=True)
+                                          evaluation=fully_random)
 
         # Select and execute the action, get next state and reward
         action = policy.draw_action(np.expand_dims(state, 0), done,
-                                    evaluation=True)
+                                    evaluation=fully_random)
         action = int(action)
-        next_state, reward, done, info = mdp.step(action, evaluation=True)
+        next_state, reward, done, info = mdp.step(action, evaluation=fully_random)
 
         # Update figures of merit
         ep_performance += df * reward  # Update performance
