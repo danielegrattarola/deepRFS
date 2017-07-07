@@ -22,7 +22,7 @@ class GenericPolicy:
         if not evaluation and random() <= self.epsilon:
             return choice(self.action_values)
         else:
-            preprocessed_state = self.fe.s_features(state)
+            preprocessed_state = self.fe.s_features(state).reshape(1, -1)
             Q = self.q_model.predict(preprocessed_state) * (1 - absorbing)
 
             if Q.shape[0] > 1:
