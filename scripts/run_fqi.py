@@ -139,8 +139,8 @@ elif args.use_nnstack:
 
     fe = NNStack()
     # Reward network
-    nn = GenericEncoder(models[0], binarize=args.binarize)
-    support = joblib.load(args.support)
+    nn = GenericEncoder(models[0], binarize=False)
+    support = np.load(args.support)
     fe.add(nn, support)
     # Dynamics network
     ae = Autoencoder((4, 108, 84),
@@ -226,7 +226,7 @@ fqi_params = {'estimator': regressor,
               'gamma': mdp.gamma,
               'horizon': args.iter,
               'verbose': False}
-policy = EpsilonFQI(fqi_params, fe)  # Do not unpack the dict
+policy = EpsilonFQI(fqi_params, fe, epsilon=0.05)  # Do not unpack the dict
 
 # Fit FQI
 log('Fitting FQI')
@@ -245,7 +245,8 @@ for partial_iter in tqdm(range(args.iter)):
                                         initial_actions=initial_actions,
                                         save_video=args.save_video,
                                         save_path=logger.path,
-                                        append_filename='fqi_iter_%03d' % partial_iter)
+                                        append_filename='fqi_iter_%03d' % partial_iter,
+                                        fully_random=True)
         evaluation_results.append(es_evaluation)
         tqdm.write('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
         # Save fqi policy
