@@ -579,7 +579,7 @@ def get_class_weight_from_disk(path, clip=False):
 
 
 def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
-                           weights=None, shuffle=False):
+                           weights=None, shuffle=False, clip=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
@@ -603,7 +603,10 @@ def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
             nb_batches = len(sars) / batch_size
 
             if weights is not None:
-                sample_weight = get_sample_weight(pds_to_npa(sars[:, 2]),
+                R = pds_to_npa(sars[:, 2])
+                if clip:
+                    R = np.clip(-1, 1, R)
+                sample_weight = get_sample_weight(R,
                                                   class_weight=weights)
 
             for i in range(nb_batches):

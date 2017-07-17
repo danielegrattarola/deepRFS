@@ -174,7 +174,8 @@ if args.load_ae is None:
                                           batch_size=nn_batch_size,
                                           binarize=args.binarize,
                                           weights=cw,
-                                          shuffle=args.load_sars is not None)  # Shuffle only when reading data from file
+                                          shuffle=args.load_sars is not None, # Shuffle only when reading data from file
+                                          clip=args.clip)
     ae.fit_generator(ss_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
