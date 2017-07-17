@@ -165,7 +165,7 @@ if args.load_ae is None:
     tic('Fitting Autoencoder')
     if args.use_sw:
         tic('Getting class weights')
-        cw = get_class_weight_from_disk(sars_path)
+        cw = get_class_weight_from_disk(sars_path, clip=args.clip)
         toc(cw)
     else:
         cw = None
@@ -198,6 +198,9 @@ if args.load_FARF is None:
 else:
     log('Loading F, A, R, FF from %s' % args.load_FARF)
     F, A, R, FF = joblib.load(args.load_FARF)
+
+if args.clip:
+    R = np.clip(-1, 1, R)
 
 # Print the number of nonzero features
 log('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))

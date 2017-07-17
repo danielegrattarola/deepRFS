@@ -555,7 +555,7 @@ def get_nb_samples_from_disk(path):
     return result
 
 
-def get_class_weight_from_disk(path):
+def get_class_weight_from_disk(path, clip=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')
@@ -566,6 +566,9 @@ def get_class_weight_from_disk(path):
             target = pds_to_npa(sars[:, 2])
         else:
             target = np.append(target, pds_to_npa(sars[:, 2]))
+
+    if clip:
+        target = np.clip(-1, 1, target)
 
     class_weight = dict()
     reward_classes = np.unique(target)
