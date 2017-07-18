@@ -568,7 +568,7 @@ def get_class_weight_from_disk(path, clip=False):
             target = np.append(target, pds_to_npa(sars[:, 2]))
 
     if clip:
-        target = np.clip(-1, 1, target)
+        target = np.clip(target, -1, 1)
 
     class_weight = dict()
     reward_classes = np.unique(target)
@@ -605,7 +605,7 @@ def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
             if weights is not None:
                 R = pds_to_npa(sars[:, 2])
                 if clip:
-                    R = np.clip(-1, 1, R)
+                    R = np.clip(R, -1, 1)
                 sample_weight = get_sample_weight(R,
                                                   class_weight=weights)
 
