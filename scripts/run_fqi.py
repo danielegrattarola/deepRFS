@@ -210,10 +210,14 @@ else:
     raise NotImplementedError('Allowed models: \'extra\', \'linear\', '
                               '\'ridge\', \'xgb\', \'mlp\'.')
 
-regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
-                                      **fqi_regressor_params),
-                            discrete_actions=action_values,
-                            tol=0.5)  
+if args.no_ar:
+    regressor = Regressor(regressor_class=fqi_regressor_class,
+                          **fqi_regressor_params)
+else:
+    regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
+                                          **fqi_regressor_params),
+                                discrete_actions=action_values,
+                                tol=0.5)
 
 if args.use_nnstack:
     state_dim = fe.get_support_dim()
