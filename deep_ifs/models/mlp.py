@@ -17,9 +17,9 @@ class MLP:
                 self.model.add(Dense(l, activation='relu'))
         self.model.compile(optimizer='adam', loss='mse')
 
-    def fit(self, X, Y):
-        es = EarlyStopping(patience=2)
-        return self.model.fit(X, Y, callbacks=[es])
+    def fit(self, X, Y, epochs=10, patience=2):
+        es = EarlyStopping(patience=patience)
+        return self.model.fit(X, Y, epochs=epochs, callbacks=[es])
 
     def predict(self, X):
         return self.model.predict(X)
