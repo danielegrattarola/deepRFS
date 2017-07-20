@@ -29,4 +29,4 @@ class MLP:
         return self.model.predict(X)
 
     def score(self, X, Y):
-        return r2_score(Y, self.model.predict(X))
+        return r2_score(Y, self.model.predict(X), multioutput='uniform_average')
