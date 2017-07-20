@@ -5,7 +5,7 @@ from sklearn.metrics import r2_score
 
 
 class MLP:
-    def __init__(self, input_shape, layers=(512,)):
+    def __init__(self, input_shape, output_size, layers=(512,)):
         self.model = Sequential()
         if isinstance(input_shape, tuple):
             self.input_shape = input_shape
@@ -15,6 +15,7 @@ class MLP:
         if len(layers) > 1:
             for l in layers[1:]:
                 self.model.add(Dense(l, activation='relu'))
+        self.model.add(Dense(output_size))
         self.model.compile(optimizer='adam', loss='mse')
 
     def fit(self, X, Y, epochs=10, patience=2):
