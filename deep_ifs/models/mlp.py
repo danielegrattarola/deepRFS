@@ -15,6 +15,7 @@ class MLP:
         if len(layers) > 1:
             for l in layers[1:]:
                 self.model.add(Dense(l, activation='relu'))
+        self.model.compile(optimizer='adam', loss='mse')
 
     def fit(self, X, Y):
         es = EarlyStopping(patience=2)
