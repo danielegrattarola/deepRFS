@@ -105,6 +105,7 @@ parser.add_argument('--binarize', action='store_true', help='Binarize input to t
 parser.add_argument('--faft', type=str, help='Load FAFT, R and action values for FQI from file')
 parser.add_argument('--use-dqn', action='store_true', help='Use DQN instead of AE for feature extraction')
 parser.add_argument('--use-nnstack', action='store_true', help='Use AE and NN0 for feature extraction')
+parser.add_argument('--no-ar', action='store_true', help='Do not use ActionRegressor')
 args = parser.parse_args()
 
 # Params
