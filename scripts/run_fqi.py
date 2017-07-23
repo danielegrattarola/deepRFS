@@ -26,6 +26,7 @@ from xgboost import XGBRegressor
 
 
 def final_output():
+    # Writes evaluation results to csv and saves plots
     global evaluation_results
     output = pd.DataFrame(evaluation_results,
                           columns=['score', 'confidence_score',
@@ -179,6 +180,7 @@ if args.faft is not None:
 else:
     faft, r, action_values = build_faft_r_from_disk(fe, args.sars, shuffle=True)
     joblib.dump([faft, r, action_values], logger.path + 'FAFT_R_av.pkl')
+
 if args.clip:
     r = np.clip(r, -1, 1)
 log('Got %s samples' % len(faft))

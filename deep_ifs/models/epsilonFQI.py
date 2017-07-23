@@ -5,7 +5,7 @@ import joblib
 
 
 class EpsilonFQI:
-    def __init__(self, fqi_params, nn_stack, epsilon=1.0, epsilon_rate=0.99,
+    def __init__(self, fqi_params, nn_stack, epsilon=0.05, epsilon_rate=0.99,
                  min_epsilon=0.05, fqi=None):
         self.fqi_params = fqi_params
         self.epsilon = epsilon
@@ -16,6 +16,7 @@ class EpsilonFQI:
         self.load_nn_stack(nn_stack)
 
         if fqi is None:
+            # Create FQI from scratch
             self.initial_actions = self.fqi_params['discrete_actions']
             self.fqi = FQI(**self.fqi_params)
         else:

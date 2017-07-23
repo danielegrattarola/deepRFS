@@ -25,6 +25,7 @@ class DeepQNetwork:
         self.min_reward = args.min_reward
         self.max_reward = args.max_reward
         self.batch_norm = args.batch_norm
+        self.support = None
 
         # create Neon backend
         self.be = gen_backend(backend=args.backend,
