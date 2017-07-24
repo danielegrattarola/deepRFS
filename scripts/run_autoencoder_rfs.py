@@ -179,7 +179,7 @@ if args.load_ae is None:
     ae.fit_generator(ss_generator,
                      samples_in_dataset / nn_batch_size,
                      nn_nb_epochs,
-                     validation_data=(test_S, test_SS))
+                     validation_data=(test_S, test_S))
     ae.load(logger.path + 'autoencoder_ckpt.h5')
 else:
     tic('Loading AE from %s' % args.load_ae)

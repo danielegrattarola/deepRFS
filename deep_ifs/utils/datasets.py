@@ -613,16 +613,16 @@ def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
                 start = i * batch_size
                 stop = (i + 1) * batch_size
                 S = pds_to_npa(sars[start:stop, 0])
-                SS = pds_to_npa(sars[start:stop, 3])
+                # SS = pds_to_npa(sars[start:stop, 3])
 
                 # Preprocess data
                 S = model.preprocess_state(S, binarize=binarize)
-                SS = model.preprocess_state(SS, binarize=binarize)
+                # SS = model.preprocess_state(SS, binarize=binarize)
 
                 if weights is not None:
-                    yield (S, SS, sample_weight[start:stop])
+                    yield (S, S, sample_weight[start:stop])
                 else:
-                    yield (S, SS)
+                    yield (S, S)
 
 
 def build_farf_from_disk(model, path, shuffle=False):
