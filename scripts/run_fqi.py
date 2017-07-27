@@ -1,15 +1,13 @@
 import matplotlib
-
-from deep_ifs.extraction.ConvNet import ConvNet
-from deep_ifs.extraction.GenericEncoder import GenericEncoder
-from deep_ifs.extraction.NNStack import NNStack
-
 matplotlib.use('Agg')  # Force matplotlib to not use any Xwindows backend.
+
 import argparse
 import atexit
 import joblib
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+
 from deep_ifs.envs.atari import Atari
 from deep_ifs.evaluation.evaluation import evaluate_policy
 from deep_ifs.extraction.Autoencoder import Autoencoder
@@ -17,11 +15,13 @@ from deep_ifs.models.epsilonFQI import EpsilonFQI
 from deep_ifs.utils.datasets import build_faft_r_from_disk
 from deep_ifs.utils.Logger import Logger
 from deep_ifs.utils.timer import log, setup_logging
+from deep_ifs.extraction.GenericEncoder import GenericEncoder
+from deep_ifs.extraction.NNStack import NNStack
+
 from ifqi.models import Regressor, ActionRegressor
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.neural_network import MLPRegressor
-from tqdm import tqdm
 from xgboost import XGBRegressor
 
 
@@ -186,7 +186,6 @@ if args.clip:
 log('Got %s samples' % len(faft))
 
 log('Creating policy')
-# Create policy
 # Create ActionRegressor
 if args.fqi_model_type == 'extra':
     fqi_regressor_params = {'n_estimators': 50,

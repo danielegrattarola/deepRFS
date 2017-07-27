@@ -71,7 +71,7 @@ class Autoencoder:
                                        activation='relu', strides=(2, 2),
                                        data_format='channels_first')(self.decoded)
 
-        self.decoded = Conv2DTranspose(64, (8, 8), padding='valid',
+        self.decoded = Conv2DTranspose(32, (8, 8), padding='valid',
                                        activation='relu', strides=(4, 4),
                                        data_format='channels_first')(self.decoded)
 
