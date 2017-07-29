@@ -54,11 +54,11 @@ class Autoencoder:
                               data_format='channels_first')(self.encoded)
 
         if self.use_contractive_loss:
-            self.encoded = Dense(640, activation='relu',
-                                 name='features')(self.encoded)
-
-        # Features
-        self.features = Flatten()(self.encoded)
+            self.features = Dense(640, activation='relu',
+                                  name='features')(self.encoded)
+        else:
+            # Feaùtures
+            self.features = Flatten()(self.encoded)
 
         # Decoded
         self.decoded = Reshape((16, 8, 5))(self.features)
