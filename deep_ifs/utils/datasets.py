@@ -78,8 +78,8 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
     return ep_output
 
 
-def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
-                 debug=False, initial_actions=None, shuffle=True, repeat=1,
+def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_episodes_pctg=0.0,
+                 debug=False, initial_actions=None, shuffle=False, repeat=1,
                  return_dataframe=False):
     """
     Collects a dataset of SARS' transitions of the given MDP.
@@ -105,9 +105,10 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
     Return
         A SARS' dataset as pd.DataFrame with columns 'S', 'A', 'R', 'SS', 'DONE'
     """
-    random_episodes = int(episodes * random_greedy_split)
+    random_episodes = int(episodes * random_episodes_pctg)
     greedy_episodes = episodes - random_episodes
 
+    old_epsilon = policy.get_epsilon()
     policy.set_epsilon(1)
     dataset_random = Parallel(n_jobs=n_jobs)(
         delayed(episode)(mdp, policy, initial_actions=initial_actions,
@@ -117,7 +118,7 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
     # Each episode is in a list, so the dataset needs to be flattened
     dataset_random = np.asarray(flat2list(dataset_random))
 
-    policy.set_epsilon(0)
+    policy.set_epsilon(old_epsilon)
     dataset_greedy = Parallel(n_jobs=n_jobs)(
         delayed(episode)(mdp, policy, initial_actions=initial_actions,
                          repeat=repeat)
@@ -148,54 +149,29 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_greedy_split=0.9,
         return dataset
 
 
-def collect_sars_to_disk(mdp, policy, path, datasets=1, episodes=100,
-                         n_jobs=1, random_greedy_split=0.9, debug=False,
-                         initial_actions=None, shuffle=True, repeat=1,
+def collect_sars_to_disk(mdp, policy, path, episodes, blocks, base_block=0,
+                         n_jobs=1, random_episodes_pctg=0.0, debug=False,
+                         initial_actions=None, shuffle=False, repeat=1,
                          batch_size=None):
-    """
-    Collects datasets of SARS' transitions of the given MDP and saves them to
-    disk.
-    A percentage of each dataset (random_greedy_split) is collected with a fully
-    random policy, whereas the remaining part is collected with a greedy policy.
-
-    Args
-        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
-        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
-            Methods draw_action and set_epsilon are expected.
-        path (str): folder in which to save the dataset.
-        datasets (int, 100): number of datasets to collect.
-        episodes (int, 100): number of episodes in a dataset.
-        n_jobs (int, 1): number of processes to use (-1 for all available cores).
-            Leave 1 if running on GPU.
-        random_greedy_split (float, 0.9): percentage of random episodes to
-            collect.
-        debug (bool, False): collect the episodes in debug mode (only a very
-            small fraction of transitions will be returned).
-        initial_actions (list, None): list of action indices that start an
-            episode of the MDP.
-        shuffle (bool, True): whether to shuffle the dataset before returning
-            it.
-        repeat (int, 1): control frequency for the policy.
-    """
     if not path.endswith('/'):
         path += '/'
     if not os.path.exists(path):
         os.mkdir(path)
 
+    test_sars = collect_sars(mdp, policy, episodes=10, n_jobs=n_jobs,
+                             random_episodes_pctg=random_episodes_pctg,
+                             debug=debug, initial_actions=initial_actions,
+                             shuffle=shuffle, repeat=repeat)
+    avg_episode_lenght = np.round(len(test_sars) / 10.).astype(float)
+    episodes_in_block = (episodes / avg_episode_lenght) / blocks
+
     samples_in_dataset = 0
-    for i in range(datasets):
-        sars = collect_sars(mdp, policy, episodes=episodes, n_jobs=n_jobs,
-                            random_greedy_split=random_greedy_split,
+    for i in range(base_block, base_block + blocks):
+        sars = collect_sars(mdp, policy, episodes=episodes_in_block, n_jobs=n_jobs,
+                            random_episodes_pctg=random_episodes_pctg,
                             debug=debug, initial_actions=initial_actions,
                             shuffle=shuffle, repeat=repeat)
 
-        # Cut dataset to match batch size
-        if batch_size is not None:
-            excess = len(sars) % batch_size
-            if excess > 0:
-                sars = sars[:-excess]
-
-        log('Got %s samples (dropped %s)' % (len(sars), excess))
         samples_in_dataset += len(sars)
         np.save(path + 'sars_%s.npy' % i, sars)
 

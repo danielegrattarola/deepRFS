@@ -4,6 +4,7 @@ from keras.optimizers import *
 from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 import numpy as np
+from operator import mul
 
 
 class Autoencoder:
@@ -28,7 +29,7 @@ class Autoencoder:
         else:
             self.ckpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
 
-        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-7, patience=5)
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=2)
 
         self.mc = ModelCheckpoint(self.ckpt_file, monitor='val_loss',
                                   save_best_only=True, save_weights_only=True,
@@ -51,7 +52,8 @@ class Autoencoder:
 
         self.encoded = Conv2D(16, (3, 3), padding='valid',
                               activation='relu', strides=(1, 1),
-                              data_format='channels_first')(self.encoded)
+                              data_format='channels_first',
+                              name='to_flatten')(self.encoded)
 
         self.features = Flatten()(self.encoded)
 
@@ -215,7 +217,10 @@ class Autoencoder:
             The encoded sample.
         """
         if support is None:
-            support = self.support
+            if self.support is None:
+                support = np.array([True] * self.get_features_number())
+            else:
+                support = self.support
 
         prediction = self.all_features(x)
         if x.shape[0] == 1:
@@ -275,6 +280,12 @@ class Autoencoder:
     def set_support(self, support):
         self.support = support
 
+    def get_support_dim(self):
+        if self.support is not None:
+            return self.support.sum()
+        else:
+            return self.get_features_number()
+
     def contractive_loss(self, y_pred, y_true):
         b_xent = K.binary_crossentropy(y_pred, y_true)
 
@@ -287,3 +298,6 @@ class Autoencoder:
         contractive = 1e-03 * K.sum(dh ** 2 * K.sum(W ** 2, axis=1), axis=1)
 
         return b_xent + contractive
+
+    def get_features_number(self):
+        return reduce(mul, self.model.get_layer('to_flatten').get_output_at(0).get_shape().as_list()[1:])

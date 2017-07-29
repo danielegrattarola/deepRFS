@@ -31,7 +31,7 @@ def final_output():
     output = pd.DataFrame(evaluation_results,
                           columns=['score', 'confidence_score',
                                    'steps', 'confidence_steps'])
-    output.to_csv('evaluation.csv', index=False)
+    output.to_csv(logger.path + 'evaluation.csv', index=False)
     fig = output['score'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_score.png')
     fig = output['steps'].plot().get_figure()

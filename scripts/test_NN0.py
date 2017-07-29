@@ -60,7 +60,7 @@ tic('Loading data')
 if args.sars is not None:
     sars = joblib.load(args.sars)
 else:
-    sars = collect_sars(mdp, policy, episodes=sars_episodes, random_greedy_split=1)
+    sars = collect_sars(mdp, policy, episodes=sars_episodes, random_episodes_pctg=1)
 sars_sample_weight = get_sample_weight(sars)
 
 S = pds_to_npa(sars.S)  # 4 frames

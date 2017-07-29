@@ -174,7 +174,7 @@ for step in range(algorithm_steps):
                                                   datasets=args.sars_to_disk,
                                                   episodes=sars_episodes,
                                                   debug=args.debug,
-                                                  random_greedy_split=random_greedy_split,
+                                                  random_episodes_pctg=random_greedy_split,
                                                   initial_actions=initial_actions,
                                                   repeat=args.control_freq,
                                                   batch_size=nn_batch_size)
@@ -191,7 +191,7 @@ for step in range(algorithm_steps):
                                  policy,
                                  episodes=sars_test_episodes,
                                  debug=args.debug,
-                                 random_greedy_split=random_greedy_split,
+                                 random_episodes_pctg=random_greedy_split,
                                  initial_actions=initial_actions,
                                  repeat=args.control_freq)
     else:
