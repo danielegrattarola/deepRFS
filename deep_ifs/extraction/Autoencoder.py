@@ -55,9 +55,9 @@ class Autoencoder:
 
         if self.use_contractive_loss:
             self.features = Dense(640, activation='relu',
-                                  name='features')(self.encoded)
+                                 name='features')(self.encoded)
         else:
-            # Feaùtures
+            # Features
             self.features = Flatten()(self.encoded)
 
         # Decoded
