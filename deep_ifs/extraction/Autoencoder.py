@@ -10,7 +10,7 @@ class Autoencoder:
     def __init__(self, input_shape, encoding_dim=512, nb_epochs=10,
                  dropout_prob=0.5, binarize=False, class_weight=None,
                  sample_weight=None, load_path=None, logger=None,
-                 ckpt_file=None):
+                 ckpt_file=None, use_contractive_loss=False):
         self.input_shape = input_shape
         self.encoding_dim = encoding_dim
         self.nb_epochs = nb_epochs
@@ -20,7 +20,7 @@ class Autoencoder:
         self.sample_weight = sample_weight
         self.logger = logger
         self.decoding_available = False
-        self.use_contractive_loss = False
+        self.use_contractive_loss = use_contractive_loss
         self.support = None
 
         if ckpt_file is not None:
