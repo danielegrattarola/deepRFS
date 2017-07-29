@@ -51,7 +51,8 @@ class Autoencoder:
 
         self.encoded = Conv2D(16, (3, 3), padding='valid',
                               activation='relu', strides=(1, 1),
-                              data_format='channels_first')(self.encoded)
+                              data_format='channels_first',
+                              name='features')(self.encoded)
 
         # Features
         self.features = Flatten()(self.encoded)
