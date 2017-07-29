@@ -54,7 +54,7 @@ class Autoencoder:
                               data_format='channels_first')(self.encoded)
 
         if self.use_contractive_loss:
-            self.encoded = Dense(512, activation='relu',
+            self.encoded = Dense(640, activation='relu',
                                  name='features')(self.encoded)
 
         # Features
