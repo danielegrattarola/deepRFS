@@ -54,7 +54,7 @@ parser.add_argument('--use-sw', action='store_true', help='Use sample weights wh
 
 # FQI
 parser.add_argument('--load-fqi', type=str, default=None, help='Path to fqi file to load into policy')
-parser.add_argument('--fqi-model-type', type=str, default='xgb', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\', \'xgb\')')
+parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\', \'xgb\')')
 parser.add_argument('--fqi-eval-episodes', type=int, default=2, help='Number of episodes to evaluate FQI')
 parser.add_argument('--fqi-iter', type=int, default=5000, help='Number of FQI iterations to run')
 parser.add_argument('--fqi-eval-period', type=int, default=1, help='Number of FQI iterations after which to evaluate')
@@ -134,8 +134,8 @@ else:
     policy = EpsilonFQI(fqi_params, ae)
 
 log('######## START ########')
-tic('Collecting SARS dataset')
 if args.load_sars is None:
+    tic('Collecting SARS dataset')
     # 4 frames, action, reward, 4 frames
     sars_path = logger.path + 'sars/'
     samples_in_dataset = collect_sars_to_disk(mdp,
@@ -150,14 +150,15 @@ if args.load_sars is None:
                                               batch_size=nn_batch_size,
                                               shuffle=True)
 else:
+    tic('Loading SARS dataset from disk')
     sars_path = args.load_sars
     samples_in_dataset = get_nb_samples_from_disk(sars_path)
 toc('Got %s SARS\' samples' % samples_in_dataset)
 
 if args.train_ae:
     # Collect test dataset
-    tic('Collecting test SARS dataset')
     if args.load_sars is None:
+        tic('Collecting test SARS dataset')
         test_sars = collect_sars(mdp,
                                  policy,
                                  episodes=args.sars_test_episodes,
@@ -213,12 +214,12 @@ if args.train_ae:
 
 # Feature selection
 if args.load_FARF is None:
-    log('Building dataset')
+    log('Building FARF dataset for RFS')
     F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
     if args.save_FARF:
         joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F.pkl')
 else:
-    log('Loading F, A, R, FF from %s' % args.load_FARF)
+    log('Loading FARF dataset for RFS from %s' % args.load_FARF)
     F, A, R, FF = joblib.load(args.load_FARF)
 
 if args.clip:
