@@ -276,7 +276,7 @@ class Autoencoder:
         self.support = support
 
     def contractive_loss(self, y_pred, y_true):
-        mse = K.mean(K.square(y_true - y_pred), axis=-1)
+        b_xent = K.binary_crossentropy(y_pred, y_true)
 
         W = K.variable(value=self.model.get_layer('features').get_weights()[0])  # N x N_hidden
         W = K.transpose(W)  # N_hidden x N
@@ -286,4 +286,4 @@ class Autoencoder:
         # N_batch x N_hidden * N_hidden x 1 = N_batch x 1
         contractive = 1e-03 * K.sum(dh ** 2 * K.sum(W ** 2, axis=1), axis=1)
 
-        return mse + contractive
+        return b_xent + contractive
