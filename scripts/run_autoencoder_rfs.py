@@ -62,7 +62,8 @@ parser.add_argument('--fqi-no-ar', action='store_true', help='Do not use ActionR
 parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
 
 # RFS
-parser.add_argument('--no-fs', action='store_true', help='RFS has no effect and all features are selected')
+parser.add_argument('--fs', action='store_true', help='Select features')
+parser.add_argument('--rfs', action='store_true', help='Use RFS to select features (otherwise all non-zero variance features are kept)')
 
 # Dataset cocllection
 parser.add_argument('--load-sars', type=str, default=None, help='Path to dataset folder to use instead of collecting')
@@ -85,6 +86,8 @@ ifs_significance = 1  # Significance for IFS
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # Setup
+if args.train_ae:
+    custom_run_name = 'ae_rfs%Y%m%d-%H%M%S'
 logger = Logger(output_folder='../output/', custom_run_name='ae_rfs%Y%m%d-%H%M%S')
 setup_logging(logger.path + 'log.txt')
 log('LOCALS')
@@ -228,48 +231,50 @@ if args.clip:
 # Print the number of nonzero features
 log('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
 
-if args.no_fs:
-    support = np.var(F, axis=0) != 0  # Keep only features with nonzero variance
-    log('Using %s features' % support.sum())
-else:
-    tic('Running RFS')
-    ifs_estimator_params = {'n_estimators': ifs_nb_trees,
-                            'n_jobs': -1}
-    ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
-                  'n_features_step': 1,
-                  'cv': None,
-                  'scale': True,
-                  'verbose': 1,
-                  'significance': ifs_significance}
-    ifs = IFS(**ifs_params)
-    features_names = np.array(map(str, range(F.shape[1])) + ['A'])
-    rfs_params = {'feature_selector': ifs,
-                  'features_names': features_names,
-                  'verbose': 1}
-    rfs = RFS(**rfs_params)
-    rfs.fit(F, A, FF, R)
+if args.fs:
+    if args.rfs:
+        tic('Running RFS')
+        ifs_estimator_params = {'n_estimators': ifs_nb_trees,
+                                'n_jobs': -1}
+        ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
+                      'n_features_step': 1,
+                      'cv': None,
+                      'scale': True,
+                      'verbose': 1,
+                      'significance': ifs_significance}
+        ifs = IFS(**ifs_params)
+        features_names = np.array(map(str, range(F.shape[1])) + ['A'])
+        rfs_params = {'feature_selector': ifs,
+                      'features_names': features_names,
+                      'verbose': 1}
+        rfs = RFS(**rfs_params)
+        rfs.fit(F, A, FF, R)
 
-    # Process support
-    support = rfs.get_support()
-    got_action = support[-1]  # Action is the last feature
-    support = np.array(support[:-1])  # Remove action from support
-    nb_new_features = support.sum()
-    log('Features: %s' % support.nonzero())
-    log('Using %s features' % nb_new_features)
-    log('Action was%s selected' % ('' if got_action else ' NOT'))
+        # Process support
+        support = rfs.get_support()
+        got_action = support[-1]  # Action is the last feature
+        support = np.array(support[:-1])  # Remove action from support
+        nb_new_features = support.sum()
+        log('Features: %s' % support.nonzero())
+        log('Using %s features' % nb_new_features)
+        log('Action was%s selected' % ('' if got_action else ' NOT'))
 
-    # Save RFS tree
-    tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree.gv')
-    tree.save()  # Save GV source
-    tree.format = 'pdf'
-    tree.render()  # Save PDF
+        # Save RFS tree
+        tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree.gv')
+        tree.save()  # Save GV source
+        tree.format = 'pdf'
+        tree.render()  # Save PDF
 
-    del F, A, FF, R
-    gc.collect()
-    toc()
+        del F, A, FF, R
+        gc.collect()
+        toc()
+    else:
+        log('Keeping non-zero variance features')
+        support = np.var(F, axis=0) != 0  # Keep only features with nonzero variance
+        log('Using %s features' % support.sum())
 
-ae.set_support(support)
-joblib.dump(support, logger.path + 'support.pkl')  # Save support
+    ae.set_support(support)
+    joblib.dump(support, logger.path + 'support.pkl')  # Save support
 
 # Build dataset for FQI
 tic('Building dataset for FQI')
