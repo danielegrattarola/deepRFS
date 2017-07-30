@@ -320,7 +320,7 @@ fqi_params = {'estimator': regressor,
               'action_dim': 1,  # Action is discrete monodimensional
               'discrete_actions': action_values,
               'gamma': mdp.gamma,
-              'horizon': args.iter,
+              'horizon': args.fqi_iter,
               'verbose': False}
 policy = EpsilonFQI(fqi_params, ae, epsilon=0.05)  # Do not unpack the dict
 
@@ -332,7 +332,7 @@ fqi_best = (-np.inf, 0, -np.inf, 0)
 policy.partial_fit(faft, r)
 for partial_iter in args.fqi_iter:
     policy.partial_fit()
-    if partial_iter % args.fqi_eval_freq == 0 or partial_iter == (args.iter-1):
+    if partial_iter % args.fqi_eval_freq == 0 or partial_iter == (args.fqi_iter-1):
         partial_eval = evaluate_policy(mdp,
                                        policy,
                                        n_episodes=args.fqi_eval_episodes,
