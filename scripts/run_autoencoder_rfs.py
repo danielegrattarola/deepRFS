@@ -86,9 +86,19 @@ ifs_significance = 1  # Significance for IFS
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
 # Setup
+rn_list = []
 if args.train_ae:
-    custom_run_name = 'ae_rfs%Y%m%d-%H%M%S'
-logger = Logger(output_folder='../output/', custom_run_name='ae_rfs%Y%m%d-%H%M%S')
+    rn_list.append('ae')
+else:
+    rn_list.append('fqi')
+if args.fs:
+    if args.rfs:
+        rn_list.append('rfs')
+    else:
+        rn_list.append('nzv')
+rn_list.append('%Y%m%d-%H%M%S')
+custom_run_name = '_'.join(rn_list)
+logger = Logger(output_folder='../output/', custom_run_name=custom_run_name)
 setup_logging(logger.path + 'log.txt')
 log('LOCALS')
 loc = locals().copy()
