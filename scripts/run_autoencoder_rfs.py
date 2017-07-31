@@ -47,18 +47,18 @@ parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
 
 # AE
 parser.add_argument('--load-ae', type=str, default=None, help='Path to h5 weights file to load into AE')
-parser.add_argument('--train-ae', action='store_true', help='Train the AE after collecting the dataset')
 parser.add_argument('--load-ae-support', type=str, default=None, help='Path to file with AE support')
+parser.add_argument('--train-ae', action='store_true', help='Train the AE after collecting the dataset')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 parser.add_argument('--use-sw', action='store_true', help='Use sample weights when training AE')
 
 # FQI
 parser.add_argument('--load-fqi', type=str, default=None, help='Path to fqi file to load into policy')
 parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\', \'xgb\')')
-parser.add_argument('--fqi-eval-episodes', type=int, default=2, help='Number of episodes to evaluate FQI')
-parser.add_argument('--fqi-iter', type=int, default=5000, help='Number of FQI iterations to run')
-parser.add_argument('--fqi-eval-period', type=int, default=1, help='Number of FQI iterations after which to evaluate')
 parser.add_argument('--fqi-no-ar', action='store_true', help='Do not use ActionRegressor')
+parser.add_argument('--fqi-iter', type=int, default=5000, help='Number of FQI iterations to run')
+parser.add_argument('--fqi-eval-episodes', type=int, default=2, help='Number of episodes to evaluate FQI')
+parser.add_argument('--fqi-eval-period', type=int, default=1, help='Number of FQI iterations after which to evaluate')
 parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
 
 # RFS
@@ -225,23 +225,24 @@ if args.train_ae:
     gc.collect()
     toc()
 
-# Feature selection
-if args.load_FARF is None:
-    log('Building FARF dataset for RFS')
-    F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
-    if args.save_FARF:
-        joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F.pkl')
-else:
-    log('Loading FARF dataset for RFS from %s' % args.load_FARF)
-    F, A, R, FF = joblib.load(args.load_FARF)
-
-if args.clip:
-    R = np.clip(R, -1, 1)
-
-# Print the number of nonzero features
-log('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
-
 if args.fs:
+    # Feature selection
+    if args.load_FARF is None:
+        log('Building FARF dataset for FS')
+        F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
+        if args.save_FARF:
+            joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F.pkl')
+    else:
+        log('Loading FARF dataset for FS from %s' % args.load_FARF)
+        F, A, R, FF = joblib.load(args.load_FARF)
+
+    if args.clip:
+        R = np.clip(R, -1, 1)
+
+    # Print the number of nonzero features
+    log('Number of non-zero feature: %s' % np.count_nonzero(
+        np.mean(F[:-1], axis=0)))
+
     if args.rfs:
         tic('Running RFS')
         ifs_estimator_params = {'n_estimators': ifs_nb_trees,
