@@ -303,6 +303,9 @@ else:
     faft = faft[perm]
     r = r[perm]
     del perm
+
+if args.clip:
+    r = np.clip(r, -1, 1)
 toc('Got %s samples' % len(faft))
 
 log('Creating policy')
