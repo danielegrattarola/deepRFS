@@ -223,7 +223,7 @@ else:
 if args.use_nnstack:
     state_dim = fe.get_support_dim()
 else:
-    state_dim = len(support)
+    state_dim = support.sum()
 
 fqi_params = {'estimator': regressor,
               'state_dim': state_dim,
