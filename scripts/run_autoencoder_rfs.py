@@ -345,9 +345,9 @@ evaluation_results = []
 fqi_best = (-np.inf, 0, -np.inf, 0)
 
 policy.partial_fit(faft, r)
-for partial_iter in args.fqi_iter:
+for partial_iter in range(args.fqi_iter):
     policy.partial_fit()
-    if partial_iter % args.fqi_eval_freq == 0 or partial_iter == (args.fqi_iter-1):
+    if partial_iter % args.fqi_eval_period == 0 or partial_iter == (args.fqi_iter-1):
         partial_eval = evaluate_policy(mdp,
                                        policy,
                                        n_episodes=args.fqi_eval_episodes,
