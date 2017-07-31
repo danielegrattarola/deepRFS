@@ -223,7 +223,7 @@ else:
 if args.use_nnstack:
     state_dim = fe.get_support_dim()
 else:
-    state_dim = len(support)
+    state_dim = support.sum()
 
 fqi_params = {'estimator': regressor,
               'state_dim': state_dim,
@@ -252,7 +252,7 @@ for partial_iter in tqdm(range(args.iter)):
                                         save_video=args.save_video,
                                         save_path=logger.path,
                                         append_filename='fqi_iter_%03d' % partial_iter,
-                                        fully_random=True)
+                                        fully_deterministic=False)
         evaluation_results.append(es_evaluation)
         tqdm.write('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
         # Save fqi policy

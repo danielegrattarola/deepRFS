@@ -61,6 +61,7 @@ parser.add_argument('--fqi-iter', type=int, default=5000, help='Number of FQI it
 parser.add_argument('--fqi-eval-episodes', type=int, default=2, help='Number of episodes to evaluate FQI')
 parser.add_argument('--fqi-eval-period', type=int, default=1, help='Number of FQI iterations after which to evaluate')
 parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
+parser.add_argument('--fqi-test-after-loading', action='store_true', help='Test FQI after loading it')
 
 # RFS
 parser.add_argument('--fs', action='store_true', help='Select features')
@@ -143,6 +144,16 @@ if args.load_fqi is None:
                   'horizon': args.fqi_iter,
                   'verbose': True}
     policy = EpsilonFQI(fqi_params, ae, epsilon=1)  # Set policy to fully random
+    if args.fqi_test_after_loading:
+        partial_eval = evaluate_policy(mdp,
+                                       policy,
+                                       n_episodes=5,
+                                       initial_actions=initial_actions,
+                                       save_video=args.save_video,
+                                       save_path=logger.path,
+                                       append_filename='fqi_test_after_loading',
+                                       fully_deterministic=True)
+
 else:
     fqi_params = args.load_fqi
     policy = EpsilonFQI(fqi_params, ae)
@@ -368,7 +379,7 @@ for partial_iter in range(args.fqi_iter):
                                        save_video=args.save_video,
                                        save_path=logger.path,
                                        append_filename='fqi_iter_%03d' % partial_iter,
-                                       fully_random=True)
+                                       fully_deterministic=False)
         evaluation_results.append(partial_eval)
         log('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
         # Save fqi policy
