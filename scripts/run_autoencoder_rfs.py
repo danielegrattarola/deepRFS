@@ -54,6 +54,7 @@ parser.add_argument('--use-sw', action='store_true', help='Use sample weights wh
 
 # FQI
 parser.add_argument('--load-fqi', type=str, default=None, help='Path to fqi file to load into policy')
+parser.add_argument('--fqi-load-faft', type=str, help='Load FAFT, R and action values for FQI from file')
 parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\', \'xgb\')')
 parser.add_argument('--fqi-no-ar', action='store_true', help='Do not use ActionRegressor')
 parser.add_argument('--fqi-iter', type=int, default=5000, help='Number of FQI iterations to run')
@@ -288,13 +289,21 @@ if args.fs:
     joblib.dump(support, logger.path + 'support.pkl')  # Save support
 
 # Build dataset for FQI
-tic('Building dataset for FQI')
-faft, r, action_values = build_faft_r_from_disk(ae, sars_path, shuffle=True)
+if args.fqi_load_faft is None:
+    tic('Building dataset for FQI')
+    faft, r, action_values = build_faft_r_from_disk(ae, sars_path, shuffle=True)
+    # Save dataset
+    log('Saving dataset')
+    joblib.dump((faft, r, action_values), logger.path + 'FQI_FAFT_R_action_values.pkl')
+else:
+    tic('Loading dataset for FQI')
+    faft, r, action_values = joblib.load(args.fqi_load_faft)
+    log('Shuffling data')
+    perm = np.random.permutation(len(faft))
+    faft = faft[perm]
+    r = r[perm]
+    del perm
 toc('Got %s samples' % len(faft))
-
-# Save dataset
-log('Saving dataset for FQI')
-joblib.dump((faft, r, action_values), logger.path + 'FQI_FAFT_R_action_values.pkl')
 
 log('Creating policy')
 # Create ActionRegressor
