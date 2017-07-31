@@ -47,7 +47,7 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
             mdp, policy, metric=metric, video=video,
             save_video=save_video, save_path=save_path,
             append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
-            initial_actions=initial_actions, fully_random=fully_deterministic
+            initial_actions=initial_actions, fully_deterministic=fully_deterministic
         )
         for eid in range(n_episodes)
     )
