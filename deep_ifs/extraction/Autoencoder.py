@@ -75,7 +75,7 @@ class Autoencoder:
 
             def sample_z(args):
                 mu, log_sigma = args
-                eps = K.random_normal(shape=(self.batch_size, self.n_features),
+                eps = K.random_normal(shape=(self.n_features,),
                                       mean=0.,
                                       stddev=1.)
                 return mu + K.exp(log_sigma / 2) * eps
