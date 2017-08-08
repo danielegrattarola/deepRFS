@@ -8,12 +8,14 @@ from operator import mul
 
 
 class Autoencoder:
-    def __init__(self, input_shape, encoding_dim=512, nb_epochs=10,
-                 dropout_prob=0.5, binarize=False, class_weight=None,
-                 sample_weight=None, load_path=None, logger=None,
-                 ckpt_file=None, use_contractive_loss=False):
+    def __init__(self, input_shape, encoding_dim=512, batch_size=32,
+                 nb_epochs=10, dropout_prob=0.5, binarize=False,
+                 class_weight=None, sample_weight=None, load_path=None,
+                 logger=None, ckpt_file=None, use_contractive_loss=False,
+                 use_vae=False, beta=1.):
         self.input_shape = input_shape
         self.encoding_dim = encoding_dim
+        self.batch_size = batch_size
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
         self.binarize = binarize
@@ -22,6 +24,8 @@ class Autoencoder:
         self.logger = logger
         self.decoding_available = False
         self.use_contractive_loss = use_contractive_loss
+        self.use_vae = use_vae
+        self.beta = beta
         self.support = None
 
         if ckpt_file is not None:
@@ -60,6 +64,19 @@ class Autoencoder:
         if self.use_contractive_loss:
             self.features = Dense(640, activation='relu',
                                   name='features')(self.features)
+        elif self.use_vae:
+            n_features = 640
+            self.mu = Dense(n_features, activation='linear')(self.features)
+            self.log_sigma = Dense(
+                n_features, activation='linear')(self.features)
+
+            def sample_z(args):
+                mu, log_sigma = args
+                eps = K.random_normal(
+                    shape=(self.batch_size, n_features), mean=0., stddev=1.)
+                return mu + K.exp(log_sigma / 2) * eps
+
+            self.features = Lambda(sample_z)([self.mu, self.log_sigma])
 
         # Decoded
         self.decoded = Reshape((16, 8, 5))(self.features)
@@ -108,6 +125,16 @@ class Autoencoder:
 
         if self.use_contractive_loss:
             self.loss = self.contractive_loss
+        elif self.use_vae:
+            def vae_loss(y_true, y_pred):
+                recon = K.sum(K.binary_crossentropy(y_pred, y_true), axis=1)
+                kl = .5 * K.sum(
+                    K.exp(self.log_sigma) + K.square(
+                        self.mu) - 1. - self.log_sigma, axis=1)
+
+                return recon + self.beta * kl
+
+            self.loss = vae_loss
         else:
             self.loss = 'binary_crossentropy'
 

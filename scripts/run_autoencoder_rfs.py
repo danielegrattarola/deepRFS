@@ -114,6 +114,7 @@ action_values = mdp.action_space.values
 # Autoencoder
 target_size = 1  # Target is the scalar reward
 ae = Autoencoder((4, 108, 84),
+                 batch_size=nn_batch_size,
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize,
                  logger=logger,
@@ -207,6 +208,7 @@ if args.train_ae:
     if args.load_ae is not None:
         # Reset AE after collecting samples with old AE
         ae = Autoencoder((4, 108, 84),
+                         batch_size=nn_batch_size,
                          nb_epochs=nn_nb_epochs,
                          binarize=args.binarize,
                          logger=logger,
