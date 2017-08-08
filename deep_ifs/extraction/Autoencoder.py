@@ -75,7 +75,7 @@ class Autoencoder:
 
             def sample_z(args):
                 mu, log_sigma = args
-                eps = K.random_normal(shape=(self.n_features,),
+                eps = K.random_normal(shape=(K.shape(mu)[0], self.n_features),
                                       mean=0.,
                                       stddev=1.)
                 return mu + K.exp(log_sigma / 2) * eps
@@ -136,10 +136,10 @@ class Autoencoder:
             self.loss = self.contractive_loss
         elif self.use_vae:
             def vae_loss(y_true, y_pred):
+                y_true = K.flatten(y_true)
+                y_pred = K.flatten(y_pred)
                 recon = K.sum(K.binary_crossentropy(y_pred, y_true), axis=1)
-                kl = .5 * K.sum(
-                    K.exp(self.log_sigma) + K.square(
-                        self.mu) - 1. - self.log_sigma, axis=1)
+                kl = .5 * K.sum(K.exp(self.log_sigma) + K.square(self.mu) - 1. - self.log_sigma, axis=1)
 
                 return recon + self.beta * kl
 
