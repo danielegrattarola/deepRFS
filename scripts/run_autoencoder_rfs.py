@@ -51,6 +51,15 @@ parser.add_argument('--load-ae-support', type=str, default=None, help='Path to f
 parser.add_argument('--train-ae', action='store_true', help='Train the AE after collecting the dataset')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 parser.add_argument('--use-sw', action='store_true', help='Use sample weights when training AE')
+parser.add_argument('--use-vae', action='store_true', help='Use VAE instead of usual AE')
+parser.add_argument('--vae-beta', type=float, default=1., help='Beta hyperparameter for Beta-VAE')
+parser.add_argument('--use-dense', action='store_true', help='Use AE with dense inner layer instead of usual AE')
+parser.add_argument('--dropout', type=float, default=0., help='Dropout rate for dense AE')
+parser.add_argument('--n-features', type=float, default=0., help='Number of features for contractive, dense and VAE')
+
+# RFS
+parser.add_argument('--fs', action='store_true', help='Select features')
+parser.add_argument('--rfs', action='store_true', help='Use RFS to select features (otherwise all non-zero variance features are kept)')
 
 # FQI
 parser.add_argument('--load-fqi', type=str, default=None, help='Path to fqi file to load into policy')
@@ -62,10 +71,6 @@ parser.add_argument('--fqi-eval-episodes', type=int, default=2, help='Number of 
 parser.add_argument('--fqi-eval-period', type=int, default=1, help='Number of FQI iterations after which to evaluate')
 parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
 parser.add_argument('--fqi-test-after-loading', action='store_true', help='Test FQI after loading it')
-
-# RFS
-parser.add_argument('--fs', action='store_true', help='Select features')
-parser.add_argument('--rfs', action='store_true', help='Use RFS to select features (otherwise all non-zero variance features are kept)')
 
 # Dataset cocllection
 parser.add_argument('--load-sars', type=str, default=None, help='Path to dataset folder to use instead of collecting')
@@ -79,15 +84,18 @@ parser.add_argument('--load-FARF', type=str, default=None, help='Load the F, A, 
 args = parser.parse_args()
 
 # Parameters
+# AE
 nn_nb_epochs = 5 if args.debug else 300  # Number of training epochs for NNs
 nn_batch_size = 6 if args.debug else 32  # Number of samples in a batch for AE (len(sars) will be multiple of this number)
 
+# RFS
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
 
+# FQI
 initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
 
-# Setup
+# Run setup
 rn_list = []
 if args.train_ae:
     rn_list.append('ae')
@@ -111,14 +119,19 @@ log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
 mdp = Atari(args.env, clip_reward=args.clip)
 action_values = mdp.action_space.values
 
-# Autoencoder
+# Autoencoder (this one will be used as FE, but never trained)
 target_size = 1  # Target is the scalar reward
 ae = Autoencoder((4, 108, 84),
+                 n_features=args.n_features,
                  batch_size=nn_batch_size,
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize,
                  logger=logger,
-                 ckpt_file='autoencoder_ckpt.h5')
+                 ckpt_file='autoencoder_ckpt.h5',
+                 use_vae=args.use_vae,
+                 beta=args.vae_beta,
+                 use_dense=args.use_dense,
+                 dropout_prob=args.dropout)
 ae.model.summary()
 if args.load_ae is None:
     support = np.array([True] * ae.get_features_number())
@@ -145,6 +158,10 @@ if args.load_fqi is None:
                   'horizon': args.fqi_iter,
                   'verbose': True}
     policy = EpsilonFQI(fqi_params, ae, epsilon=1)  # Set policy to fully random
+else:
+    fqi_params = args.load_fqi
+    policy = EpsilonFQI(fqi_params, ae)
+    # Evaluate policy after loading
     if args.fqi_test_after_loading:
         partial_eval = evaluate_policy(mdp,
                                        policy,
@@ -155,14 +172,9 @@ if args.load_fqi is None:
                                        append_filename='fqi_test_after_loading',
                                        fully_deterministic=True)
 
-else:
-    fqi_params = args.load_fqi
-    policy = EpsilonFQI(fqi_params, ae)
-
 log('######## START ########')
 if args.load_sars is None:
     tic('Collecting SARS dataset')
-    # 4 frames, action, reward, 4 frames
     sars_path = logger.path + 'sars/'
     samples_in_dataset = collect_sars_to_disk(mdp,
                                               policy,
@@ -194,6 +206,7 @@ if args.train_ae:
                                  repeat=args.control_freq,
                                  shuffle=True)
     else:
+        tic('Loading test SARS from disk')
         test_sars = np.load(sars_path + '/valid_sars.npy')
 
     test_S = pds_to_npa(test_sars[:, 0])
@@ -208,11 +221,16 @@ if args.train_ae:
     if args.load_ae is not None:
         # Reset AE after collecting samples with old AE
         ae = Autoencoder((4, 108, 84),
+                         n_features=args.n_features,
                          batch_size=nn_batch_size,
                          nb_epochs=nn_nb_epochs,
                          binarize=args.binarize,
                          logger=logger,
-                         ckpt_file='autoencoder_ckpt.h5')
+                         ckpt_file='autoencoder_ckpt.h5',
+                         use_vae=args.use_vae,
+                         beta=args.vae_beta,
+                         use_dense=args.use_dense,
+                         dropout_prob=args.dropout)
 
     # Fit AE
     tic('Fitting Autoencoder')
@@ -242,19 +260,19 @@ if args.train_ae:
 if args.fs:
     # Feature selection
     if args.load_FARF is None:
-        log('Building FARF dataset for FS')
+        tic('Building FARF dataset for FS')
         F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
         if args.save_FARF:
             joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F.pkl')
     else:
-        log('Loading FARF dataset for FS from %s' % args.load_FARF)
+        tic('Loading FARF dataset for FS from %s' % args.load_FARF)
         F, A, R, FF = joblib.load(args.load_FARF)
 
     if args.clip:
         R = np.clip(R, -1, 1)
 
     # Print the number of nonzero features
-    log('Number of non-zero feature: %s' % np.count_nonzero(
+    toc('Number of non-zero feature: %s' % np.count_nonzero(
         np.mean(F[:-1], axis=0)))
 
     if args.rfs:
@@ -294,9 +312,9 @@ if args.fs:
         gc.collect()
         toc()
     else:
-        log('Keeping non-zero variance features')
+        tic('Keeping non-zero variance features')
         support = np.var(F, axis=0) != 0  # Keep only features with nonzero variance
-        log('Using %s features' % support.sum())
+        toc('Using %s features' % support.sum())
 
     ae.set_support(support)
     joblib.dump(support, logger.path + 'support.pkl')  # Save support
@@ -395,7 +413,7 @@ for partial_iter in range(args.fqi_iter):
 policy.load_fqi(logger.path + 'best_fqi_score_%s.pkl' % round(fqi_best[0]))
 
 # Final evaluation
-log('Evaluating best policy after update')
+tic('Evaluating best policy after update')
 final_eval = evaluate_policy(mdp,
                              policy,
                              n_episodes=args.fqi_eval_episodes,
@@ -403,4 +421,4 @@ final_eval = evaluate_policy(mdp,
                              save_path=logger.path,
                              append_filename='best',
                              initial_actions=initial_actions)
-log(final_eval)
+toc(final_eval)

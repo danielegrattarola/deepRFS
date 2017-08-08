@@ -8,13 +8,13 @@ from operator import mul
 
 
 class Autoencoder:
-    def __init__(self, input_shape, encoding_dim=512, batch_size=32,
+    def __init__(self, input_shape, n_features=128, batch_size=32,
                  nb_epochs=10, dropout_prob=0.5, binarize=False,
                  class_weight=None, sample_weight=None, load_path=None,
                  logger=None, ckpt_file=None, use_contractive_loss=False,
-                 use_vae=False, beta=1.):
+                 use_vae=False, beta=1., use_dense=False):
         self.input_shape = input_shape
-        self.encoding_dim = encoding_dim
+        self.n_features = n_features
         self.batch_size = batch_size
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
@@ -26,15 +26,19 @@ class Autoencoder:
         self.use_contractive_loss = use_contractive_loss
         self.use_vae = use_vae
         self.beta = beta
+        self.use_dense = use_dense
         self.support = None
+
+        # Check flag consistency
+        assert self.use_contractive_loss + self.use_vae + self.use_dense <= 1, 'Set at most one flag for contractive, VAE or dense'
+
+        # Callbacks
+        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=2)
 
         if ckpt_file is not None:
             self.ckpt_file = ckpt_file if logger is None else (logger.path + ckpt_file)
         else:
             self.ckpt_file = 'NN.h5' if logger is None else (logger.path + 'NN.h5')
-
-        self.es = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=2)
-
         self.mc = ModelCheckpoint(self.ckpt_file, monitor='val_loss',
                                   save_best_only=True, save_weights_only=True,
                                   verbose=0)
@@ -62,21 +66,26 @@ class Autoencoder:
         self.features = Flatten()(self.encoded)
 
         if self.use_contractive_loss:
-            self.features = Dense(640, activation='relu',
+            self.features = Dense(self.n_features, activation='relu',
                                   name='features')(self.features)
         elif self.use_vae:
-            n_features = 640
-            self.mu = Dense(n_features, activation='linear')(self.features)
-            self.log_sigma = Dense(
-                n_features, activation='linear')(self.features)
+            self.mu = Dense(self.n_features, activation='linear')(self.features)
+            self.log_sigma = Dense(self.n_features,
+                                   activation='linear')(self.features)
 
             def sample_z(args):
                 mu, log_sigma = args
-                eps = K.random_normal(
-                    shape=(self.batch_size, n_features), mean=0., stddev=1.)
+                eps = K.random_normal(shape=(self.batch_size, self.n_features),
+                                      mean=0.,
+                                      stddev=1.)
                 return mu + K.exp(log_sigma / 2) * eps
 
-            self.features = Lambda(sample_z)([self.mu, self.log_sigma])
+            self.features = Lambda(sample_z,
+                                   name='features')([self.mu, self.log_sigma])
+        elif self.use_dense:
+            self.features = Dense(self.n_features, activation='relu')(self.features)
+            self.features = Dropout(self.dropout_prob,
+                                    name='features')(self.features)
 
         # Decoded
         self.decoded = Reshape((16, 8, 5))(self.features)
@@ -327,4 +336,4 @@ class Autoencoder:
         return b_xent + contractive
 
     def get_features_number(self):
-        return reduce(mul, self.model.get_layer('to_flatten').get_output_at(0).get_shape().as_list()[1:])
+        return reduce(mul, self.model.get_layer('features').get_output_at(0).get_shape().as_list()[1:])

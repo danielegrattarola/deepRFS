@@ -39,7 +39,7 @@ if args.nn_stack:
     # Autoencoder
     ae = Autoencoder((4, 108, 84),
                      nb_epochs=300,
-                     encoding_dim=512,
+                     n_features=512,
                      binarize=True,
                      logger=None,
                      ckpt_file='autoencoder_ckpt.h5')
@@ -50,7 +50,7 @@ else:
     # Use features from autoencoder
     fe = Autoencoder((4, 108, 84),
                      nb_epochs=300,
-                     encoding_dim=512,
+                     n_features=512,
                      binarize=True,
                      logger=None,
                      ckpt_file='autoencoder_ckpt.h5')

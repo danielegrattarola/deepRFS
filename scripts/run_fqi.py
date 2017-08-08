@@ -147,7 +147,7 @@ elif args.use_nnstack:
     # Dynamics network
     ae = Autoencoder((4, 108, 84),
                      nb_epochs=300,
-                     encoding_dim=512,
+                     n_features=512,
                      binarize=args.binarize,
                      logger=logger,
                      ckpt_file='autoencoder_ckpt.h5')
@@ -159,7 +159,7 @@ elif args.use_nnstack:
 else:
     fe = Autoencoder((4, 108, 84),
                      nb_epochs=300,
-                     encoding_dim=512,
+                     n_features=512,
                      binarize=args.binarize,
                      logger=logger,
                      ckpt_file='autoencoder_ckpt.h5')
