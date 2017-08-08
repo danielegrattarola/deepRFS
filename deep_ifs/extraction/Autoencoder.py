@@ -1,6 +1,7 @@
 from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
+from keras.metrics import binary_crossentropy
 from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 import numpy as np
@@ -14,6 +15,7 @@ class Autoencoder:
                  logger=None, ckpt_file=None, use_contractive_loss=False,
                  use_vae=False, beta=1., use_dense=False):
         self.input_shape = input_shape
+        self.input_dim_full = reduce(mul, input_shape)
         self.n_features = n_features
         self.batch_size = batch_size
         self.nb_epochs = nb_epochs
@@ -138,10 +140,10 @@ class Autoencoder:
             def vae_loss(y_true, y_pred):
                 y_true = K.batch_flatten(y_true)
                 y_pred = K.batch_flatten(y_pred)
-                recon = K.sum(K.binary_crossentropy(y_pred, y_true), axis=1)
-                kl = .5 * K.sum(K.exp(self.log_sigma) + K.square(self.mu) - 1. - self.log_sigma, axis=1)
+                xent = binary_crossentropy(y_pred, y_true)
+                kl = .5 * K.sum(1 + self.log_sigma - K.exp(self.log_sigma) - K.square(self.mu), axis=-1)
 
-                return recon + self.beta * kl
+                return xent + self.beta * kl
 
             self.loss = vae_loss
         else:
