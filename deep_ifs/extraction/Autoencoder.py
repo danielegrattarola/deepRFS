@@ -60,7 +60,7 @@ class Autoencoder:
                               activation='relu', strides=(1, 1),
                               data_format='channels_first')(self.encoded)
 
-        self.encoded = Conv2D(16, (3, 3), padding='valid',
+        self.encoded = Conv2D(4, (3, 3), padding='valid',
                               activation='relu', strides=(1, 1),
                               data_format='channels_first',
                               name='to_flatten')(self.encoded)
@@ -89,14 +89,14 @@ class Autoencoder:
             self.features = Dropout(self.dropout_prob,
                                     name='features')(self.features)
 
-        if (self.n_features != 16 * 8 * 5) and (self.use_vae or self.use_dense or self.use_contractive_loss):
+        if (self.n_features != 4 * 8 * 5) and (self.use_vae or self.use_dense or self.use_contractive_loss):
             # This layer is used before the decoder to bring the number of activations back to 640
-            self.pre_decoder = Dense(16 * 8 * 5)(self.features)
+            self.pre_decoder = Dense(4 * 8 * 5)(self.features)
         else:
             self.pre_decoder = self.features
 
         # Decoded
-        self.decoded = Reshape((16, 8, 5))(self.pre_decoder)
+        self.decoded = Reshape((4, 8, 5))(self.pre_decoder)
 
         self.decoded = Conv2DTranspose(16, (3, 3), padding='valid',
                                        activation='relu', strides=(1, 1),
