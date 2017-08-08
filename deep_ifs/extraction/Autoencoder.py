@@ -46,7 +46,7 @@ class Autoencoder:
                                   verbose=0)
 
         # Build network
-        self.input = Input(shape=(4, 108, 84))
+        self.input = Input(batch_shape=(self.batch_size, 4, 108, 84))
 
         self.encoded = Conv2D(32, (8, 8), padding='valid',
                               activation='relu', strides=(4, 4),
@@ -60,7 +60,7 @@ class Autoencoder:
                               activation='relu', strides=(1, 1),
                               data_format='channels_first')(self.encoded)
 
-        self.encoded = Conv2D(4, (3, 3), padding='valid',
+        self.encoded = Conv2D(16, (3, 3), padding='valid',
                               activation='relu', strides=(1, 1),
                               data_format='channels_first',
                               name='to_flatten')(self.encoded)
@@ -71,32 +71,32 @@ class Autoencoder:
             self.features = Dense(self.n_features, activation='relu',
                                   name='features')(self.features)
         elif self.use_vae:
-            self.mu = Dense(self.n_features, activation='linear')(self.features)
-            self.log_sigma = Dense(self.n_features,
+            self.z_mean = Dense(self.n_features, activation='linear')(self.features)
+            self.z_log_var = Dense(self.n_features,
                                    activation='linear')(self.features)
 
             def sample_z(args):
-                mu, log_sigma = args
-                eps = K.random_normal(shape=(K.shape(mu)[0], self.n_features),
+                z_mean, z_log_var = args
+                eps = K.random_normal(shape=(self.batch_size, self.n_features),
                                       mean=0.,
                                       stddev=1.)
-                return mu + K.exp(log_sigma / 2.) * eps
+                return z_mean + K.exp(z_log_var) * eps
 
             self.features = Lambda(sample_z,
-                                   name='features')([self.mu, self.log_sigma])
+                                   name='features')([self.z_mean, self.z_log_var])
         elif self.use_dense:
             self.features = Dense(self.n_features, activation='relu')(self.features)
             self.features = Dropout(self.dropout_prob,
                                     name='features')(self.features)
 
-        if (self.n_features != 4 * 8 * 5) and (self.use_vae or self.use_dense or self.use_contractive_loss):
+        if (self.n_features != 16 * 8 * 5) and (self.use_vae or self.use_dense or self.use_contractive_loss):
             # This layer is used before the decoder to bring the number of activations back to 640
-            self.pre_decoder = Dense(4 * 8 * 5)(self.features)
+            self.pre_decoder = Dense(16 * 8 * 5)(self.features)
         else:
             self.pre_decoder = self.features
 
         # Decoded
-        self.decoded = Reshape((4, 8, 5))(self.pre_decoder)
+        self.decoded = Reshape((16, 8, 5))(self.pre_decoder)
 
         self.decoded = Conv2DTranspose(16, (3, 3), padding='valid',
                                        activation='relu', strides=(1, 1),
@@ -162,7 +162,7 @@ class Autoencoder:
                 y_true = K.flatten(y_true)
                 y_pred = K.flatten(y_pred)
                 xent = self.input_dim_full * binary_crossentropy(y_pred, y_true)
-                kl = - 0.5 * K.sum(1 + self.log_sigma - K.exp(self.log_sigma) - K.square(self.mu), axis=-1)
+                kl = - 0.5 * K.mean(1 + self.z_log_var - K.square(self.z_mean) - K.exp(self.z_log_var), axis=-1)
 
                 return K.mean(xent + self.beta * kl)
 
