@@ -80,7 +80,7 @@ class Autoencoder:
                 eps = K.random_normal(shape=(K.shape(mu)[0], self.n_features),
                                       mean=0.,
                                       stddev=1.)
-                return mu + K.exp(log_sigma / 2) * eps
+                return mu + K.exp(log_sigma / 2.) * eps
 
             self.features = Lambda(sample_z,
                                    name='features')([self.mu, self.log_sigma])
@@ -89,8 +89,14 @@ class Autoencoder:
             self.features = Dropout(self.dropout_prob,
                                     name='features')(self.features)
 
+        if (self.n_features != 16 * 8 * 5) and (self.use_vae or self.use_dense or self.use_contractive_loss):
+            # This layer is used before the decoder to bring the number of activations back to 640
+            self.pre_decoder = Dense(16 * 8 * 5)(self.features)
+        else:
+            self.pre_decoder = self.features
+
         # Decoded
-        self.decoded = Reshape((16, 8, 5))(self.features)
+        self.decoded = Reshape((16, 8, 5))(self.pre_decoder)
 
         self.decoded = Conv2DTranspose(16, (3, 3), padding='valid',
                                        activation='relu', strides=(1, 1),
@@ -135,17 +141,33 @@ class Autoencoder:
             self.load(load_path)
 
         if self.use_contractive_loss:
-            self.loss = self.contractive_loss
+            def contractive_loss(y_pred, y_true):
+                y_true = K.batch_flatten(y_true)
+                y_pred = K.batch_flatten(y_pred)
+                xent = binary_crossentropy(y_pred, y_true)
+
+                W = K.variable(value=self.model.get_layer('features').get_weights()[0])  # N x N_hidden
+                W = K.transpose(W)  # N_hidden x N
+                h = self.model.get_layer('features').output
+                dh = h * (1 - h)  # N_batch x N_hidden
+
+                # N_batch x N_hidden * N_hidden x 1 = N_batch x 1
+                contractive = 1e-03 * K.sum(dh ** 2 * K.sum(W ** 2, axis=1), axis=1)
+
+                return xent + contractive
+
+            self.loss = contractive_loss
         elif self.use_vae:
             def vae_loss(y_true, y_pred):
-                y_true = K.flatten(y_true)
-                y_pred = K.flatten(y_pred)
+                y_true = K.batch_flatten(y_true)
+                y_pred = K.batch_flatten(y_pred)
                 xent = self.input_dim_full * binary_crossentropy(y_pred, y_true)
                 kl = - 0.5 * K.sum(1 + self.log_sigma - K.exp(self.log_sigma) - K.square(self.mu), axis=-1)
 
                 return K.mean(xent + self.beta * kl)
 
             self.loss = vae_loss
+            self.optimizer = RMSprop()
         else:
             self.loss = 'binary_crossentropy'
 
@@ -323,19 +345,6 @@ class Autoencoder:
             return self.support.sum()
         else:
             return self.get_features_number()
-
-    def contractive_loss(self, y_pred, y_true):
-        b_xent = K.binary_crossentropy(y_pred, y_true)
-
-        W = K.variable(value=self.model.get_layer('features').get_weights()[0])  # N x N_hidden
-        W = K.transpose(W)  # N_hidden x N
-        h = self.model.get_layer('features').output
-        dh = h * (1 - h)  # N_batch x N_hidden
-
-        # N_batch x N_hidden * N_hidden x 1 = N_batch x 1
-        contractive = 1e-03 * K.sum(dh ** 2 * K.sum(W ** 2, axis=1), axis=1)
-
-        return b_xent + contractive
 
     def get_features_number(self):
         return reduce(mul, self.model.get_layer('features').get_output_at(0).get_shape().as_list()[1:])
