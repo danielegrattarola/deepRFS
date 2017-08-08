@@ -46,7 +46,7 @@ class Autoencoder:
                                   verbose=0)
 
         # Build network
-        self.input = Input(batch_shape=(self.batch_size, 4, 108, 84))
+        self.input = Input(shape=(4, 108, 84))
 
         self.encoded = Conv2D(32, (8, 8), padding='valid',
                               activation='relu', strides=(4, 4),
@@ -77,7 +77,7 @@ class Autoencoder:
 
             def sample_z(args):
                 z_mean, z_log_var = args
-                eps = K.random_normal(shape=(self.batch_size, self.n_features),
+                eps = K.random_normal(shape=(K.shape(z_mean)[0], self.n_features),
                                       mean=0.,
                                       stddev=1.)
                 return z_mean + K.exp(z_log_var) * eps
@@ -167,7 +167,7 @@ class Autoencoder:
                 return K.mean(xent + self.beta * kl)
 
             self.loss = vae_loss
-            self.optimizer = RMSprop()
+            # self.optimizer = RMSprop()
         else:
             self.loss = 'binary_crossentropy'
 
