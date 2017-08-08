@@ -136,8 +136,8 @@ class Autoencoder:
             self.loss = self.contractive_loss
         elif self.use_vae:
             def vae_loss(y_true, y_pred):
-                y_true = K.flatten(y_true)
-                y_pred = K.flatten(y_pred)
+                y_true = K.batch_flatten(y_true)
+                y_pred = K.batch_flatten(y_pred)
                 recon = K.sum(K.binary_crossentropy(y_pred, y_true), axis=1)
                 kl = .5 * K.sum(K.exp(self.log_sigma) + K.square(self.mu) - 1. - self.log_sigma, axis=1)
 
