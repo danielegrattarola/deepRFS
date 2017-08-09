@@ -162,7 +162,7 @@ class Autoencoder:
                 y_true = K.flatten(y_true)
                 y_pred = K.flatten(y_pred)
                 xent = self.input_dim_full * binary_crossentropy(y_pred, y_true)
-                kl = - 0.5 * K.mean(1 + self.z_log_var - K.square(self.z_mean) - K.exp(self.z_log_var), axis=-1)
+                kl = - 0.5 * K.sum(1 + self.z_log_var - K.square(self.z_mean) - K.exp(self.z_log_var), axis=-1)
 
                 return K.mean(xent + self.beta * kl)
 
