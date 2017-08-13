@@ -347,4 +347,8 @@ class Autoencoder:
             return self.get_features_number()
 
     def get_features_number(self):
-        return reduce(mul, self.model.get_layer('features').get_output_at(0).get_shape().as_list()[1:])
+        if self.use_vae or self.use_dense or self.use_contractive_loss:
+            layer = 'features'
+        else:
+            layer = 'to_flatten'
+        return reduce(mul, self.model.get_layer(layer).get_output_at(0).get_shape().as_list()[1:])

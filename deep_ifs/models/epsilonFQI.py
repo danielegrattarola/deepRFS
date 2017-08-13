@@ -26,8 +26,8 @@ class EpsilonFQI:
     def partial_fit(self, sast=None, r=None, **kwargs):
         self.fqi.partial_fit(sast, r, **kwargs)
 
-    def draw_action(self, state, absorbing, evaluation=False):
-        if not evaluation and random() <= self.epsilon:
+    def draw_action(self, state, absorbing, evaluation=False, fully_deterministic=False):
+        if not fully_deterministic and random() <= self.epsilon:
             return choice(self.actions)
         else:
             preprocessed_state = self.fe.s_features(state)

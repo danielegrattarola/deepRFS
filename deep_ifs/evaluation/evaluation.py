@@ -7,7 +7,7 @@ from deep_ifs.utils.helpers import is_stuck
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     video=False, save_video=False,
                     save_path='', append_filename='', n_jobs=1,
-                    initial_actions=None, fully_deterministic=False):
+                    initial_actions=None, eval_epsilon=0.05):
     """
         This function evaluates a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
@@ -42,24 +42,27 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
     assert metric in ['discounted', 'average', 'cumulative'], \
         "Unsupported metric"
+
+    old_epsilon = policy.get_epsilon()
+    policy.set_epsilon(eval_epsilon)
     out = Parallel(n_jobs=n_jobs)(
         delayed(_eval)(
             mdp, policy, metric=metric, video=video,
             save_video=save_video, save_path=save_path,
             append_filename=('_%s' % append_filename).rstrip('_') + '_%s' % eid,
-            initial_actions=initial_actions, fully_deterministic=fully_deterministic
+            initial_actions=initial_actions
         )
         for eid in range(n_episodes)
     )
+    policy.set_epsilon(old_epsilon)
 
     values, steps = np.array(zip(*out))
-    return values.mean(), 2 * values.std() / np.sqrt(n_episodes), \
-           steps.mean(), 2 * steps.std() / np.sqrt(n_episodes)
+    return values.mean(), values.max(), 2 * values.std() / np.sqrt(n_episodes), \
+           steps.mean(), steps.max(), 2 * steps.std() / np.sqrt(n_episodes)
 
 
 def _eval(mdp, policy, metric='cumulative', video=False, save_video=False,
-          save_path='', append_filename='', initial_actions=None,
-          fully_deterministic=False):
+          save_path='', append_filename='', initial_actions=None):
     frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0
@@ -88,14 +91,12 @@ def _eval(mdp, policy, metric='cumulative', video=False, save_video=False,
         if initial_actions is not None:
             if info['ale.lives'] < lives_count:
                 lives_count = info['ale.lives']
-                state, _, _, _ = mdp.step(np.random.choice(initial_actions),
-                                          evaluation=fully_deterministic)
+                state, _, _, _ = mdp.step(np.random.choice(initial_actions))
 
         # Select and execute the action, get next state and reward
-        action = policy.draw_action(np.expand_dims(state, 0), done,
-                                    evaluation=fully_deterministic)
+        action = policy.draw_action(np.expand_dims(state, 0), done, evaluation=True)
         action = int(action)
-        next_state, reward, done, info = mdp.step(action, evaluation=fully_deterministic)
+        next_state, reward, done, info = mdp.step(action)
 
         # Update figures of merit
         ep_performance += df * reward  # Update performance

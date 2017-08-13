@@ -96,7 +96,7 @@ parser.add_argument('support', type=str, help='Path to support')
 parser.add_argument('sars', type=str, help='Path to sars folder')
 parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
 parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v4', help='Atari environment on which to run the algorithm')
 parser.add_argument('--iter', type=int, default=100, help='Number of fqi iterations to run')
 parser.add_argument('--episodes', type=int, default=10, help='Number of episodes to run at each evaluation step')
 parser.add_argument('--eval-freq', type=int, default=5, help='Period (number of steps) with which to run evaluation steps')
@@ -111,7 +111,7 @@ args = parser.parse_args()
 
 # Params
 max_eval_steps = 2 if args.debug else 1000  # Max length of evaluation episodes
-initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
+initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
 
 # Setup
 logger = Logger(output_folder='../output/', custom_run_name='fqi%Y%m%d-%H%M%S')

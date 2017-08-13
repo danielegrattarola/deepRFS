@@ -13,7 +13,7 @@ parser.add_argument('--dataset-dir', type=str, default='NN.h5',
                     help='Path to the NN h5 file')
 args = parser.parse_args()
 
-mdp = Atari('BreakoutDeterministic-v3')
+mdp = Atari('BreakoutDeterministic-v4')
 action_values = mdp.action_space.values
 nb_actions = mdp.action_space.n
 

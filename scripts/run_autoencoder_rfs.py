@@ -27,28 +27,35 @@ def final_output():
     # Writes evaluation results to csv and saves plots
     global evaluation_results
     output = pd.DataFrame(evaluation_results,
-                          columns=['score', 'confidence_score',
-                                   'steps', 'confidence_steps'])
+                          columns=['score', 'score_max', 'confidence_score',
+                                   'steps', 'steps_max', 'confidence_steps'])
     output.to_csv(logger.path + 'evaluation.csv', index=False)
     fig = output['score'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_score.png')
+    fig = output['score_max'].plot().get_figure()
+    fig.savefig(logger.path + 'evaluation_score_max.png')
     fig = output['steps'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_steps.png')
+    fig = output['steps_max'].plot().get_figure()
+    fig.savefig(logger.path + 'evaluation_steps_max.png')
 
 atexit.register(final_output)
 
 # Args
+# Main
 parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--debug', action='store_true', help='Run in debug mode')
+parser.add_argument('--main-alg-iters', type=int, default=1, help='Number of main algorithm steps to run (by default runs in full batch mode)')
 
 # MDP
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3', help='Atari environment on which to run the algorithm')
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v4', help='Atari environment on which to run the algorithm')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
 
 # AE
 parser.add_argument('--load-ae', type=str, default=None, help='Path to h5 weights file to load into AE')
 parser.add_argument('--load-ae-support', type=str, default=None, help='Path to file with AE support')
 parser.add_argument('--train-ae', action='store_true', help='Train the AE after collecting the dataset')
+parser.add_argument('--ae-epochs', type=int, default=300, help='Number of epochs to train AE for')
 parser.add_argument('--binarize', action='store_true', help='Binarize input to the neural networks')
 parser.add_argument('--use-sw', action='store_true', help='Use sample weights when training AE')
 parser.add_argument('--use-vae', action='store_true', help='Use VAE instead of usual AE')
@@ -74,9 +81,9 @@ parser.add_argument('--fqi-test-after-loading', action='store_true', help='Test 
 
 # Dataset cocllection
 parser.add_argument('--load-sars', type=str, default=None, help='Path to dataset folder to use instead of collecting')
-parser.add_argument('--sars-episodes', type=int, default=100, help='Number of SARS episodes to collect')
+parser.add_argument('--sars-samples', type=int, default=500000, help='Number of SARS samples to collect')
 parser.add_argument('--sars-blocks', type=int, default=25, help='Number of SARS episodes to collect to disk')
-parser.add_argument('--sars-test-episodes', type=int, default=250, help='Number of SARS test episodes to collect')
+parser.add_argument('--sars-test-episodes', type=int, default=100, help='Number of SARS test episodes to collect')
 parser.add_argument('--control-freq', type=int, default=1, help='Control refrequency (1 action every n steps)')
 parser.add_argument('--save-FARF', action='store_true', help='Save the F, A, R, FF arrays')
 parser.add_argument('--load-FARF', type=str, default=None, help='Load the F, A, R, FF arrays')
@@ -84,8 +91,13 @@ parser.add_argument('--load-FARF', type=str, default=None, help='Load the F, A, 
 args = parser.parse_args()
 
 # Parameters
+# Main
+epsilon = 1
+epsilon_min = 0.1
+epsilon_step = (epsilon - epsilon_min) / args.main_alg_iters
+
 # AE
-nn_nb_epochs = 5 if args.debug else 300  # Number of training epochs for NNs
+nn_nb_epochs = 5 if args.debug else args.ae_epochs  # Number of training epochs for NNs
 nn_batch_size = 6 if args.debug else 32  # Number of samples in a batch for AE (len(sars) will be multiple of this number)
 
 # RFS
@@ -93,7 +105,7 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
 
 # FQI
-initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
+initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
 
 # Run setup
 rn_list = []
@@ -157,7 +169,7 @@ if args.load_fqi is None:
                   'gamma': mdp.gamma,
                   'horizon': args.fqi_iter,
                   'verbose': True}
-    policy = EpsilonFQI(fqi_params, ae, epsilon=1)  # Set policy to fully random
+    policy = EpsilonFQI(fqi_params, ae, epsilon=epsilon)  # Set policy to fully random
 else:
     fqi_params = args.load_fqi
     policy = EpsilonFQI(fqi_params, ae)
@@ -173,252 +185,248 @@ else:
                                        fully_deterministic=True)
 
 log('######## START ########')
-if args.load_sars is None:
-    tic('Collecting SARS dataset')
-    sars_path = logger.path + 'sars/'
-    samples_in_dataset = collect_sars_to_disk(mdp,
-                                              policy,
-                                              sars_path,
-                                              blocks=args.sars_blocks,
-                                              episodes=args.sars_episodes,
-                                              debug=args.debug,
-                                              random_episodes_pctg=0.0,
-                                              initial_actions=initial_actions,
-                                              repeat=args.control_freq,
+for main_alg_iter in range(args.main_alg_iters):
+    if args.load_sars is None or main_alg_iter > 0:
+        tic('Collecting SARS dataset')
+        sars_path = logger.path + 'sars/'
+        samples_in_dataset = collect_sars_to_disk(mdp,
+                                                  policy,
+                                                  sars_path,
+                                                  samples=args.sars_samples,
+                                                  blocks=args.sars_blocks,
+                                                  debug=args.debug,
+                                                  random_episodes_pctg=0.0,
+                                                  initial_actions=initial_actions,
+                                                  repeat=args.control_freq,
+                                                  batch_size=nn_batch_size,
+                                                  shuffle=True)
+    else:
+        tic('Loading SARS dataset from disk')
+        sars_path = args.load_sars
+        samples_in_dataset = get_nb_samples_from_disk(sars_path)
+    toc('Got %s SARS\' samples' % samples_in_dataset)
+
+    if args.train_ae:
+        # Collect test dataset
+        if args.load_sars is None:
+            tic('Collecting test SARS dataset')
+            test_sars = collect_sars(mdp,
+                                     policy,
+                                     episodes=args.sars_test_episodes,
+                                     debug=args.debug,
+                                     random_episodes_pctg=0.0,
+                                     initial_actions=initial_actions,
+                                     repeat=args.control_freq,
+                                     shuffle=True)
+        else:
+            tic('Loading test SARS from disk')
+            test_sars = np.load(sars_path + '/valid_sars.npy')
+
+        test_S = pds_to_npa(test_sars[:, 0])
+        toc('Got %s test SARS\' samples' % len(test_sars))
+
+        log('Memory usage (test_sars, test_S): %s MB\n' %
+            get_size([test_sars, test_S, ae], 'MB'))
+
+        if args.load_ae is not None:
+            # Reset AE after collecting samples with old AE
+            ae = Autoencoder((4, 108, 84),
+                             n_features=args.n_features,
+                             batch_size=nn_batch_size,
+                             nb_epochs=nn_nb_epochs,
+                             binarize=args.binarize,
+                             logger=logger,
+                             ckpt_file='autoencoder_ckpt.h5',
+                             use_vae=args.use_vae,
+                             beta=args.vae_beta,
+                             use_dense=args.use_dense,
+                             dropout_prob=args.dropout)
+
+        # Fit AE
+        tic('Fitting Autoencoder')
+        if args.use_sw:
+            tic('Getting class weights')
+            cw = get_class_weight_from_disk(sars_path, clip=args.clip)
+            toc(cw)
+        else:
+            cw = None
+        ss_generator = ss_generator_from_disk(sars_path,
+                                              ae,
                                               batch_size=nn_batch_size,
-                                              shuffle=True)
-else:
-    tic('Loading SARS dataset from disk')
-    sars_path = args.load_sars
-    samples_in_dataset = get_nb_samples_from_disk(sars_path)
-toc('Got %s SARS\' samples' % samples_in_dataset)
+                                              binarize=args.binarize,
+                                              weights=cw,
+                                              shuffle=True,  # Shuffle only when reading data from file
+                                              clip=args.clip)
+        ae.fit_generator(ss_generator,
+                         samples_in_dataset / nn_batch_size,
+                         nn_nb_epochs,
+                         validation_data=(test_S, test_S))
+        ae.load(logger.path + 'autoencoder_ckpt.h5')
 
-if args.train_ae:
-    # Collect test dataset
-    if args.load_sars is None:
-        tic('Collecting test SARS dataset')
-        test_sars = collect_sars(mdp,
-                                 policy,
-                                 episodes=args.sars_test_episodes,
-                                 debug=args.debug,
-                                 random_episodes_pctg=0.0,
-                                 initial_actions=initial_actions,
-                                 repeat=args.control_freq,
-                                 shuffle=True)
-    else:
-        tic('Loading test SARS from disk')
-        test_sars = np.load(sars_path + '/valid_sars.npy')
-
-    test_S = pds_to_npa(test_sars[:, 0])
-    test_A = pds_to_npa(test_sars[:, 1])
-    test_R = pds_to_npa(test_sars[:, 2])
-    test_SS = pds_to_npa(test_sars[:, 3])
-    toc('Got %s test SARS\' samples' % len(test_sars))
-
-    log('Memory usage (test_sars, test_S, test_A, test_R, test_SS): %s MB\n' %
-        get_size([test_sars, test_S, test_A, test_R, test_SS, ae], 'MB'))
-
-    if args.load_ae is not None:
-        # Reset AE after collecting samples with old AE
-        ae = Autoencoder((4, 108, 84),
-                         n_features=args.n_features,
-                         batch_size=nn_batch_size,
-                         nb_epochs=nn_nb_epochs,
-                         binarize=args.binarize,
-                         logger=logger,
-                         ckpt_file='autoencoder_ckpt.h5',
-                         use_vae=args.use_vae,
-                         beta=args.vae_beta,
-                         use_dense=args.use_dense,
-                         dropout_prob=args.dropout)
-
-    # Fit AE
-    tic('Fitting Autoencoder')
-    if args.use_sw:
-        tic('Getting class weights')
-        cw = get_class_weight_from_disk(sars_path, clip=args.clip)
-        toc(cw)
-    else:
-        cw = None
-    ss_generator = ss_generator_from_disk(sars_path,
-                                          ae,
-                                          batch_size=nn_batch_size,
-                                          binarize=args.binarize,
-                                          weights=cw,
-                                          shuffle=True,  # Shuffle only when reading data from file
-                                          clip=args.clip)
-    ae.fit_generator(ss_generator,
-                     samples_in_dataset / nn_batch_size,
-                     nn_nb_epochs,
-                     validation_data=(test_S, test_S))
-    ae.load(logger.path + 'autoencoder_ckpt.h5')
-
-    del test_sars, test_S, test_A, test_R
-    gc.collect()
-    toc()
-
-if args.fs:
-    # Feature selection
-    if args.load_FARF is None:
-        tic('Building FARF dataset for FS')
-        F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
-        if args.save_FARF:
-            joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F.pkl')
-    else:
-        tic('Loading FARF dataset for FS from %s' % args.load_FARF)
-        F, A, R, FF = joblib.load(args.load_FARF)
-
-    if args.clip:
-        R = np.clip(R, -1, 1)
-
-    # Print the number of nonzero features
-    toc('Number of non-zero feature: %s' % np.count_nonzero(
-        np.mean(F[:-1], axis=0)))
-
-    if args.rfs:
-        tic('Running RFS')
-        ifs_estimator_params = {'n_estimators': ifs_nb_trees,
-                                'n_jobs': -1}
-        ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
-                      'n_features_step': 1,
-                      'cv': None,
-                      'scale': True,
-                      'verbose': 1,
-                      'significance': ifs_significance}
-        ifs = IFS(**ifs_params)
-        features_names = np.array(map(str, range(F.shape[1])) + ['A'])
-        rfs_params = {'feature_selector': ifs,
-                      'features_names': features_names,
-                      'verbose': 1}
-        rfs = RFS(**rfs_params)
-        rfs.fit(F, A, FF, R)
-
-        # Process support
-        support = rfs.get_support()
-        got_action = support[-1]  # Action is the last feature
-        support = np.array(support[:-1])  # Remove action from support
-        nb_new_features = support.sum()
-        log('Features: %s' % support.nonzero())
-        log('Using %s features' % nb_new_features)
-        log('Action was%s selected' % ('' if got_action else ' NOT'))
-
-        # Save RFS tree
-        tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree.gv')
-        tree.save()  # Save GV source
-        tree.format = 'pdf'
-        tree.render()  # Save PDF
-
-        del F, A, FF, R
+        del test_sars, test_S
         gc.collect()
         toc()
+
+    if args.fs:
+        # Feature selection
+        if args.load_FARF is None:
+            tic('Building FARF dataset for FS')
+            F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
+            if args.save_FARF:
+                joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F.pkl')
+        else:
+            tic('Loading FARF dataset for FS from %s' % args.load_FARF)
+            F, A, R, FF = joblib.load(args.load_FARF)
+
+        if args.clip:
+            R = np.clip(R, -1, 1)
+
+        # Print the number of nonzero features
+        toc('Number of non-zero feature: %s' % np.count_nonzero(
+            np.mean(F[:-1], axis=0)))
+
+        if args.rfs:
+            tic('Running RFS')
+            ifs_estimator_params = {'n_estimators': ifs_nb_trees,
+                                    'n_jobs': -1}
+            ifs_params = {'estimator': ExtraTreesRegressor(**ifs_estimator_params),
+                          'n_features_step': 1,
+                          'cv': None,
+                          'scale': True,
+                          'verbose': 1,
+                          'significance': ifs_significance}
+            ifs = IFS(**ifs_params)
+            features_names = np.array(map(str, range(F.shape[1])) + ['A'])
+            rfs_params = {'feature_selector': ifs,
+                          'features_names': features_names,
+                          'verbose': 1}
+            rfs = RFS(**rfs_params)
+            rfs.fit(F, A, FF, R)
+
+            # Process support
+            support = rfs.get_support()
+            got_action = support[-1]  # Action is the last feature
+            support = np.array(support[:-1])  # Remove action from support
+            nb_new_features = support.sum()
+            log('Features: %s' % support.nonzero())
+            log('Using %s features' % nb_new_features)
+            log('Action was%s selected' % ('' if got_action else ' NOT'))
+
+            # Save RFS tree
+            tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree.gv')
+            tree.save()  # Save GV source
+            tree.format = 'pdf'
+            tree.render()  # Save PDF
+
+            del F, A, FF, R
+            gc.collect()
+            toc()
+        else:
+            tic('Keeping non-zero variance features')
+            support = np.var(F, axis=0) != 0  # Keep only features with nonzero variance
+            toc('Using %s features' % support.sum())
+
+        ae.set_support(support)
+        joblib.dump(support, logger.path + 'support.pkl')  # Save support
+
+    # Build dataset for FQI
+    if args.fqi_load_faft is None:
+        tic('Building dataset for FQI')
+        faft, r, action_values = build_faft_r_from_disk(ae, sars_path, shuffle=True)
+        # Save dataset
+        log('Saving dataset')
+        joblib.dump((faft, r, action_values), logger.path + 'FQI_FAFT_R_action_values.pkl')
     else:
-        tic('Keeping non-zero variance features')
-        support = np.var(F, axis=0) != 0  # Keep only features with nonzero variance
-        toc('Using %s features' % support.sum())
+        tic('Loading dataset for FQI')
+        faft, r, action_values = joblib.load(args.fqi_load_faft)
+        log('Shuffling data')
+        perm = np.random.permutation(len(faft))
+        faft = faft[perm]
+        r = r[perm]
+        del perm
 
-    ae.set_support(support)
-    joblib.dump(support, logger.path + 'support.pkl')  # Save support
+    if args.clip:
+        r = np.clip(r, -1, 1)
+    toc('Got %s samples' % len(faft))
 
-# Build dataset for FQI
-if args.fqi_load_faft is None:
-    tic('Building dataset for FQI')
-    faft, r, action_values = build_faft_r_from_disk(ae, sars_path, shuffle=True)
-    # Save dataset
-    log('Saving dataset')
-    joblib.dump((faft, r, action_values), logger.path + 'FQI_FAFT_R_action_values.pkl')
-else:
-    tic('Loading dataset for FQI')
-    faft, r, action_values = joblib.load(args.fqi_load_faft)
-    log('Shuffling data')
-    perm = np.random.permutation(len(faft))
-    faft = faft[perm]
-    r = r[perm]
-    del perm
+    log('Creating policy')
+    # Create ActionRegressor
+    if args.fqi_model_type == 'extra':
+        fqi_regressor_params = {'n_estimators': 50,
+                                'min_samples_split': 5,
+                                'min_samples_leaf': 2,
+                                'n_jobs': -1}
+        fqi_regressor_class = ExtraTreesRegressor
+    elif args.fqi_model_type == 'xgb':
+        fqi_regressor_params = {'max_depth': 8,
+                                'n_estimators': 100}
+        fqi_regressor_class = XGBRegressor
+    elif args.fqi_model_type == 'linear':
+        fqi_regressor_params = {'n_jobs': -1}
+        fqi_regressor_class = LinearRegression
+    elif args.fqi_model_type == 'mlp':
+        fqi_regressor_params = {'hidden_layer_sizes': (128, 128),
+                                'early_stopping': True}
+        fqi_regressor_class = MLPRegressor
+    else:
+        raise NotImplementedError('Allowed models: \'extra\', \'linear\', \'xgb\', \'mlp\'.')
 
-if args.clip:
-    r = np.clip(r, -1, 1)
-toc('Got %s samples' % len(faft))
+    if args.fqi_no_ar:
+        regressor = Regressor(regressor_class=fqi_regressor_class,
+                              **fqi_regressor_params)
+    else:
+        regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
+                                              **fqi_regressor_params),
+                                    discrete_actions=action_values,
+                                    tol=0.5)
 
-log('Creating policy')
-# Create ActionRegressor
-if args.fqi_model_type == 'extra':
-    fqi_regressor_params = {'n_estimators': 50,
-                            'min_samples_split': 5,
-                            'min_samples_leaf': 2,
-                            'n_jobs': -1}
-    fqi_regressor_class = ExtraTreesRegressor
-elif args.fqi_model_type == 'xgb':
-    fqi_regressor_params = {'max_depth': 8,
-                            'n_estimators': 100}
-    fqi_regressor_class = XGBRegressor
-elif args.fqi_model_type == 'linear':
-    fqi_regressor_params = {'n_jobs': -1}
-    fqi_regressor_class = LinearRegression
-elif args.fqi_model_type == 'ridge':
-    fqi_regressor_params = {}
-    fqi_regressor_class = Ridge
-elif args.fqi_model_type == 'mlp':
-    fqi_regressor_params = {'hidden_layer_sizes': (128, 128),
-                            'early_stopping': True}
-    fqi_regressor_class = MLPRegressor
-else:
-    raise NotImplementedError('Allowed models: \'extra\', \'linear\', '
-                              '\'ridge\', \'xgb\', \'mlp\'.')
+    epsilon -= epsilon_step  # Linear epsilon annealing
 
-if args.fqi_no_ar:
-    regressor = Regressor(regressor_class=fqi_regressor_class,
-                          **fqi_regressor_params)
-else:
-    regressor = ActionRegressor(Regressor(regressor_class=fqi_regressor_class,
-                                          **fqi_regressor_params),
-                                discrete_actions=action_values,
-                                tol=0.5)
+    fqi_params = {'estimator': regressor,
+                  'state_dim': ae.get_support_dim(),
+                  'action_dim': 1,  # Action is discrete monodimensional
+                  'discrete_actions': action_values,
+                  'gamma': mdp.gamma,
+                  'horizon': args.fqi_iter,
+                  'verbose': False}
+    policy = EpsilonFQI(fqi_params, ae, epsilon=epsilon)  # Do not unpack the dict
 
-fqi_params = {'estimator': regressor,
-              'state_dim': ae.get_support_dim(),
-              'action_dim': 1,  # Action is discrete monodimensional
-              'discrete_actions': action_values,
-              'gamma': mdp.gamma,
-              'horizon': args.fqi_iter,
-              'verbose': False}
-policy = EpsilonFQI(fqi_params, ae, epsilon=0.05)  # Do not unpack the dict
+    # Fit FQI
+    log('Fitting FQI')
+    evaluation_results = []
+    fqi_best = (-np.inf, 0, -np.inf, 0)
 
-# Fit FQI
-log('Fitting FQI')
-evaluation_results = []
-fqi_best = (-np.inf, 0, -np.inf, 0)
+    policy.partial_fit(faft, r)
+    for partial_iter in range(args.fqi_iter):
+        policy.partial_fit()
+        if partial_iter % args.fqi_eval_period == 0 or partial_iter == (args.fqi_iter-1):
+            print 'Eval...'
+            partial_eval = evaluate_policy(mdp,
+                                           policy,
+                                           n_episodes=args.fqi_eval_episodes,
+                                           initial_actions=initial_actions,
+                                           save_video=args.save_video,
+                                           save_path=logger.path,
+                                           append_filename='fqi_iter_%03d' % partial_iter)
+            evaluation_results.append(partial_eval)
+            log('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
+            # Save fqi policy
+            if partial_eval[0] > fqi_best[0]:
+                log('Saving best policy\n')
+                fqi_best = partial_eval
+                policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl' %
+                                (partial_iter, int(evaluation_results[-1][0])))
 
-policy.partial_fit(faft, r)
-for partial_iter in range(args.fqi_iter):
-    policy.partial_fit()
-    if partial_iter % args.fqi_eval_period == 0 or partial_iter == (args.fqi_iter-1):
-        partial_eval = evaluate_policy(mdp,
-                                       policy,
-                                       n_episodes=args.fqi_eval_episodes,
-                                       initial_actions=initial_actions,
-                                       save_video=args.save_video,
-                                       save_path=logger.path,
-                                       append_filename='fqi_iter_%03d' % partial_iter,
-                                       fully_deterministic=False)
-        evaluation_results.append(partial_eval)
-        log('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
-        # Save fqi policy
-        if partial_eval[0] > fqi_best[0]:
-            log('Saving best policy\n')
-            fqi_best = partial_eval
-            policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl' %
-                            (partial_iter, int(evaluation_results[-1][0])))
+    # Restore best policy
+    policy.load_fqi(logger.path + 'best_fqi_score_%s.pkl' % round(fqi_best[0]))
 
-# Restore best policy
-policy.load_fqi(logger.path + 'best_fqi_score_%s.pkl' % round(fqi_best[0]))
-
-# Final evaluation
-tic('Evaluating best policy after update')
-final_eval = evaluate_policy(mdp,
-                             policy,
-                             n_episodes=args.fqi_eval_episodes,
-                             save_video=args.save_video,
-                             save_path=logger.path,
-                             append_filename='best',
-                             initial_actions=initial_actions)
-toc(final_eval)
+    # Final evaluation
+    tic('Evaluating best policy after update')
+    final_eval = evaluate_policy(mdp,
+                                 policy,
+                                 n_episodes=args.fqi_eval_episodes,
+                                 save_video=args.save_video,
+                                 save_path=logger.path,
+                                 append_filename='best',
+                                 initial_actions=initial_actions)
+    toc(final_eval)

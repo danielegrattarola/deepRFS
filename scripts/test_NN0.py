@@ -21,7 +21,7 @@ parser.add_argument('--sars', type=str, default=None, help='Path to the sars dat
 parser.add_argument('-d', '--debug', action='store_true',
                     help='Run in debug mode')
 parser.add_argument('--episodes', type=int, default=10, help='number of episodes to predict on')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v4',
                     help='Atari environment on which to run the algorithm')
 parser.add_argument('--binarize', action='store_true',
                     help='Binarize input to the neural networks')

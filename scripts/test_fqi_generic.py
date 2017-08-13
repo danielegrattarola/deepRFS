@@ -24,9 +24,9 @@ parser.add_argument('--ae-id', type=str, default='AE_SS')
 parser.add_argument('--nn-stack', action='store_true')
 args = parser.parse_args()
 
-initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
+initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
 
-mdp = Atari('BreakoutDeterministic-v3', clip_reward=True)
+mdp = Atari('BreakoutDeterministic-v4', clip_reward=True)
 
 
 if args.nn_stack:

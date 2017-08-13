@@ -39,7 +39,7 @@ class Atari(gym.Env):
         self.lives = 5
         return self.get_state()
 
-    def step(self, action, evaluation=False):
+    def step(self, action):
         current_state = self.get_state()
         obs, reward, done, info = self.env.step(int(action))
         reward = np.round(reward)

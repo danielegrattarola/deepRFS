@@ -28,7 +28,7 @@ parser.add_argument('-d', '--debug', action='store_true',
                     help='Run in debug mode')
 parser.add_argument('--save-video', action='store_true',
                     help='Save the gifs of the evaluation episodes')
-parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v3',
+parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v4',
                     help='Atari environment on which to run the algorithm')
 parser.add_argument('--farf-analysis', action='store_true',
                     help='Plot and save info about each FARF dataset generated '
@@ -90,7 +90,7 @@ random_greedy_split = args.initial_rg
 fqi_iter = 5 if args.debug else args.fqi_iter  # Number of FQI iterations
 fqi_patience = fqi_iter  # Number of FQI iterations w/o improvement after which to stop
 fqi_eval_period = args.fqi_eval_period  # Number of FQI iterations after which to evaluate
-initial_actions = [1, 4, 5]  # Initial actions for BreakoutDeterministic-v3
+initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
 
 # SETUP
 logger = Logger(output_folder='../output/',

@@ -55,9 +55,11 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
         action = int(action)
         # Repeat action
         temp_reward = 0
-        temp_done = False
+        temp_done = False  # Used to break out of repeat
         for _ in range(repeat):
+            lives = mdp.env.env.ale.lives()
             next_state, reward, done, info = mdp.step(action)
+            life_lost = (not lives == info['ale.lives'])
             temp_reward += reward
             temp_done = temp_done or done
             if temp_done:
@@ -66,7 +68,7 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
         done = temp_done
 
         # build SARS' tuple
-        ep_output.append([state, action, reward, next_state, done])
+        ep_output.append([state, action, reward, next_state, (done or life_lost)])
 
         # Render environment
         if video:
@@ -149,7 +151,7 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_episodes_pctg=0.0,
         return dataset
 
 
-def collect_sars_to_disk(mdp, policy, path, episodes, blocks, base_block=0,
+def collect_sars_to_disk(mdp, policy, path, samples, blocks, base_block=0,
                          n_jobs=1, random_episodes_pctg=0.0, debug=False,
                          initial_actions=None, shuffle=False, repeat=1,
                          batch_size=None):
@@ -163,7 +165,7 @@ def collect_sars_to_disk(mdp, policy, path, episodes, blocks, base_block=0,
                              debug=debug, initial_actions=initial_actions,
                              shuffle=shuffle, repeat=repeat)
     avg_episode_lenght = np.round(len(test_sars) / 10.).astype(float)
-    episodes_in_block = (episodes / avg_episode_lenght) / blocks
+    episodes_in_block = int((samples / avg_episode_lenght) / blocks)
 
     samples_in_dataset = 0
     for i in range(base_block, base_block + blocks):
