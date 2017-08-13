@@ -11,6 +11,7 @@ from operator import mul
 class Autoencoder:
     def __init__(self, input_shape, n_features=128, batch_size=32,
                  nb_epochs=10, dropout_prob=0.5, binarize=False,
+                 binarization_threshold=0.1,
                  class_weight=None, sample_weight=None, load_path=None,
                  logger=None, ckpt_file=None, use_contractive_loss=False,
                  use_vae=False, beta=1., use_dense=False):
@@ -21,6 +22,7 @@ class Autoencoder:
         self.nb_epochs = nb_epochs
         self.dropout_prob = dropout_prob
         self.binarize = binarize
+        self.binarization_threshold = binarization_threshold
         self.class_weight = class_weight
         self.sample_weight = sample_weight
         self.logger = logger
@@ -174,14 +176,14 @@ class Autoencoder:
         self.model.compile(optimizer=self.optimizer, loss=self.loss,
                            metrics=['accuracy'])
 
-    def preprocess_state(self, x, binarize=False):
+    def preprocess_state(self, x, binarize=False, binarization_threshold=0.1):
         if not x.shape[1:] == (4, 108, 84):
             x = x[:, :, 2:, :]
             assert x.shape[1:] == (4, 108, 84)
         x = np.asarray(x).astype('float32') / 255.  # To 0-1 range
         if binarize:
-            x[x < 0.1] = 0
-            x[x >= 0.1] = 1
+            x[x < binarization_threshold] = 0
+            x[x >= binarization_threshold] = 1
 
         return x
 
@@ -199,13 +201,13 @@ class Autoencoder:
                 etc.)
         """
         # Preprocess training data
-        x_train = self.preprocess_state(np.asarray(x), binarize=self.binarize)
-        y_train = self.preprocess_state(np.asarray(y), binarize=self.binarize)
+        x_train = self.preprocess_state(np.asarray(x), binarize=self.binarize, binarization_threshold=self.binarization_threshold)
+        y_train = self.preprocess_state(np.asarray(y), binarize=self.binarize, binarization_threshold=self.binarization_threshold)
 
         # Preprocess validation data
         if validation_data is not None:
-            val_x = self.preprocess_state(validation_data[0], binarize=self.binarize)
-            val_y = self.preprocess_state(validation_data[1], binarize=self.binarize)
+            val_x = self.preprocess_state(validation_data[0], binarize=self.binarize, binarization_threshold=self.binarization_threshold)
+            val_y = self.preprocess_state(validation_data[1], binarize=self.binarize, binarization_threshold=self.binarization_threshold)
             validation_data = (val_x, val_y)
 
         return self.model.fit(x_train, y_train,
@@ -219,8 +221,8 @@ class Autoencoder:
                       validation_data=None):
         # Preprocess validation data
         if validation_data is not None:
-            val_x = self.preprocess_state(validation_data[0], binarize=self.binarize)
-            val_y = self.preprocess_state(validation_data[1], binarize=self.binarize)
+            val_x = self.preprocess_state(validation_data[0], binarize=self.binarize, binarization_threshold=self.binarization_threshold)
+            val_y = self.preprocess_state(validation_data[1], binarize=self.binarize, binarization_threshold=self.binarization_threshold)
             validation_data = (val_x, val_y)
 
         return self.model.fit_generator(generator,
@@ -241,7 +243,7 @@ class Autoencoder:
             The predictions of the batch.
         """
         # Feed input to the model, return encoded and re-decoded images
-        x_test = self.preprocess_state(x, binarize=self.binarize)
+        x_test = self.preprocess_state(x, binarize=self.binarize, binarization_threshold=self.binarization_threshold)
         pred = self.model.predict(x_test)
 
         return pred
@@ -257,7 +259,7 @@ class Autoencoder:
             The encoded sample.
         """
         # Feed input to the model, return encoded images flattened
-        x = self.preprocess_state(x, binarize=self.binarize)
+        x = self.preprocess_state(x, binarize=self.binarize, binarization_threshold=self.binarization_threshold)
 
         if x.shape[0] == 1:
             # x is a singe sample

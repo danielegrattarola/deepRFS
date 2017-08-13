@@ -217,7 +217,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                      random_episodes_pctg=0.0,
                                      initial_actions=initial_actions,
                                      repeat=args.control_freq,
-                                     shuffle=True)
+                                     shuffle=False)
         else:
             tic('Loading test SARS from disk')
             test_sars = np.load(sars_path + '/valid_sars.npy')
@@ -235,6 +235,7 @@ for main_alg_iter in range(args.main_alg_iters):
                              batch_size=nn_batch_size,
                              nb_epochs=nn_nb_epochs,
                              binarize=args.binarize,
+                             binarization_threshold=0.35 if args.env == 'PongDeterministic-v4' else 0.1,
                              logger=logger,
                              ckpt_file='autoencoder_ckpt.h5',
                              use_vae=args.use_vae,
@@ -255,7 +256,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                               batch_size=nn_batch_size,
                                               binarize=args.binarize,
                                               weights=cw,
-                                              shuffle=True,  # Shuffle only when reading data from file
+                                              shuffle=True,
                                               clip=args.clip)
         ae.fit_generator(ss_generator,
                          samples_in_dataset / nn_batch_size,
@@ -407,7 +408,8 @@ for main_alg_iter in range(args.main_alg_iters):
                                            initial_actions=initial_actions,
                                            save_video=args.save_video,
                                            save_path=logger.path,
-                                           append_filename='fqi_iter_%03d' % partial_iter)
+                                           append_filename='fqi_iter_%03d' % partial_iter,
+                                           eval_epsilon=0.05)
             evaluation_results.append(partial_eval)
             log('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
             # Save fqi policy
@@ -428,5 +430,6 @@ for main_alg_iter in range(args.main_alg_iters):
                                  save_video=args.save_video,
                                  save_path=logger.path,
                                  append_filename='best',
-                                 initial_actions=initial_actions)
+                                 initial_actions=initial_actions,
+                                 eval_epsilon=0.05)
     toc(final_eval)
