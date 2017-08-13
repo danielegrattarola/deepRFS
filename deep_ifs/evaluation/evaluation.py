@@ -74,8 +74,7 @@ def _eval(mdp, policy, metric='cumulative', video=False, save_video=False,
 
     # Force start
     if initial_actions is not None:
-        state, _, _, info = mdp.step(np.random.choice(initial_actions),
-                                     evaluation=True)
+        state, _, _, info = mdp.step(np.random.choice(initial_actions))
         lives_count = info['ale.lives']
 
     if save_video:

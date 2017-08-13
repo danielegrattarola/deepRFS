@@ -199,7 +199,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                                   initial_actions=initial_actions,
                                                   repeat=args.control_freq,
                                                   batch_size=nn_batch_size,
-                                                  shuffle=True)
+                                                  shuffle=False)
     else:
         tic('Loading SARS dataset from disk')
         sars_path = args.load_sars
