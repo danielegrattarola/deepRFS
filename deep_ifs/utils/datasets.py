@@ -1,13 +1,10 @@
 import glob
 import os
-
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
-
 from deep_ifs.utils.helpers import flat2list, pds_to_npa
-from deep_ifs.utils.timer import log
 
 
 # DATASET BUILDERS
@@ -236,31 +233,6 @@ def sar_generator_from_disk(path, model, batch_size=32, binarize=False, shuffle=
                     yield ([S, A], R)
 
 
-def build_f_from_disk(nn, path, use_ss=False, shuffle=False):
-    """
-    Builds F dataset using SARS' dataset:
-        F = NN[i].features(S)
-    """
-    if not path.endswith('/'):
-        path += '/'
-    files = glob.glob(path + 'sars_*.npy')
-    print 'Got %s files' % len(files)
-
-    state_idx = 3 if use_ss else 0
-
-    for idx, f in enumerate(files):
-        sars = np.load(f)
-        if shuffle:
-            np.random.shuffle(sars)
-        if idx == 0:
-            F = nn.all_features(pds_to_npa(sars[:, state_idx]))
-        else:
-            new_F = nn.all_features(pds_to_npa(sars[:, state_idx]))
-            F = np.append(F, new_F, axis=0)
-
-    return F
-
-
 def build_far_from_disk(nn, path, use_ss=False, shuffle=False):
     if not path.endswith('/'):
         path += '/'
@@ -353,7 +325,7 @@ def build_fa_from_disk(nn_stack, nn, path, shuffle=False):
     return FA
 
 
-def build_r(path, shuffle=False):
+def build_r_from_disk(path, shuffle=False):
     if not path.endswith('/'):
         path += '/'
     files = glob.glob(path + 'sars_*.npy')

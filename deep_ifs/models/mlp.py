@@ -18,7 +18,7 @@ class MLP:
         self.model.add(Dense(output_size, activation=output_activation))
         self.model.compile(optimizer=optimizer, loss=loss)
 
-    def fit(self, X, Y, epochs=10, patience=2, validation_data=None, validation_split=None):
+    def fit(self, X, Y, epochs=10, patience=2, validation_data=None, validation_split=None, **kwargs):
         if validation_data is not None:
             es = EarlyStopping(patience=patience)
         else:
@@ -27,10 +27,11 @@ class MLP:
                               epochs=epochs,
                               callbacks=[es],
                               validation_data=validation_data,
-                              validation_split=validation_split)
+                              validation_split=validation_split,
+                              **kwargs)
 
-    def predict(self, X):
-        return self.model.predict(X)
+    def predict(self, X, **kwargs):
+        return self.model.predict(X, **kwargs)
 
     def score(self, X, Y, multioutput='uniform_average'):
         return r2_score(Y, self.model.predict(X), multioutput=multioutput)

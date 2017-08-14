@@ -1,7 +1,6 @@
 from joblib import Parallel, delayed
 import numpy as np
 import imageio, time
-from deep_ifs.utils.helpers import is_stuck
 
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,

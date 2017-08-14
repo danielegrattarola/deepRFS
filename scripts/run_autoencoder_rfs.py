@@ -91,21 +91,22 @@ parser.add_argument('--load-FARF', type=str, default=None, help='Load the F, A, 
 args = parser.parse_args()
 
 # Parameters
-# Main
-epsilon = 1
-epsilon_min = 0.1
-epsilon_step = (epsilon - epsilon_min) / args.main_alg_iters
+# Env
+initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
 
 # AE
 nn_nb_epochs = 5 if args.debug else args.ae_epochs  # Number of training epochs for NNs
 nn_batch_size = 6 if args.debug else 32  # Number of samples in a batch for AE (len(sars) will be multiple of this number)
+nn_binarization_threshold = 0.35 if args.env == 'PongDeterministic-v4' else 0.1
 
 # RFS
 ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
 
 # FQI
-initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
+epsilon = 1
+epsilon_min = 0.1
+epsilon_step = (epsilon - epsilon_min) / args.main_alg_iters
 
 # Run setup
 rn_list = []
@@ -122,17 +123,12 @@ rn_list.append('%Y%m%d-%H%M%S')
 custom_run_name = '_'.join(rn_list)
 logger = Logger(output_folder='../output/', custom_run_name=custom_run_name)
 setup_logging(logger.path + 'log.txt')
-log('LOCALS')
-loc = locals().copy()
-log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
-               if not str(v).startswith('<')]) + '\n')
 
 # Environment
 mdp = Atari(args.env, clip_reward=args.clip)
 action_values = mdp.action_space.values
 
 # Autoencoder (this one will be used as FE, but never trained)
-target_size = 1  # Target is the scalar reward
 ae = Autoencoder((4, 108, 84),
                  n_features=args.n_features,
                  batch_size=nn_batch_size,
@@ -146,18 +142,18 @@ ae = Autoencoder((4, 108, 84),
                  dropout_prob=args.dropout)
 ae.model.summary()
 if args.load_ae is None:
-    support = np.array([True] * ae.get_features_number())
+    support = np.array([True] * ae.get_features_number())  # Keep all features
 else:
     ae.load(args.load_ae)
     if args.load_ae_support is not None:
-        support = joblib.load(args.load_ae_support)
+        support = joblib.load(args.load_ae_support)  # Load support from previous training
     else:
-        support = np.array([True] * ae.get_features_number())
+        support = np.array([True] * ae.get_features_number())  # Keep all features
 ae.set_support(support)
 
 # Create EpsilonFQI
 if args.load_fqi is None:
-    # Don't care, will only be used fully random
+    # Don't care, will only be used as fully random policy and never trained
     fqi_regressor_params = {'n_jobs': -1}
     fqi_regressor_class = LinearRegression
     regressor = Regressor(regressor_class=fqi_regressor_class,
@@ -169,12 +165,13 @@ if args.load_fqi is None:
                   'gamma': mdp.gamma,
                   'horizon': args.fqi_iter,
                   'verbose': True}
-    policy = EpsilonFQI(fqi_params, ae, epsilon=epsilon)  # Set policy to fully random
+    policy = EpsilonFQI(fqi_params, ae, epsilon=epsilon)  # Here epsilon = 1
 else:
     fqi_params = args.load_fqi
     policy = EpsilonFQI(fqi_params, ae)
-    # Evaluate policy after loading
+
     if args.fqi_test_after_loading:
+        # Evaluate policy after loading
         partial_eval = evaluate_policy(mdp,
                                        policy,
                                        n_episodes=5,
@@ -184,11 +181,17 @@ else:
                                        append_filename='fqi_test_after_loading',
                                        eval_epsilon=0.05)
 
+# Log locals
+log('LOCALS')
+loc = locals().copy()
+log('\n'.join(['%s, %s' % (k, v) for k, v in loc.iteritems()
+               if not str(v).startswith('<')]) + '\n')
+
 log('######## START ########')
 for main_alg_iter in range(args.main_alg_iters):
     if args.load_sars is None or main_alg_iter > 0:
         tic('Collecting SARS dataset')
-        sars_path = logger.path + 'sars/'
+        sars_path = logger.path + 'sars_%s/' % main_alg_iter
         samples_in_dataset = collect_sars_to_disk(mdp,
                                                   policy,
                                                   sars_path,
@@ -235,7 +238,7 @@ for main_alg_iter in range(args.main_alg_iters):
                              batch_size=nn_batch_size,
                              nb_epochs=nn_nb_epochs,
                              binarize=args.binarize,
-                             binarization_threshold=0.35 if args.env == 'PongDeterministic-v4' else 0.1,
+                             binarization_threshold=nn_binarization_threshold,
                              logger=logger,
                              ckpt_file='autoencoder_ckpt.h5',
                              use_vae=args.use_vae,
@@ -282,9 +285,7 @@ for main_alg_iter in range(args.main_alg_iters):
         if args.clip:
             R = np.clip(R, -1, 1)
 
-        # Print the number of nonzero features
-        toc('Number of non-zero feature: %s' % np.count_nonzero(
-            np.mean(F[:-1], axis=0)))
+        toc('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
 
         if args.rfs:
             tic('Running RFS')
@@ -348,6 +349,7 @@ for main_alg_iter in range(args.main_alg_iters):
 
     if args.clip:
         r = np.clip(r, -1, 1)
+
     toc('Got %s samples' % len(faft))
 
     log('Creating policy')

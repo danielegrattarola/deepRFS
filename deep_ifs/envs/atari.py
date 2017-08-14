@@ -14,7 +14,7 @@ class Atari(gym.Env):
         'video.frames_per_second': 15
     }
 
-    def __init__(self, name='PongDeterministic-v3', clip_reward=False):
+    def __init__(self, name='PongDeterministic-v4', clip_reward=False):
         self.IMG_SIZE = (84, 110)
         self.state_shape = (4, 110, 84)
         self.gamma = 0.99
@@ -27,8 +27,6 @@ class Atari(gym.Env):
         self.clip_reward = clip_reward
         self.final_reward = -1.0 / (1.0 - self.gamma)
 
-        self.lives = 5
-
         # initialize state
         self.seed()
         self.reset()
@@ -36,7 +34,7 @@ class Atari(gym.Env):
     def reset(self, state=None):
         state = self._preprocess_observation(self.env.reset())
         self.env.state = np.array([state, state, state, state])
-        self.lives = 5
+        self.lives = self.env.env.ale.lives()
         return self.get_state()
 
     def step(self, action):

@@ -9,6 +9,9 @@ class GenericPolicy:
         self.epsilon = epsilon
         self.action_values = action_values
 
+    def fit(self, X, Y, **kwargs):
+        self.q_model.fit(X, Y, **kwargs)
+
     def draw_action(self, state, absorbing, evaluation=False):
         """
         Draws an action from the action space using the epsilon-greedy policy.
@@ -36,3 +39,5 @@ class GenericPolicy:
     def set_epsilon(self, epsilon):
         self.epsilon = epsilon
 
+    def get_epsilon(self):
+        return self.epsilon
