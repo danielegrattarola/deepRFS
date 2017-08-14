@@ -182,7 +182,7 @@ else:
                                        save_video=args.save_video,
                                        save_path=logger.path,
                                        append_filename='fqi_test_after_loading',
-                                       fully_deterministic=True)
+                                       eval_epsilon=0.05)
 
 log('######## START ########')
 for main_alg_iter in range(args.main_alg_iters):
