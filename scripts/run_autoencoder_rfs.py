@@ -134,6 +134,7 @@ ae = Autoencoder((4, 108, 84),
                  batch_size=nn_batch_size,
                  nb_epochs=nn_nb_epochs,
                  binarize=args.binarize,
+                 binarization_threshold=nn_binarization_threshold,
                  logger=logger,
                  ckpt_file='autoencoder_ckpt.h5',
                  use_vae=args.use_vae,
@@ -221,6 +222,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                      initial_actions=initial_actions,
                                      repeat=args.control_freq,
                                      shuffle=False)
+            np.save(test_sars, sars_path + 'valid_sars.npy')
         else:
             tic('Loading test SARS from disk')
             test_sars = np.load(sars_path + '/valid_sars.npy')

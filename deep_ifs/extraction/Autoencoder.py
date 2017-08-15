@@ -217,8 +217,7 @@ class Autoencoder:
                               validation_data=validation_data,
                               callbacks=[self.es, self.mc])
 
-    def fit_generator(self, generator, steps_per_epoch, nb_epochs,
-                      validation_data=None):
+    def fit_generator(self, generator, steps_per_epoch, nb_epochs, validation_data=None):
         # Preprocess validation data
         if validation_data is not None:
             val_x = self.preprocess_state(validation_data[0], binarize=self.binarize, binarization_threshold=self.binarization_threshold)
