@@ -258,6 +258,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                               ae,
                                               batch_size=nn_batch_size,
                                               binarize=args.binarize,
+                                              binarization_threshold=nn_binarization_threshold,
                                               weights=cw,
                                               shuffle=True,
                                               clip=args.clip)

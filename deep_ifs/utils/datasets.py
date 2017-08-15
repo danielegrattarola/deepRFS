@@ -529,6 +529,7 @@ def get_class_weight_from_disk(path, clip=False):
 
 
 def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
+                           binarization_threshold=0.1,
                            weights=None, shuffle=False, clip=False):
     if not path.endswith('/'):
         path += '/'
@@ -566,7 +567,7 @@ def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
                 # SS = pds_to_npa(sars[start:stop, 3])
 
                 # Preprocess data
-                S = model.preprocess_state(S, binarize=binarize)
+                S = model.preprocess_state(S, binarize=binarize, binarization_threshold=binarization_threshold)
                 # SS = model.preprocess_state(SS, binarize=binarize)
 
                 if weights is not None:
