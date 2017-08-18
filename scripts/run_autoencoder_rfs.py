@@ -222,7 +222,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                      initial_actions=initial_actions,
                                      repeat=args.control_freq,
                                      shuffle=False)
-            np.save(test_sars, sars_path + 'valid_sars.npy')
+            np.save(sars_path + 'valid_sars.npy', test_sars)
         else:
             tic('Loading test SARS from disk')
             test_sars = np.load(sars_path + '/valid_sars.npy')
