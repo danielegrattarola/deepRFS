@@ -6,7 +6,7 @@ import imageio, time
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     video=False, save_video=False,
                     save_path='', append_filename='', n_jobs=1,
-                    initial_actions=None, eval_epsilon=0.05):
+                    initial_actions=None, eval_epsilon=0.05, clip=False):
     """
         This function evaluates a policy on the given environment w.r.t.
         the specified metric by executing multiple episode, using the
@@ -44,6 +44,9 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
     old_epsilon = policy.get_epsilon()
     policy.set_epsilon(eval_epsilon)
+    old_clip = mdp.clip_reward
+    mdp.clip_reward = clip
+
     out = Parallel(n_jobs=n_jobs)(
         delayed(_eval)(
             mdp, policy, metric=metric, video=video,
@@ -53,7 +56,9 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
         )
         for eid in range(n_episodes)
     )
+
     policy.set_epsilon(old_epsilon)
+    mdp.clip_reward = old_clip
 
     values, steps = np.array(zip(*out))
     return values.mean(), values.max(), 2 * values.std() / np.sqrt(n_episodes), \

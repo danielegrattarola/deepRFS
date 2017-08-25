@@ -25,7 +25,6 @@ class Atari(gym.Env):
         self.observation_space = self.env.observation_space
 
         self.clip_reward = clip_reward
-        self.final_reward = -1.0 / (1.0 - self.gamma)
 
         # initialize state
         self.seed()

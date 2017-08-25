@@ -50,6 +50,7 @@ parser.add_argument('--main-alg-iters', type=int, default=1, help='Number of mai
 # MDP
 parser.add_argument('-e', '--env', type=str, default='BreakoutDeterministic-v4', help='Atari environment on which to run the algorithm')
 parser.add_argument('--clip', action='store_true', help='Clip reward of MDP')
+parser.add_argument('--clip-eval', action='store_true', help='Clip reward of MDP during evaluation')
 
 # AE
 parser.add_argument('--load-ae', type=str, default=None, help='Path to h5 weights file to load into AE')
@@ -180,7 +181,8 @@ else:
                                        save_video=args.save_video,
                                        save_path=logger.path,
                                        append_filename='fqi_test_after_loading',
-                                       eval_epsilon=0.05)
+                                       eval_epsilon=0.05,
+                                       clip=args.clip_eval)
 
 # Log locals
 log('LOCALS')
@@ -414,7 +416,8 @@ for main_alg_iter in range(args.main_alg_iters):
                                            save_video=args.save_video,
                                            save_path=logger.path,
                                            append_filename='fqi_iter_%03d' % partial_iter,
-                                           eval_epsilon=0.05)
+                                           eval_epsilon=0.05,
+                                           clip=args.clip_eval)
             evaluation_results.append(partial_eval)
             log('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
             # Save fqi policy
@@ -436,5 +439,6 @@ for main_alg_iter in range(args.main_alg_iters):
                                  save_path=logger.path,
                                  append_filename='best',
                                  initial_actions=initial_actions,
-                                 eval_epsilon=0.05)
+                                 eval_epsilon=0.05,
+                                 clip=args.clip_eval)
     toc(final_eval)
