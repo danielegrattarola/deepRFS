@@ -23,23 +23,23 @@ from ifqi.models import Regressor, ActionRegressor
 from sklearn.neural_network import MLPRegressor
 
 
-def final_output():
+def plot_output():
     # Writes evaluation results to csv and saves plots
-    global evaluation_results
+    global evaluation_results, main_alg_iter
     output = pd.DataFrame(evaluation_results,
                           columns=['score', 'score_max', 'confidence_score',
                                    'steps', 'steps_max', 'confidence_steps'])
     output.to_csv(logger.path + 'evaluation.csv', index=False)
     fig = output['score'].plot().get_figure()
-    fig.savefig(logger.path + 'evaluation_score.png')
+    fig.savefig(logger.path + 'evaluation_score_%s.png' % main_alg_iter)
     fig = output['score_max'].plot().get_figure()
-    fig.savefig(logger.path + 'evaluation_score_max.png')
+    fig.savefig(logger.path + 'evaluation_score_max_%s.png' % main_alg_iter)
     fig = output['steps'].plot().get_figure()
-    fig.savefig(logger.path + 'evaluation_steps.png')
+    fig.savefig(logger.path + 'evaluation_steps_%s.png' % main_alg_iter)
     fig = output['steps_max'].plot().get_figure()
-    fig.savefig(logger.path + 'evaluation_steps_max.png')
+    fig.savefig(logger.path + 'evaluation_steps_max_%s.png' % main_alg_iter)
 
-atexit.register(final_output)
+atexit.register(plot_output)
 
 # Args
 # Main
@@ -420,6 +420,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                            clip=args.clip_eval)
             evaluation_results.append(partial_eval)
             log('Iter %s: %s' % (partial_iter, evaluation_results[-1]))
+            plot_output()
             # Save fqi policy
             if partial_eval[0] > fqi_best[0]:
                 log('Saving best policy\n')
