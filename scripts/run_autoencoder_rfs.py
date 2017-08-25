@@ -183,6 +183,7 @@ else:
                                        append_filename='fqi_test_after_loading',
                                        eval_epsilon=0.05,
                                        clip=args.clip_eval)
+        log('Testing FQI after loading: %s' % str(partial_eval))
 
 # Log locals
 log('LOCALS')
