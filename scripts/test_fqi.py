@@ -38,7 +38,7 @@ args = parser.parse_args()
 initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
 
 # AE
-nn_nb_epochs = 5 if args.debug else args.ae_epochs  # Number of training epochs for NNs
+nn_nb_epochs = 5 if args.debug else 100  # Number of training epochs for NNs
 nn_batch_size = 6 if args.debug else 32  # Number of samples in a batch for AE (len(sars) will be multiple of this number)
 nn_binarization_threshold = 0.35 if args.env == 'PongDeterministic-v4' else 0.1
 
