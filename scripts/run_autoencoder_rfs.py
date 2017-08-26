@@ -71,6 +71,7 @@ parser.add_argument('--rfs', action='store_true', help='Use RFS to select featur
 
 # FQI
 parser.add_argument('--load-fqi', type=str, default=None, help='Path to fqi file to load into policy')
+parser.add_argument('--fqi-initial-epsilon', type=float, default=1, help='Initial exploration rate for FQI')
 parser.add_argument('--fqi-load-faft', type=str, help='Load FAFT, R and action values for FQI from file')
 parser.add_argument('--fqi-model-type', type=str, default='extra', help='Type of model to use for fqi (\'linear\', \'ridge\', \'extra\', \'xgb\')')
 parser.add_argument('--fqi-no-ar', action='store_true', help='Do not use ActionRegressor')
@@ -105,7 +106,7 @@ ifs_nb_trees = 50  # Number of trees to use in IFS
 ifs_significance = 1  # Significance for IFS
 
 # FQI
-epsilon = 1
+epsilon = args.fqi_initial_epsilon
 epsilon_min = 0.1
 epsilon_step = (epsilon - epsilon_min) / args.main_alg_iters
 
@@ -167,10 +168,10 @@ if args.load_fqi is None:
                   'gamma': mdp.gamma,
                   'horizon': args.fqi_iter,
                   'verbose': True}
-    policy = EpsilonFQI(fqi_params, ae, epsilon=epsilon)  # Here epsilon = 1
+    policy = EpsilonFQI(fqi_params, ae, epsilon=epsilon)  # Here epsilon = initial epsilon
 else:
     fqi_params = args.load_fqi
-    policy = EpsilonFQI(fqi_params, ae)
+    policy = EpsilonFQI(fqi_params, ae, epsilon=epsilon)
 
     if args.fqi_test_after_loading:
         # Evaluate policy after loading
