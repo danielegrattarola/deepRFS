@@ -26,6 +26,7 @@ parser.add_argument('--use-sw', action='store_true', help='Use sample weights wh
 parser.add_argument('--use-vae', action='store_true', help='Use VAE instead of usual AE')
 parser.add_argument('--vae-beta', type=float, default=1., help='Beta hyperparameter for Beta-VAE')
 parser.add_argument('--use-dense', action='store_true', help='Use AE with dense inner layer instead of usual AE')
+parser.add_argument('--dropout', type=float, default=0., help='Dropout rate for dense AE')
 parser.add_argument('--n-features', type=int, default=128, help='Number of features for contractive, dense and VAE')
 
 # FQI
