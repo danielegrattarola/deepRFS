@@ -74,11 +74,11 @@ ae.set_support(support)
 fqi_params = args.load_fqi
 policy = EpsilonFQI(fqi_params, ae)
 
-tic('Evaluation (%s episodes)' % args.testing_episodes)
+tic('Evaluation (%s episodes)' % args.eval_episodes)
 # Evaluate policy after loading
 partial_eval = evaluate_policy(mdp,
                                policy,
-                               n_episodes=args.testing_episodes,
+                               n_episodes=args.eval_episodes,
                                initial_actions=initial_actions,
                                save_video=args.save_video,
                                save_path=logger.path,
