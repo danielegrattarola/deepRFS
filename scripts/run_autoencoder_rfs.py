@@ -214,7 +214,7 @@ for main_alg_iter in range(args.main_alg_iters):
         samples_in_dataset = get_nb_samples_from_disk(sars_path)
     toc('Got %s SARS\' samples' % samples_in_dataset)
 
-    if args.train_ae:
+    if args.train_ae or main_alg_iter > 0:
         # Collect test dataset
         if args.load_sars is None:
             tic('Collecting test SARS dataset')
