@@ -90,6 +90,7 @@ parser.add_argument('--load-sars', type=str, default=None, help='Path to dataset
 parser.add_argument('--sars-samples', type=int, default=500000, help='Number of SARS samples to collect')
 parser.add_argument('--sars-blocks', type=int, default=25, help='Number of SARS episodes to collect to disk')
 parser.add_argument('--sars-test-episodes', type=int, default=100, help='Number of SARS test episodes to collect')
+parser.add_argument('--force-valid-sars', action='store_true', help='Force the collection of a validation SARS')
 parser.add_argument('--control-freq', type=int, default=1, help='Control refrequency (1 action every n steps)')
 parser.add_argument('--save-FARF', action='store_true', help='Save the F, A, R, FF arrays')
 parser.add_argument('--load-FARF', type=str, default=None, help='Load the F, A, R, FF arrays')
@@ -220,7 +221,7 @@ for main_alg_iter in range(args.main_alg_iters):
 
     if args.train_ae or main_alg_iter > 0:
         # Collect test dataset
-        if args.load_sars is None:
+        if args.load_sars is None or args.force_valid_sars:
             tic('Collecting test SARS dataset')
             test_sars = collect_sars(mdp,
                                      policy,
@@ -233,7 +234,7 @@ for main_alg_iter in range(args.main_alg_iters):
             np.save(sars_path + 'valid_sars.npy', test_sars)
         else:
             tic('Loading test SARS from disk')
-            test_sars = np.load(sars_path + '/valid_sars.npy')
+            test_sars = np.load(sars_path + 'valid_sars.npy')
 
         test_S = pds_to_npa(test_sars[:, 0])
         toc('Got %s test SARS\' samples' % len(test_sars))
