@@ -29,15 +29,19 @@ def plot_output():
     output = pd.DataFrame(evaluation_results,
                           columns=['score', 'score_max', 'confidence_score',
                                    'steps', 'steps_max', 'confidence_steps'])
-    output.to_csv(logger.path + 'evaluation.csv', index=False)
+    output.to_csv(logger.path + 'evaluation_%s.csv' % main_alg_iter, index=False)
     fig = output['score'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_score_%s.png' % main_alg_iter)
+    plt.close()
     fig = output['score_max'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_score_max_%s.png' % main_alg_iter)
+    plt.close()
     fig = output['steps'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_steps_%s.png' % main_alg_iter)
+    plt.close()
     fig = output['steps_max'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_steps_max_%s.png' % main_alg_iter)
+    plt.close()
 
 atexit.register(plot_output)
 
@@ -344,7 +348,7 @@ for main_alg_iter in range(args.main_alg_iters):
         faft, r, action_values = build_faft_r_from_disk(ae, sars_path, shuffle=True)
         # Save dataset
         log('Saving dataset')
-        joblib.dump((faft, r, action_values), logger.path + 'FQI_FAFT_R_action_values.pkl')
+        joblib.dump((faft, r, action_values), logger.path + 'FQI_FAFT_R_action_values_%s.pkl' % main_alg_iter)
     else:
         tic('Loading dataset for FQI')
         faft, r, action_values = joblib.load(args.fqi_load_faft)
@@ -417,7 +421,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                            initial_actions=initial_actions,
                                            save_video=args.save_video,
                                            save_path=logger.path,
-                                           append_filename='fqi_iter_%03d' % partial_iter,
+                                           append_filename='fqi_iter_%s_%03d' % (main_alg_iter, partial_iter),
                                            eval_epsilon=0.05,
                                            clip=args.clip_eval)
             evaluation_results.append(partial_eval)
@@ -427,11 +431,10 @@ for main_alg_iter in range(args.main_alg_iters):
             if partial_eval[0] > fqi_best[0]:
                 log('Saving best policy\n')
                 fqi_best = partial_eval
-                policy.save_fqi(logger.path + 'fqi_iter_%03d_score_%s.pkl' %
-                                (partial_iter, int(evaluation_results[-1][0])))
+                policy.save_fqi(logger.path + 'best_fqi_score_%s_%s.pkl' % (main_alg_iter, round(fqi_best[0])))
 
     # Restore best policy
-    policy.load_fqi(logger.path + 'best_fqi_score_%s.pkl' % round(fqi_best[0]))
+    policy.load_fqi(logger.path + 'best_fqi_score_%s_%s.pkl' % (main_alg_iter, round(fqi_best[0])))
 
     # Final evaluation
     tic('Evaluating best policy after update')
@@ -440,7 +443,7 @@ for main_alg_iter in range(args.main_alg_iters):
                                  n_episodes=args.fqi_eval_episodes,
                                  save_video=args.save_video,
                                  save_path=logger.path,
-                                 append_filename='best',
+                                 append_filename='best_%s' % main_alg_iter,
                                  initial_actions=initial_actions,
                                  eval_epsilon=0.05,
                                  clip=args.clip_eval)
