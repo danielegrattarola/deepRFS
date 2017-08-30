@@ -242,7 +242,7 @@ for main_alg_iter in range(args.main_alg_iters):
         log('Memory usage (test_sars, test_S): %s MB\n' %
             get_size([test_sars, test_S, ae], 'MB'))
 
-        if args.load_ae is not None:
+        if args.load_ae is not None or main_alg_iter > 0:
             # Reset AE after collecting samples with old AE
             ae = Autoencoder((4, 108, 84),
                              n_features=args.n_features,
