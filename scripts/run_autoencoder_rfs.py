@@ -113,7 +113,7 @@ ifs_significance = 1  # Significance for IFS
 # FQI
 epsilon = args.fqi_initial_epsilon
 epsilon_min = 0.1
-epsilon_step = (epsilon - epsilon_min) / args.main_alg_iters
+epsilon_step = (epsilon - epsilon_min) / (args.main_alg_iters - 1)
 
 # Run setup
 rn_list = []
