@@ -251,7 +251,7 @@ for main_alg_iter in range(args.main_alg_iters):
                              binarize=args.binarize,
                              binarization_threshold=nn_binarization_threshold,
                              logger=logger,
-                             ckpt_file='autoencoder_ckpt.h5',
+                             ckpt_file='autoencoder_ckpt_%s.h5' % main_alg_iter,
                              use_vae=args.use_vae,
                              beta=args.vae_beta,
                              use_dense=args.use_dense,
@@ -277,7 +277,7 @@ for main_alg_iter in range(args.main_alg_iters):
                          samples_in_dataset / nn_batch_size,
                          nn_nb_epochs,
                          validation_data=(test_S, test_S))
-        ae.load(logger.path + 'autoencoder_ckpt.h5')
+        ae.load(logger.path + 'autoencoder_ckpt_%s.h5' % main_alg_iter)
 
         del test_sars, test_S
         gc.collect()
@@ -289,7 +289,7 @@ for main_alg_iter in range(args.main_alg_iters):
             tic('Building FARF dataset for FS')
             F, A, R, FF = build_farf_from_disk(ae, sars_path, shuffle=True)
             if args.save_FARF:
-                joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F.pkl')
+                joblib.dump((F, A, R, FF), logger.path + 'RFS_F_A_R_F_%s.pkl' % main_alg_iter)
         else:
             tic('Loading FARF dataset for FS from %s' % args.load_FARF)
             F, A, R, FF = joblib.load(args.load_FARF)
@@ -327,7 +327,7 @@ for main_alg_iter in range(args.main_alg_iters):
             log('Action was%s selected' % ('' if got_action else ' NOT'))
 
             # Save RFS tree
-            tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree.gv')
+            tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree_%s.gv' % main_alg_iter)
             tree.save()  # Save GV source
             tree.format = 'pdf'
             tree.render()  # Save PDF
@@ -341,7 +341,7 @@ for main_alg_iter in range(args.main_alg_iters):
             toc('Using %s features' % support.sum())
 
         ae.set_support(support)
-        joblib.dump(support, logger.path + 'support.pkl')  # Save support
+        joblib.dump(support, logger.path + 'support_%s.pkl' % main_alg_iter)  # Save support
 
     # Build dataset for FQI
     if args.fqi_load_faft is None:
