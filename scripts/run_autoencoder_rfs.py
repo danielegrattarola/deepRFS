@@ -298,8 +298,15 @@ for main_alg_iter in range(args.main_alg_iters):
             R = np.clip(R, -1, 1)
 
         toc('Number of non-zero feature: %s' % np.count_nonzero(np.mean(F[:-1], axis=0)))
+        tic('Keeping NZV features')
+        support = np.var(F, axis=0) != 0  # Keep only features with nonzero variance
+        toc('Using %s features' % support.sum())
 
         if args.rfs:
+            log('Filtering out ZV features')
+            F = F[:, support]
+            FF = FF[:, support]
+
             tic('Running RFS')
             ifs_estimator_params = {'n_estimators': ifs_nb_trees,
                                     'n_jobs': -1}
@@ -318,13 +325,18 @@ for main_alg_iter in range(args.main_alg_iters):
             rfs.fit(F, A, FF, R)
 
             # Process support
-            support = rfs.get_support()
-            got_action = support[-1]  # Action is the last feature
-            support = np.array(support[:-1])  # Remove action from support
-            nb_new_features = support.sum()
-            log('Features: %s' % support.nonzero())
+            support_rfs = rfs.get_support()
+            got_action = support_rfs[-1]  # Action is the last feature
+            support_rfs = np.array(support_rfs[:-1])  # Remove action from support
+            nb_new_features = support_rfs.sum()
+            log('Features: %s' % support_rfs.nonzero())
             log('Using %s features' % nb_new_features)
             log('Action was%s selected' % ('' if got_action else ' NOT'))
+
+            # Map support back to original feature space
+            support_final = np.array([False] * len(support))
+            support_final[np.argwhere(support).reshape(-1)[support_rfs]] = True
+            support = support_final
 
             # Save RFS tree
             tree = rfs.export_graphviz(filename=logger.path + 'rfs_tree_%s.gv' % main_alg_iter)
@@ -335,10 +347,6 @@ for main_alg_iter in range(args.main_alg_iters):
             del F, A, FF, R
             gc.collect()
             toc()
-        else:
-            tic('Keeping non-zero variance features')
-            support = np.var(F, axis=0) != 0  # Keep only features with nonzero variance
-            toc('Using %s features' % support.sum())
 
         ae.set_support(support)
         joblib.dump(support, logger.path + 'support_%s.pkl' % main_alg_iter)  # Save support
