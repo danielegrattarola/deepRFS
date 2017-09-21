@@ -93,7 +93,7 @@ class Autoencoder:
 
         if (self.n_features != 16 * 8 * 5) and (self.use_vae or self.use_dense or self.use_contractive_loss):
             # This layer is used before the decoder to bring the number of activations back to 640
-            self.pre_decoder = Dense(16 * 8 * 5)(self.features)
+            self.pre_decoder = Dense(16 * 8 * 5, activation='relu')(self.features)
         else:
             self.pre_decoder = self.features
 

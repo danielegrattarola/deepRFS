@@ -99,11 +99,11 @@ args = parser.parse_args()
 
 # Parameters
 # Env
-initial_actions = [1]  # Initial actions for BreakoutDeterministic-v4
+initial_actions = [1]  # Initial actions
 
 # AE
-nn_nb_epochs = 5 if args.debug else args.ae_epochs  # Number of training epochs for NNs
-nn_batch_size = 6 if args.debug else 32  # Number of samples in a batch for AE (len(sars) will be multiple of this number)
+nn_nb_epochs = 5 if args.debug else args.ae_epochs  # Number of training epochs for AE
+nn_batch_size = 6 if args.debug else 32  # Number of samples in a batch for AE
 nn_binarization_threshold = 0.35 if args.env == 'PongDeterministic-v4' else 0.1
 
 # RFS
@@ -126,7 +126,7 @@ if args.fs:
         rn_list.append('rfs')
     else:
         rn_list.append('nzv')
-rn_list.append('%Y%m%d-%H%M%S')
+rn_list.append('%Y-%m-%d_%H-%M-%S')
 custom_run_name = '_'.join(rn_list)
 logger = Logger(output_folder='../output/', custom_run_name=custom_run_name)
 setup_logging(logger.path + 'log.txt')
