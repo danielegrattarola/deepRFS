@@ -2,7 +2,7 @@ from keras.models import Model
 from keras.layers import *
 from keras.optimizers import *
 from keras.metrics import binary_crossentropy
-from keras.regularizers import l2
+from keras.regularizers import l1
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 import numpy as np
 from operator import mul
@@ -87,7 +87,7 @@ class Autoencoder:
             self.features = Lambda(sample_z,
                                    name='features')([self.z_mean, self.z_log_var])
         elif self.use_dense:
-            self.features = Dense(self.n_features, activation='relu')(self.features)
+            self.features = Dense(self.n_features, activation='relu', activity_regularizer=l1(1e-05))(self.features)
             self.features = Dropout(self.dropout_prob,
                                     name='features')(self.features)
 
