@@ -60,7 +60,7 @@ the AE, the feature selection, and FQI.
 To run the algorithm exactly as desccribed in the thesis, run the
 following command:
 ```sh
-py run_main.py \
+$ python run_main.py \
     --main-alg-iters 10 \
     --train-ae \
     --binarize \
