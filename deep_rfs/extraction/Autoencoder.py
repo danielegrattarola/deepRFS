@@ -1,11 +1,11 @@
-from keras.models import Model
-from keras.layers import *
-from keras.optimizers import *
-from keras.metrics import binary_crossentropy
-from keras.regularizers import l1
-from keras.callbacks import EarlyStopping, ModelCheckpoint
-import numpy as np
 from operator import mul
+
+from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.layers import *
+from keras.metrics import binary_crossentropy
+from keras.models import Model
+from keras.optimizers import *
+from keras.regularizers import l1
 
 
 class Autoencoder:
@@ -15,6 +15,24 @@ class Autoencoder:
                  class_weight=None, sample_weight=None, load_path=None,
                  logger=None, ckpt_file=None, use_contractive_loss=False,
                  use_vae=False, beta=1., use_dense=False):
+        """
+        :param input_shape: input shape for the Keras model 
+        :param n_features: number of features in the innermost layer
+        :param batch_size: number of samples in a batch
+        :param nb_epochs: number of epochs to train for
+        :param dropout_prob: dropout probability for the dense layer (requires to set use_dense)
+        :param binarize: whether to convert the input space to binary
+        :param binarization_threshold: threshold to define binarization from greyscale
+        :param class_weight: class weights for training the model
+        :param sample_weight: sample weights for training the model
+        :param load_path: path to file with saved weights
+        :param logger: Logger instance for logging
+        :param ckpt_file: file to save the model to
+        :param use_contractive_loss: whether to use a contractive loss during training (i.e. make it a contractive AE)
+        :param use_vae: whether to make the AE a VAE
+        :param beta: beta parameter for beta-VAE setting
+        :param use_dense: whether to use an inner dense layer
+        """
         self.input_shape = input_shape
         self.input_dim_full = reduce(mul, input_shape)
         self.n_features = n_features
@@ -169,7 +187,6 @@ class Autoencoder:
                 return K.mean(xent + self.beta * kl)
 
             self.loss = vae_loss
-            # self.optimizer = RMSprop()
         else:
             self.loss = 'binary_crossentropy'
 
@@ -177,6 +194,12 @@ class Autoencoder:
                            metrics=['accuracy'])
 
     def preprocess_state(self, x, binarize=False, binarization_threshold=0.1):
+        """
+        :param x: np.array, a batch of states 
+        :param binarize: whether to convert states to a {0, 1} binary space
+        :param binarization_threshold: threshold for binarization
+        :return: the preprocessed state
+        """
         if not x.shape[1:] == (4, 108, 84):
             x = x[:, :, 2:, :]
             assert x.shape[1:] == (4, 108, 84)
@@ -189,17 +212,12 @@ class Autoencoder:
 
     def fit(self, x, y, validation_data=None):
         """
-        Trains the model on a set of batches.
-
-        Args
-            x: samples on which to train.
-            u: actions associated to the samples.
-            y: targets on which to train.
-            validation_data: tuple (X, Y) to use as validation data
-        Returns
-            The metrics of interest as defined in the model (loss, accuracy,
-                etc.)
+        :param x: samples on which to train
+        :param y: targets on which to train
+        :param validation_data: tuple (X, Y) to use as validation data
+        :return: the metrics of interest as defined in the model
         """
+
         # Preprocess training data
         x_train = self.preprocess_state(np.asarray(x), binarize=self.binarize, binarization_threshold=self.binarization_threshold)
         y_train = self.preprocess_state(np.asarray(y), binarize=self.binarize, binarization_threshold=self.binarization_threshold)
@@ -218,6 +236,13 @@ class Autoencoder:
                               callbacks=[self.es, self.mc])
 
     def fit_generator(self, generator, steps_per_epoch, nb_epochs, validation_data=None):
+        """
+        :param generator: generator for batch data 
+        :param steps_per_epoch: how many batches in an epoch
+        :param nb_epochs: how many epochs to train for
+        :param validation_data: tuple (X, Y) to use as validation data (it will be preprocessed)
+        :return: 
+        """
         # Preprocess validation data
         if validation_data is not None:
             val_x = self.preprocess_state(validation_data[0], binarize=self.binarize, binarization_threshold=self.binarization_threshold)
@@ -233,13 +258,8 @@ class Autoencoder:
 
     def predict(self, x):
         """
-        Runs the given images through the model and returns the predictions.
-
-        Args
-            x: a batch of samples on which to predict.
-            u: actions associated to the samples.
-        Returns
-            The predictions of the batch.
+        :param x: a batch of samples on which to predict
+        :return: the predictions on the batch
         """
         # Feed input to the model, return encoded and re-decoded images
         x_test = self.preprocess_state(x, binarize=self.binarize, binarization_threshold=self.binarization_threshold)
@@ -248,14 +268,9 @@ class Autoencoder:
         return pred
 
     def all_features(self, x):
-        """
-        Runs the given samples on the model and returns the features of the last
-        dense layer in an array.
-
-        Args
-            x: samples to encode.
-        Returns
-            The encoded sample.
+        """ Embeds the given array using the encoder
+        :param x: samples to encode, ignoring the support 
+        :return: the encoded samples
         """
         # Feed input to the model, return encoded images flattened
         x = self.preprocess_state(x, binarize=self.binarize, binarization_threshold=self.binarization_threshold)
@@ -270,12 +285,9 @@ class Autoencoder:
         """
         Runs the given samples on the model and returns the features of the last
         dense layer filtered by the support mask.
-
-        Args
-            x: samples to encode.
-            support: a boolean mask with which to filter the output.
-        Returns
-            The encoded sample.
+        :param x: samples to encode
+        :param support: boolean mask with which to filter the embedding
+        :return: th encoded samples
         """
         if support is None:
             if self.support is None:
@@ -295,11 +307,8 @@ class Autoencoder:
         """
         Saves the model weights to disk (in the run folder if a logger was
         given, otherwise in the current folder)
-
-        Args
-            filename: custom filename for the hdf5 file.
-            append: the model will be saved as model_append.h5 if a value is
-                provided.
+        :param filename: string representing a file to which save the model
+        :param append: string to append to the filename before the extension)
         """
         # Save the DQN weights to disk
         f = ('model%s.h5' % append) if filename is None else filename
@@ -318,36 +327,41 @@ class Autoencoder:
                 a_file.write(self.model.to_json())
                 a_file.close()
 
-    def save_encoder(self, filepath):
+    def save_encoder(self, filename):
         """
-        Save the encoder weights at filepath.
-
-        Args
-            filepath: path to an hdf5 file to store weights for the model.
+        Save the encoder model
+        :param filename: filename to which save the model
         """
-        self.encoder.save(filepath)
+        self.encoder.save(filename)
 
-    def load(self, path):
+    def load(self, filename):
         """
-        Load the model and its weights from path.
-
-        Args
-            path: path to an hdf5 file that stores weights for the model.
+        Loads the full model weights from file
+        :param filename: file from which load the weights
         """
         if self.logger is not None:
             self.logger.log('Loading weights from file...')
-        self.model.load_weights(path)
+        self.model.load_weights(filename)
 
     def set_support(self, support):
+        """
+        :param support: np.array, boolean mask to use as support 
+        """
         self.support = support
 
     def get_support_dim(self):
+        """
+        :return: the number of True values in the support 
+        """
         if self.support is not None:
             return self.support.sum()
         else:
             return self.get_features_number()
 
     def get_features_number(self):
+        """
+        :return: the number of True values in the support 
+        """
         if self.use_vae or self.use_dense or self.use_contractive_loss:
             layer = 'features'
         else:

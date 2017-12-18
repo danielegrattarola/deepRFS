@@ -1,6 +1,8 @@
-from joblib import Parallel, delayed
+import time
+
+import imageio
 import numpy as np
-import imageio, time
+from joblib import Parallel, delayed
 
 
 def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
@@ -8,35 +10,31 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
                     save_path='', append_filename='', n_jobs=1,
                     initial_actions=None, eval_epsilon=0.05, clip=False):
     """
-        This function evaluates a policy on the given environment w.r.t.
-        the specified metric by executing multiple episode, using the
-        provided feature extraction model to encode states.
-        Params:
-            mdp (object): the environment on which to run.
-            policy (object): a policy object (method draw_action is
-                expected).
-            nn_stack (object): the feature extraction model (method
-                s_features is expected).
-            metric (string, 'cumulative'): the evaluation metric
-                ['discounted', 'average', 'cumulative']
-            n_episodes (int, 1): the number of episodes to run.
-            video (bool, False): whether to render the environment.
-            save_video (bool, False): whether to save the video of the
-                evaluation episodes.
-            save_path (string, ''): where to save videos of evaluation episodes.
-            n_jobs (int, 1): the number of processes to use for evaluation
-                (leave default value if the feature extraction model runs
-                on GPU).
-            initial_actions (list, None): actions to use to force start the
-                episode (useful in environments that require a specific action
-                to start the episode, like some Atari environments)
-        Return:
-            metric (float): the average of the selected evaluation metric.
-            metric_confidence (float): 95% confidence level for the
-                provided metric.
-            steps (float): the average number of steps in an episode.
-            steps_confidence (float): 95% confidence level for the number
-                of steps.
+    This function evaluates a policy on the given environment w.r.t.
+    the specified metric by executing multiple episode, using the
+    provided feature extraction model to encode states.
+    Params: 
+    :param mdp: the environment on which to run.
+    :param policy: a policy object (method draw_action is expected).
+    :param metric: the evaluation metric ['discounted', 'average', 'cumulative']
+    :param n_episodes: the number of episodes to run.
+    :param video: whether to render the environment.
+    :param save_video: whether to save the video of the evaluation episodes.
+    :param save_path: where to save videos of evaluation episodes.
+    :param n_jobs: the number of processes to use for evaluation (leave 
+    default value if the feature extraction model runs on GPU).
+    :param append_filename: string to append to the video filename (before extension)
+    :param initial_actions: actions to use to force start the episode 
+    (useful in environments that require a specific action to start the 
+    episode, like some Atari environments)
+    :param clip: clip reward during evaluation
+    :param eval_epsilon: exploration rate to use during evaluation
+    
+    :return:
+        metric: the average of the selected evaluation metric.
+        metric_confidence: 95% confidence level for the provided metric.
+        steps: the average number of steps in an episode.
+        steps_confidence: 95% confidence level for the number of steps.
     """
 
     assert metric in ['discounted', 'average', 'cumulative'], \
@@ -67,6 +65,25 @@ def evaluate_policy(mdp, policy, metric='cumulative', n_episodes=1,
 
 def _eval(mdp, policy, metric='cumulative', video=False, save_video=False,
           save_path='', append_filename='', initial_actions=None):
+    """
+    Runs a single evaluation episode on the given environment under the given
+    policy.
+    Params: 
+    :param mdp: the environment on which to run.
+    :param policy: a policy object (method draw_action is expected).
+    :param metric: the evaluation metric ['discounted', 'average', 'cumulative']
+    :param video: whether to render the environment.
+    :param save_video: whether to save the video of the evaluation episodes.
+    :param save_path: where to save videos of evaluation episodes.
+    :param append_filename: string to append to the video filename (before extension)
+    :param initial_actions: actions to use to force start the episode 
+    (useful in environments that require a specific action to start the 
+    episode, like some Atari environments)
+
+    :return:
+        ep_performance: the cumulative reward of the episode
+        frame_counter: the number of steps occurred in the episode
+    """
     frames = []
     gamma = mdp.gamma if metric == 'discounted' else 1
     ep_performance = 0.0

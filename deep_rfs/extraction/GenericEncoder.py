@@ -17,14 +17,9 @@ class GenericEncoder:
                              metrics=['accuracy'])
 
     def all_features(self, x):
-        """
-        Runs the given samples on the model and returns the features of the last
-        dense layer in an array.
-
-        Args
-            x: samples to encode.
-        Returns
-            The encoded sample.
+        """ Embeds the given array using the encoder
+        :param x: samples to encode, ignoring the support 
+        :return: the encoded samples
         """
         # Feed input to the model, return encoded images flattened
         x = np.asarray(x).astype('float32') / 255  # To 0-1 range
@@ -42,12 +37,9 @@ class GenericEncoder:
         """
         Runs the given samples on the model and returns the features of the last
         dense layer filtered by the support mask.
-
-        Args
-            x: samples to encode.
-            support: a boolean mask with which to filter the output.
-        Returns
-            The encoded sample.
+        :param x: samples to encode
+        :param support: boolean mask with which to filter the embedding
+        :return: th encoded samples
         """
         if support is None:
             support = self.support
@@ -60,14 +52,16 @@ class GenericEncoder:
             prediction = prediction[:, support]  # Keep only support features
         return prediction
 
-    def save_encoder(self, filepath):
+    def save_encoder(self, filename):
         """
-        Save the model weights at filepath.
-
-        Args
-            filepath: path to an hdf5 file to store weights for the model.
+        Save the encoder model
+        :param filename: filename to which save the model
+        :return: 
         """
-        self.encoder.save(filepath)
+        self.encoder.save(filename)
 
     def set_support(self, support):
+        """
+        :param support: np.array, boolean mask to use as support 
+        """
         self.support = support

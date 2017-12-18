@@ -17,7 +17,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='deep_ifs',
+    name='deep_rfs',
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
@@ -28,7 +28,7 @@ setup(
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/danielegrattarola/nips2017-deepIFS',
+    url='https://github.com/danielegrattarola/deepRFS',
 
     # Author details
     author='Politecnico di Milano (Daniele Grattarola, Carlo D\'Eramo, Matteo Pirotta)',
@@ -72,8 +72,8 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['pandas', 'sklearn', 'ifqi', 'numpy', 'joblib', 'tqdm',
-                      'keras', 'scipy', 'imageio', 'matplotlib'],
+    install_requires=['pandas', 'sklearn', 'numpy', 'joblib', 'tqdm',
+                      'keras', 'scipy', 'imageio', 'matplotlib', 'xgboost'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

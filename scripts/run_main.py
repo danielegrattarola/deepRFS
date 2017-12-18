@@ -7,18 +7,18 @@ import gc
 import argparse
 import atexit
 from sklearn.ensemble import ExtraTreesRegressor
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import LinearRegression
 from xgboost import XGBRegressor
-from deep_ifs.envs.atari import Atari
-from deep_ifs.evaluation.evaluation import *
-from deep_ifs.extraction.Autoencoder import Autoencoder
-from deep_ifs.models.epsilonFQI import EpsilonFQI
-from deep_ifs.selection.ifs import IFS
-from deep_ifs.selection.rfs import RFS
-from deep_ifs.utils.datasets import *
-from deep_ifs.utils.Logger import Logger
-from deep_ifs.utils.timer import *
-from deep_ifs.utils.helpers import get_size
+from deep_rfs.envs.atari import Atari
+from deep_rfs.evaluation.evaluation import *
+from deep_rfs.extraction.Autoencoder import Autoencoder
+from deep_rfs.models.epsilonFQI import EpsilonFQI
+from deep_rfs.selection.ifs import IFS
+from deep_rfs.selection.rfs import RFS
+from deep_rfs.utils.datasets import *
+from deep_rfs.utils.Logger import Logger
+from deep_rfs.utils.timer import *
+from deep_rfs.utils.helpers import get_size
 from ifqi.models import Regressor, ActionRegressor
 from sklearn.neural_network import MLPRegressor
 
@@ -31,7 +31,7 @@ def plot_output():
                                    'steps', 'steps_max', 'confidence_steps'])
     output.to_csv(logger.path + 'evaluation_%s.csv' % main_alg_iter, index=False)
     fig = output['score'].plot().get_figure()
-    fig.savefig(logger.path + 'evaluation_score_%s.png' % main_alg_iter)
+    fig.savefig(logger.path + 'evaluation_score_%sg' % main_alg_iter)
     plt.close()
     fig = output['score_max'].plot().get_figure()
     fig.savefig(logger.path + 'evaluation_score_max_%s.png' % main_alg_iter)
@@ -85,7 +85,7 @@ parser.add_argument('--fqi-eval-period', type=int, default=1, help='Number of FQ
 parser.add_argument('--save-video', action='store_true', help='Save the gifs of the evaluation episodes')
 parser.add_argument('--fqi-test-after-loading', action='store_true', help='Test FQI after loading it')
 
-# Dataset cocllection
+# Dataset collection
 parser.add_argument('--load-sars', type=str, default=None, help='Path to dataset folder to use instead of collecting')
 parser.add_argument('--sars-samples', type=int, default=500000, help='Number of SARS samples to collect')
 parser.add_argument('--sars-blocks', type=int, default=25, help='Number of SARS episodes to collect to disk')

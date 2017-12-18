@@ -6,19 +6,21 @@
 """Recursive feature selection"""
 
 from __future__ import print_function
+
+import time
+
 import numpy as np
-from sklearn.utils import check_array
+import sklearn
 from sklearn.base import BaseEstimator
 from sklearn.base import MetaEstimatorMixin
 from sklearn.base import clone
 from sklearn.feature_selection.base import SelectorMixin
-import sklearn
-import time
+from sklearn.utils import check_array
 
 if sklearn.__version__ == '0.17':
-    from sklearn.cross_validation import cross_val_score, check_cv
+    pass
 else:
-    from sklearn.model_selection import cross_val_score, check_cv
+    pass
 
 
 class rfs_node(object):

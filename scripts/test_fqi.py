@@ -1,12 +1,14 @@
 import argparse
-import numpy as np
+
 import joblib
-from deep_ifs.envs.atari import Atari
-from deep_ifs.evaluation.evaluation import evaluate_policy
-from deep_ifs.extraction.Autoencoder import Autoencoder
-from deep_ifs.models.epsilonFQI import EpsilonFQI
-from deep_ifs.utils.Logger import Logger
-from deep_ifs.utils.timer import tic, toc, log
+import numpy as np
+
+from deep_rfs.envs.atari import Atari
+from deep_rfs.evaluation.evaluation import evaluate_policy
+from deep_rfs.extraction.Autoencoder import Autoencoder
+from deep_rfs.models.epsilonFQI import EpsilonFQI
+from deep_rfs.utils.Logger import Logger
+from deep_rfs.utils.timer import tic, toc
 
 # Args
 # Main

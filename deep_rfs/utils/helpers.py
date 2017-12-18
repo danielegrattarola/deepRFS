@@ -1,7 +1,8 @@
 from __future__ import print_function
+
 import numpy as np
-from PIL import Image
 import pandas as pd
+from PIL import Image
 
 
 def resize_state(to_resize, new_size=(72, 72)):
@@ -51,6 +52,8 @@ def flat2list(alist, as_tuple=False, as_set=False):
 def pds_to_npa(object_array):
     """
     Converts a pandas series of dtype 'object' to a numpy array
+    :param object_array: a pd.Series or np.array with dtype=object 
+    :return: a np.array with the correct dtype
     """
     return np.array([_ for _ in object_array])
 
@@ -59,6 +62,9 @@ def get_size(structures, unit='B'):
     """
     Returns the approximated size of all pandas dataframes or np.arrays in the
     given list.
+    :param structures: the objects to measure 
+    :param unit: str, the size unit to use
+    :return: the memory footprint of the given structures
     """
     factors = {'B': 1.,
                'KB': 1024.,

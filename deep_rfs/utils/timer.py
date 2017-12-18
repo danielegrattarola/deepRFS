@@ -4,6 +4,10 @@ logfile = None
 
 
 def tic(message=None):
+    """
+    Start counting
+    :param message: additional message to print to logfile and stdout
+    """
     time_stack.append(time())
     if message:
         output = '\t' * (len(time_stack) - 1) + str(message)
@@ -13,6 +17,11 @@ def tic(message=None):
 
 
 def log(message):
+    """
+    Write message to logfile and stdout
+    :param message: message to print
+    :return: 
+    """
     n_tabs = (len(time_stack) - 1)
     output = '\t' * n_tabs + str(message)
     print output
@@ -21,6 +30,10 @@ def log(message):
 
 
 def toc(message=None):
+    """
+    Stop counting
+    :param message: additional message to print to logfile and stdout
+    """
     fmt = 'Elapsed: %.2f s'
     n_tabs = (len(time_stack) - 1)
     try:
@@ -35,6 +48,10 @@ def toc(message=None):
         print "You have to invoke toc() before calling tic()\n"
 
 
-def setup_logging(logpath):
+def setup_logging(filename):
+    """
+    Setup a logfile
+    :param filename: where to write logs
+    """
     global logfile
-    logfile = open(logpath, 'w', 0)
+    logfile = open(filename, 'w', 0)

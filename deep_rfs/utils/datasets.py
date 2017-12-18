@@ -1,10 +1,12 @@
 import glob
 import os
+
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from deep_ifs.utils.helpers import flat2list, pds_to_npa
+
+from deep_rfs.utils.helpers import flat2list, pds_to_npa
 
 
 # DATASET BUILDERS
@@ -13,8 +15,8 @@ def episode(mdp, policy, video=False, initial_actions=None, repeat=1):
     Collects an episode of the given MDP using the given policy.
 
     Args
-        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
-        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
+        mdp (Object): an mdp object (e.g. deep_rfs.envs.atari.Atari).
+        policy (Object): a policy object (e.g. deep_rfs.models.EpsilonFQI).
             Methods draw_action and set_epsilon are expected.
         video (bool, False): render the video of the episode.
         initial_actions (list, None): list of action indices that start an
@@ -86,8 +88,8 @@ def collect_sars(mdp, policy, episodes=100, n_jobs=1, random_episodes_pctg=0.0,
     random policy, whereas the remaining part is collected with a greedy policy.
 
     Args
-        mdp (Object): an mdp object (e.g. deep_ifs.envs.atari.Atari).
-        policy (Object): a policy object (e.g. deep_ifs.models.EpsilonFQI).
+        mdp (Object): an mdp object (e.g. deep_rfs.envs.atari.Atari).
+        policy (Object): a policy object (e.g. deep_rfs.models.EpsilonFQI).
             Methods draw_action and set_epsilon are expected.
         episodes (int, 100): number of episodes to collect.
         n_jobs (int, 1): number of processes to use (-1 for all available cores).
@@ -564,11 +566,9 @@ def ss_generator_from_disk(path, model, batch_size=32, binarize=False,
                 start = i * batch_size
                 stop = (i + 1) * batch_size
                 S = pds_to_npa(sars[start:stop, 0])
-                # SS = pds_to_npa(sars[start:stop, 3])
 
                 # Preprocess data
                 S = model.preprocess_state(S, binarize=binarize, binarization_threshold=binarization_threshold)
-                # SS = model.preprocess_state(SS, binarize=binarize)
 
                 if weights is not None:
                     yield (S, S, sample_weight[start:stop])

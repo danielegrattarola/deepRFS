@@ -1,14 +1,14 @@
 import gym
 import numpy as np
-from gym.utils import seeding
 from PIL import Image
 
 
 class Atari(gym.Env):
     """
-    The Atari environment.
-
+    Additional layer over the Gym Atari environments, in order to implement
+    custom preprocessing of the state space and reward function.
     """
+
     metadata = {
         'render.modes': ['human', 'rgb_array'],
         'video.frames_per_second': 15
@@ -30,21 +30,15 @@ class Atari(gym.Env):
         self.seed()
         self.reset()
 
-    def reset(self, state=None):
+    def _reset(self, state=None):
         state = self._preprocess_observation(self.env.reset())
         self.env.state = np.array([state, state, state, state])
-        self.lives = self.env.env.ale.lives()
-        return self.get_state()
+        return self._get_state()
 
-    def step(self, action):
-        current_state = self.get_state()
+    def _step(self, action):
+        current_state = self._get_state()
         obs, reward, done, info = self.env.step(int(action))
         reward = np.round(reward)
-
-        # Negative reward when a life is lost
-        if not info['ale.lives'] == self.lives:
-            self.lives = info['ale.lives']
-            # reward = self.final_reward
 
         if self.clip_reward:
             reward = np.clip(reward, -1, 1)
@@ -52,9 +46,9 @@ class Atari(gym.Env):
         obs = self._preprocess_observation(obs)
         self.env.state = self._get_next_state(current_state, obs)
 
-        return self.get_state(), reward, done, info
+        return self._get_state(), reward, done, info
 
-    def get_state(self):
+    def _get_state(self):
         return self.env.state
 
     def _preprocess_observation(self, obs):
@@ -65,6 +59,3 @@ class Atari(gym.Env):
     def _get_next_state(self, current, obs):
         # Next state is composed by the last 3 images of the previous state and the new observation
         return np.append(current[1:], [obs], axis=0)
-
-    def render(self, mode='human', close=False):
-        self.env.render(mode=mode, close=close)
